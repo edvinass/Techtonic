@@ -5,7 +5,7 @@ import type { Citizen, WorkKind } from "./citizens";
 import { mapTextResolution } from "./textRes";
 
 /** Bump when CitizenParts shape changes so MainScene can rebuild stale sprites (HMR-safe). */
-export const CITIZEN_ART_VERSION = 7;
+export const CITIZEN_ART_VERSION = 8;
 
 const SKIN = [0xf0c8a0, 0xe8b890, 0xd4a574, 0xc68642, 0x8d5524] as const;
 const HAIR = [0x2a1c10, 0x4a3020, 0x6b4423, 0xc4a060, 0x1a120c] as const;
@@ -13,8 +13,8 @@ const TUNIC = [0x6b8f4e, 0x8a6238, 0x4a5a7a, 0xc4a574, 0x5a7a8a, 0xa67c52] as co
 const BELT = [0x3a2818, 0x5a3d22, 0x4a3020] as const;
 const BOOT = [0x2a1c10, 0x3a2818, 0x1a120c] as const;
 
-const RESEARCH_ROBE = 0xf8fafc;
-const RESEARCH_SASH = 0x3d7eb8;
+const RESEARCH_ROBE = 0xf0f3f6;
+const RESEARCH_SASH = 0x5a8ab8;
 
 function shade(color: number, factor: number): number {
   const r = Math.min(255, Math.max(0, Math.round(((color >> 16) & 0xff) * factor)));
@@ -141,13 +141,13 @@ function makeBody(
   return { body, hem, torso, shoulders, sash, fold };
 }
 
+/** Soft white cowl — readable as scholar without a tall hat. */
 function makeResearchHood(scene: Phaser.Scene): Phaser.GameObjects.Container {
-  const cape = scene.add.ellipse(-1.5, -13, 10, 8, RESEARCH_ROBE, 0.95);
-  const crown = scene.add.ellipse(-0.5, -22.5, 9.5, 6.5, RESEARCH_ROBE);
-  crown.setStrokeStyle(1, shade(RESEARCH_ROBE, 0.7), 0.65);
-  const peak = scene.add.triangle(-0.5, -26, -4, 1, 4, 1, 0, -8, RESEARCH_ROBE);
-  const band = scene.add.rectangle(-0.3, -20, 7.5, 1.5, RESEARCH_SASH);
-  const hood = scene.add.container(0, 0, [cape, crown, peak, band]);
+  const cape = scene.add.ellipse(-1.2, -14, 9, 7, RESEARCH_ROBE, 0.92);
+  const crown = scene.add.ellipse(-0.2, -21.5, 8.5, 5.5, RESEARCH_ROBE);
+  crown.setStrokeStyle(1, shade(RESEARCH_ROBE, 0.74), 0.45);
+  const band = scene.add.rectangle(-0.2, -19.2, 6.5, 1.2, RESEARCH_SASH, 0.85);
+  const hood = scene.add.container(0, 0, [cape, crown, band]);
   hood.setVisible(false);
   return hood;
 }
@@ -262,17 +262,21 @@ function makeResearchAura(
   sparkC: Phaser.GameObjects.Arc;
   mark: Phaser.GameObjects.Text;
 } {
-  const ring = scene.add.ellipse(0, -5, 26, 13, 0x7eb8e8, 0.2);
-  ring.setStrokeStyle(1.2, 0xb8d8f0, 0.6);
-  const sparkA = scene.add.circle(0, -26, 2.2, 0xfff8e8, 1);
-  const sparkB = scene.add.circle(0, -26, 1.9, 0x7eb8e8, 1);
-  const sparkC = scene.add.circle(0, -26, 2, 0xd4a84b, 1);
-  const mark = scene.add.text(0, -38, "✦", {
+  const ring = scene.add.ellipse(0, -4, 18, 9, 0x7eb8e8, 0.1);
+  ring.setStrokeStyle(1, 0xb8d8f0, 0.35);
+  // Kept in parts for compatibility; hidden — calmer look without orbit clutter
+  const sparkA = scene.add.circle(0, -26, 1.5, 0xfff8e8, 0);
+  const sparkB = scene.add.circle(0, -26, 1.5, 0x7eb8e8, 0);
+  const sparkC = scene.add.circle(0, -26, 1.5, 0xd4a84b, 0);
+  sparkA.setVisible(false);
+  sparkB.setVisible(false);
+  sparkC.setVisible(false);
+  const mark = scene.add.text(0, -34, "✦", {
     fontFamily: "DM Sans, sans-serif",
-    fontSize: "13px",
-    color: "#d4a84b",
+    fontSize: "11px",
+    color: "#c9a86a",
     stroke: "#142017",
-    strokeThickness: 3,
+    strokeThickness: 2,
     resolution: mapTextResolution(dpr),
   });
   mark.setOrigin(0.5, 1);
@@ -494,9 +498,6 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
     staffGlow,
     researchAura,
     auraRing,
-    sparkA,
-    sparkB,
-    sparkC,
     researchMark,
     eye,
     pupil,
@@ -568,7 +569,7 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
       ? Math.abs(Math.sin(phase * 0.45)) * 0.8
       : workAbs * 0.9
     : 0;
-  const researchLift = channeling ? 2 + pulse * 1.2 : onResearch ? 0.5 : 0;
+  const researchLift = channeling ? 1.2 + pulse * 0.6 : 0;
   const bob = walking ? walkBob : idleBob;
 
   node.setPosition(c.x, c.y - bob - workBob - researchLift);
@@ -586,8 +587,10 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
       parts.lastFacing = facing;
     }
   }
-  const researchScale = onResearch ? 1.1 : 1;
-  node.setScale(baseScale * facing * researchScale, baseScale * researchScale);
+  node.setScale(baseScale * facing, baseScale);
+
+  // Text lives under a flipped parent — counter-scale so glyphs/numbers stay readable
+  const textFacing = facing;
 
   const showTool =
     onResearch ||
@@ -597,9 +600,9 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
       (c.job.phase === "toResource" || c.job.phase === "toSite"));
   tool.setVisible(showTool);
   if (channeling) {
-    tool.setAngle(-95 - 24 * researchSwing);
+    tool.setAngle(-88 - 18 * researchSwing);
   } else if (onResearch) {
-    tool.setAngle(-38);
+    tool.setAngle(-34);
   } else if (working) {
     tool.setAngle(-24 + 34 * workSwing);
   } else {
@@ -609,13 +612,13 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
 
   if (onResearch && showTool) {
     staffGlow.setVisible(true);
-    staffGlow.setAlpha(0.3 + 0.4 * pulse);
-    staffGlow.setScale(1 + 0.45 * pulse);
-    staffTip.setScale(1 + 0.3 * fastPulse);
-    staffTip.setFillStyle(pulse > 0.65 ? 0xfff3c4 : 0xd4a84b);
+    staffGlow.setAlpha(0.15 + 0.2 * pulse);
+    staffGlow.setScale(0.9 + 0.2 * pulse);
+    staffTip.setScale(1 + 0.12 * fastPulse);
+    staffTip.setFillStyle(0xd4a84b);
   } else {
     staffGlow.setVisible(false);
-    staffGlow.setAlpha(0.4);
+    staffGlow.setAlpha(0.35);
     staffGlow.setScale(1);
     staffTip.setScale(1);
     staffTip.setFillStyle(0xd4a84b);
@@ -623,28 +626,23 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
 
   researchAura.setVisible(onResearch);
   if (onResearch) {
-    researchAura.setScale(facing, 1);
-    researchAura.setAlpha(channeling ? 0.85 + 0.15 * pulse : 0.5 + 0.25 * pulse);
-    auraRing.setAlpha(0.16 + 0.25 * pulse);
-    auraRing.setScale(0.9 + 0.3 * pulse, 0.85 + 0.2 * pulse);
-
-    const orbit = phase * 1.1;
-    const radius = channeling ? 11 : 7;
-    sparkA.setPosition(Math.cos(orbit) * radius, -24 + Math.sin(orbit * 1.3) * 4);
-    sparkB.setPosition(Math.cos(orbit + 2.1) * (radius + 2), -22 + Math.sin(orbit * 1.1 + 1) * 5);
-    sparkC.setPosition(Math.cos(orbit + 4.2) * (radius - 1), -28 + Math.sin(orbit + 2) * 3);
-    sparkA.setAlpha(0.5 + 0.5 * Math.sin(phase * 1.3));
-    sparkB.setAlpha(0.5 + 0.5 * Math.sin(phase * 1.1 + 1));
-    sparkC.setAlpha(0.5 + 0.5 * Math.sin(phase * 1.5 + 2));
+    researchAura.setScale(1, 1);
+    researchAura.setAlpha(channeling ? 0.7 : 0.45);
+    auraRing.setAlpha(0.08 + 0.1 * pulse);
+    auraRing.setScale(0.95 + 0.1 * pulse, 0.9 + 0.08 * pulse);
 
     researchMark.setVisible(true);
-    researchMark.setY(-44 - pulse * 6);
-    researchMark.setAlpha(0.75 + 0.25 * pulse);
-    researchMark.setScale(1.05 + 0.25 * pulse);
-    researchMark.setColor(pulse > 0.55 ? "#fff3c4" : "#7eb8e8");
+    researchMark.setY(-36 - pulse * 3);
+    researchMark.setAlpha(0.55 + 0.25 * pulse);
+    // Unflip mark relative to the citizen's facing
+    researchMark.setScale(textFacing, 1);
+    researchMark.setColor("#c9a86a");
   } else {
     researchMark.setVisible(false);
   }
+
+  // Always keep carry-count text upright when the body faces left
+  label.setScale(textFacing, 1);
 
   const blinkCycle = (phase * 0.08 + c.id * 0.37) % (Math.PI * 2);
   const blinking = blinkCycle > Math.PI * 1.92 || parts.blinkUntil > phase;
