@@ -141,12 +141,18 @@ export function findResourceTile(
       }
     }
   } else if (resource === "knowledge") {
+    // Prefer researching on the hut itself so the channel pose reads clearly
+    candidates.push({ gx: building.x, gy: building.y, score: 0.1 + Math.random() * 0.2 });
     for (let dy = -2; dy <= 2; dy++) {
       for (let dx = -2; dx <= 2; dx++) {
         if (dx === 0 && dy === 0) continue;
         const t = tileAt(state, building.x + dx, building.y + dy);
         if (!t || t.terrain === "water") continue;
-        candidates.push({ gx: t.x, gy: t.y, score: Math.abs(dx) + Math.abs(dy) + Math.random() });
+        candidates.push({
+          gx: t.x,
+          gy: t.y,
+          score: 1.2 + Math.abs(dx) + Math.abs(dy) + Math.random(),
+        });
       }
     }
   }
@@ -182,7 +188,18 @@ export function findResourceTile(
   }
 
   candidates.sort((a, b) => a.score - b.score);
-  // Prefer walking at least 1 tile away when possible
+  // Knowledge is channeled at the research building (occasional nearby wander for variety).
+  if (resource === "knowledge") {
+    if (Math.random() < 0.75) {
+      return { gx: building.x, gy: building.y };
+    }
+    const nearby = candidates.filter(
+      (c) => !(c.gx === building.x && c.gy === building.y),
+    );
+    const pool = nearby.length ? nearby : candidates;
+    const top = pool.slice(0, Math.min(4, pool.length));
+    return top[Math.floor(Math.random() * top.length)];
+  }
   const away = candidates.filter(
     (c) => !(c.gx === building.x && c.gy === building.y),
   );

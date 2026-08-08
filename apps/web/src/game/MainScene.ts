@@ -7,7 +7,12 @@ import { tileRemainingPct } from "../sim/mapgen";
 import type { GameState, ResourceId, SeasonId, TerrainId, Tile } from "../sim/types";
 import { useGameStore } from "../store/gameStore";
 import { drawBuildingArt } from "./buildingArt";
-import { createCitizenArt, updateCitizenArt, type CitizenNode } from "./citizenArt";
+import {
+  createCitizenArt,
+  isCitizenArtCurrent,
+  updateCitizenArt,
+  type CitizenNode,
+} from "./citizenArt";
 import { stepCitizens, syncCitizens, type Citizen } from "./citizens";
 import { gridToScreen, screenToGrid, TILE_HEIGHT, TILE_WIDTH } from "./iso";
 import { drawResourceMark } from "./resourceArt";
@@ -673,6 +678,15 @@ export class MainScene extends Phaser.Scene {
         side = 0x1e4a78;
       } else if (tile.terrain === "sand") {
         color = season === "winter" ? 0xb8b0a0 : 0xc4b07a;
+      } else if (tile.terrain === "rock") {
+        // Cooler slate for stone veins; warmer brown-grey under metal ore
+        if (tile.deposit === "metal") {
+          color = shadeColor(0x6a655c, 0.96 + remain * 0.06);
+          side = shadeColor(0x4a463e, 0.95);
+        } else if (tile.deposit === "stone") {
+          color = shadeColor(0x727880, 0.97 + remain * 0.05);
+          side = shadeColor(0x4e545c, 0.95);
+        }
       }
 
       // Checker warmth for depth
@@ -683,6 +697,7 @@ export class MainScene extends Phaser.Scene {
       this.drawIsoTile(this.tileGraphics, ox + sx, oy + sy, color, side, elev, 1, tile.terrain);
 
       const topY = oy + sy - elev;
+      const salt = tile.x * 31 + tile.y * 17;
       if (tile.terrain === "forest" || tile.deposit === "wood") {
         this.drawForestStand(
           this.tileGraphics,
@@ -690,16 +705,16 @@ export class MainScene extends Phaser.Scene {
           topY,
           remain,
           season,
-          tile.x * 31 + tile.y,
+          salt,
         );
       } else if (tile.deposit === "stone") {
-        drawResourceMark(this.tileGraphics, ox + sx, topY, "stone", 0.55 + 0.4 * remain);
+        drawResourceMark(this.tileGraphics, ox + sx, topY, "stone", 0.72 + 0.38 * remain, salt);
       } else if (tile.deposit === "metal") {
-        drawResourceMark(this.tileGraphics, ox + sx, topY, "metal", 0.55 + 0.45 * remain);
+        drawResourceMark(this.tileGraphics, ox + sx, topY, "metal", 0.7 + 0.4 * remain, salt);
       } else if (tile.terrain === "grass" && (tile.x + tile.y) % 3 === 0) {
         this.drawGrassTufts(this.tileGraphics, ox + sx, topY, season);
       } else if (tile.terrain === "fertile" && !state.buildings.some((b) => b.x === tile.x && b.y === tile.y)) {
-        this.drawFertileTufts(this.tileGraphics, ox + sx, topY, remain);
+        this.drawFertileTufts(this.tileGraphics, ox + sx, topY, remain, salt);
       }
     }
 
@@ -799,19 +814,42 @@ export class MainScene extends Phaser.Scene {
   ) {
     const scale = Math.max(0.4, Math.min(1, 0.35 + remain * 0.65));
     const count = remain < 0.35 ? 1 : remain < 0.65 ? 2 : 2 + (salt % 2);
+    const layout = salt % 3;
     const offsets =
       count === 1
-        ? [[0, 0, 1]]
+        ? ([[(salt % 5) - 2, ((salt * 3) % 3) - 1, 0.92 + (salt % 3) * 0.04]] as const)
         : count === 2
-          ? [
-              [-6, 2, 0.8],
-              [5, -1, 1],
-            ]
-          : [
-              [-7, 3, 0.72],
-              [8, 2, 0.78],
-              [0, -2, 1],
-            ];
+          ? layout === 0
+            ? ([
+                [-6, 2, 0.8],
+                [5, -1, 1],
+              ] as const)
+            : layout === 1
+              ? ([
+                  [-4, -1, 0.9],
+                  [7, 2, 0.78],
+                ] as const)
+              : ([
+                  [-7, 1, 0.75],
+                  [3, 2, 0.95],
+                ] as const)
+          : layout === 0
+            ? ([
+                [-7, 3, 0.72],
+                [8, 2, 0.78],
+                [0, -2, 1],
+              ] as const)
+            : layout === 1
+              ? ([
+                  [-8, 1, 0.7],
+                  [6, -2, 0.85],
+                  [2, 3, 0.95],
+                ] as const)
+              : ([
+                  [-5, -2, 0.8],
+                  [9, 1, 0.72],
+                  [-1, 2, 1],
+                ] as const);
     for (let i = 0; i < offsets.length; i++) {
       const [dx, dy, sc] = offsets[i];
       this.drawTree(g, x + dx, y + dy, scale * sc, season, salt + i * 13, remain);
@@ -842,22 +880,44 @@ export class MainScene extends Phaser.Scene {
     x: number,
     y: number,
     remain = 1,
+    salt = 0,
   ) {
-    const tip = lerpColor(0xb0a050, 0x8fbf4a, remain);
+    const tip = shadeColor(lerpColor(0xb0a050, 0x8fbf4a, remain), 0.94 + (salt % 5) * 0.03);
     g.fillStyle(tip, 0.55 + 0.35 * remain);
-    const all = [
-      [-6, 0],
-      [4, -2],
-      [2, 3],
-      [-2, -3],
-      [7, 1],
-      [-8, -1],
+    const layouts = [
+      [
+        [-6, 0],
+        [4, -2],
+        [2, 3],
+        [-2, -3],
+        [7, 1],
+        [-8, -1],
+      ],
+      [
+        [-4, 2],
+        [6, 0],
+        [-1, -2],
+        [3, 3],
+        [-7, -1],
+        [8, -2],
+      ],
+      [
+        [-5, -1],
+        [5, 2],
+        [0, 1],
+        [-8, 2],
+        [7, -2],
+        [2, -3],
+      ],
     ] as const;
+    const all = layouts[salt % layouts.length];
     const n = remain < 0.25 ? 2 : remain < 0.55 ? 3 : all.length;
+    const start = salt % Math.max(1, all.length - n + 1);
     for (let i = 0; i < n; i++) {
-      const [dx, dy] = all[i];
-      const h = 2.5 + 2 * remain;
-      g.fillTriangle(x + dx, y + dy - h, x + dx - 2, y + dy, x + dx + 2, y + dy);
+      const [dx, dy] = all[(start + i) % all.length];
+      const h = 2.2 + 2 * remain + ((salt + i * 7) % 3) * 0.35;
+      const w = 1.7 + ((salt + i * 5) % 3) * 0.25;
+      g.fillTriangle(x + dx, y + dy - h, x + dx - w, y + dy, x + dx + w, y + dy);
     }
   }
 
@@ -866,6 +926,11 @@ export class MainScene extends Phaser.Scene {
     for (const c of this.citizens) {
       live.add(c.id);
       let node = this.citizenGfx.get(c.id);
+      if (node && !isCitizenArtCurrent(node)) {
+        node.destroy(true);
+        this.citizenGfx.delete(c.id);
+        node = undefined;
+      }
       if (!node) {
         node = createCitizenArt(this, c);
         this.citizenGfx.set(c.id, node);
@@ -1044,18 +1109,57 @@ export class MainScene extends Phaser.Scene {
       g.fillStyle(shadeColor(fill, 0.9), 0.18 * alpha);
       g.fillEllipse(cx + 4, topY + 2, 10, 5);
     } else if (terrain === "rock" || terrain === "sand") {
-      const speck = terrain === "rock" ? shadeColor(fill, 1.25) : shadeColor(fill, 0.85);
-      g.fillStyle(speck, 0.55 * alpha);
-      g.fillCircle(cx - 6, topY - 2, 1.8);
-      g.fillCircle(cx + 8, topY + 3, 1.4);
-      g.fillCircle(cx + 2, topY - 5, 2);
-      g.fillCircle(cx - 9, topY + 3, 1.2);
       if (terrain === "rock") {
-        g.fillStyle(shadeColor(fill, 0.65), 0.45 * alpha);
-        g.fillCircle(cx - 2, topY + 4, 2.8);
-        g.fillStyle(shadeColor(fill, 1.15), 0.35 * alpha);
-        g.fillTriangle(cx + 4, topY - 6, cx + 10, topY, cx + 2, topY + 1);
+        const seed = Math.abs(Math.round(cx * 11 + cy * 19)) % 7;
+        // Fractured slab patches on the tile face
+        g.fillStyle(shadeColor(fill, 0.72), 0.4 * alpha);
+        g.fillTriangle(
+          cx - 10 + (seed % 3),
+          topY + 1,
+          cx - 2,
+          topY - 5,
+          cx + 4,
+          topY + 4,
+        );
+        g.fillStyle(shadeColor(fill, 1.22), 0.38 * alpha);
+        g.fillTriangle(
+          cx + 2,
+          topY - 6,
+          cx + 11,
+          topY,
+          cx + 3,
+          topY + 3,
+        );
+        g.fillStyle(shadeColor(fill, 0.88), 0.35 * alpha);
+        g.fillTriangle(
+          cx - 4,
+          topY + 5,
+          cx + 6,
+          topY + 3,
+          cx + 1,
+          topY - 1,
+        );
+        // Crack lines across the crown
+        g.lineStyle(1, shadeColor(fill, 0.55), 0.4 * alpha);
+        g.lineBetween(cx - 8, topY - 1, cx + 3, topY + 4);
+        g.lineBetween(cx - 1, topY - 5, cx + 8, topY + 1);
+        if (seed % 2 === 0) {
+          g.lineBetween(cx - 5, topY + 3, cx + 6, topY - 2);
+        }
+        // Speckle grit
+        g.fillStyle(shadeColor(fill, 1.3), 0.5 * alpha);
+        g.fillCircle(cx - 6, topY - 2, 1.6);
+        g.fillCircle(cx + 8, topY + 3, 1.3);
+        g.fillCircle(cx + 1, topY - 4, 1.8);
+        g.fillStyle(shadeColor(fill, 0.6), 0.4 * alpha);
+        g.fillCircle(cx - 2, topY + 4, 2.4);
       } else {
+        const speck = shadeColor(fill, 0.85);
+        g.fillStyle(speck, 0.55 * alpha);
+        g.fillCircle(cx - 6, topY - 2, 1.8);
+        g.fillCircle(cx + 8, topY + 3, 1.4);
+        g.fillCircle(cx + 2, topY - 5, 2);
+        g.fillCircle(cx - 9, topY + 3, 1.2);
         // Sand ripples
         g.lineStyle(1, shadeColor(fill, 1.15), 0.35 * alpha);
         g.beginPath();
