@@ -519,8 +519,9 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
 
   applyOutfit(parts, onResearch);
 
-  const stride = walking ? Math.sin(phase * 0.95) : 0;
-  const strideAbs = walking ? Math.abs(Math.sin(phase * 0.95)) : 0;
+  // Faster stride frequency so steps keep up with travel speed
+  const stride = walking ? Math.sin(phase * 1.85) : 0;
+  const strideAbs = walking ? Math.abs(Math.sin(phase * 1.85)) : 0;
   const workSwing = working && !onResearch ? Math.sin(phase * 0.38) : 0;
   const workAbs = working && !onResearch ? Math.abs(Math.sin(phase * 0.38)) : 0;
   const researchSwing = channeling ? Math.sin(phase * 0.45) : 0;
@@ -529,11 +530,11 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
   const breathe = Math.sin(phase * 0.4) * 0.4;
   const idleSway = idle ? Math.sin(phase * 0.2) : 0;
 
-  // Side-view walk: opposite legs, modest swing
-  legL.setAngle(-16 * stride);
-  legR.setAngle(16 * stride);
-  legL.setY(walking ? Math.max(0, -stride) * 1.1 : 0);
-  legR.setY(walking ? Math.max(0, stride) * 1.1 : 0);
+  // Side-view walk: opposite legs with a clear plant / lift
+  legL.setAngle(-24 * stride);
+  legR.setAngle(24 * stride);
+  legL.setY(walking ? Math.max(0, -stride) * 1.8 : 0);
+  legR.setY(walking ? Math.max(0, stride) * 1.8 : 0);
 
   if (channeling) {
     armL.setAngle(-20 + 6 * researchSwing);
@@ -551,10 +552,10 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
     head.setAngle(walking ? stride * 2 : idleSway * 3);
     body.setAngle(walking ? stride * 1.5 : idleSway * 1.5);
   } else if (walking) {
-    armL.setAngle(14 * stride);
-    armR.setAngle(-14 * stride);
-    head.setAngle(stride * 2);
-    body.setAngle(stride * 2);
+    armL.setAngle(18 * stride);
+    armR.setAngle(-18 * stride);
+    head.setAngle(stride * 3);
+    body.setAngle(stride * 3);
   } else {
     armL.setAngle(3 + breathe * 2 + idleSway * 3);
     armR.setAngle(-3 - breathe * 2 - idleSway * 3);
@@ -562,7 +563,7 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
     body.setAngle(idleSway * 1.5);
   }
 
-  const walkBob = walking ? strideAbs * 1.3 : 0;
+  const walkBob = walking ? strideAbs * 1.7 : 0;
   const idleBob = idle ? 0.4 + breathe * 0.4 : Math.sin(phase * 0.45) * 0.3;
   const workBob = working
     ? onResearch

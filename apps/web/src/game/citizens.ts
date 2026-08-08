@@ -452,7 +452,8 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
   const hasTools = state.research.unlocked.includes("primitive_tools");
 
   for (const c of citizens) {
-    c.bobPhase += dt * 0.0045;
+    // Walk cycle needs a quicker cadence or legs lag and they look like they float
+    c.bobPhase += dt * (c.job.kind === "walk" ? 0.013 : 0.0045);
 
     if (c.job.kind === "walk") {
       const dx = c.job.tx - c.x;
