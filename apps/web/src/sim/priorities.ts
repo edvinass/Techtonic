@@ -2,11 +2,44 @@ import type { Priorities, PriorityId } from "./types";
 
 export const PRIORITY_IDS: PriorityId[] = [
   "food",
+  "wood",
+  "stone",
+  "metal",
   "construction",
   "research",
-  "production",
   "defence",
 ];
+
+export function emptyPriorities(): Priorities {
+  return {
+    food: 0,
+    wood: 0,
+    stone: 0,
+    metal: 0,
+    construction: 0,
+    research: 0,
+    defence: 0,
+  };
+}
+
+/** Normalize priorities from saves / HMR; maps legacy `production` → `wood`. */
+export function normalizePriorities(
+  raw: Partial<Priorities> & { production?: number },
+): Priorities {
+  const next = emptyPriorities();
+  next.food = raw.food ?? 0;
+  next.construction = raw.construction ?? 0;
+  next.research = raw.research ?? 0;
+  next.defence = raw.defence ?? 0;
+  next.stone = raw.stone ?? 0;
+  next.metal = raw.metal ?? 0;
+  if (!("wood" in raw) && typeof raw.production === "number") {
+    next.wood = raw.production;
+  } else {
+    next.wood = raw.wood ?? 0;
+  }
+  return next;
+}
 
 export function priorityTotal(priorities: Priorities): number {
   return Object.values(priorities).reduce((a, b) => a + b, 0);
@@ -30,18 +63,16 @@ export function workerQuota(priorities: Priorities, pop: number, p: PriorityId):
 export function workerTargets(priorities: Priorities, pop: number): Priorities {
   const total = priorityTotal(priorities);
   if (total <= 0 || pop <= 0) {
-    return { food: 0, construction: 0, research: 0, production: 0, defence: 0 };
+    return emptyPriorities();
   }
   if (total <= pop) {
-    return {
-      food: Math.floor(priorities.food),
-      construction: Math.floor(priorities.construction),
-      research: Math.floor(priorities.research),
-      production: Math.floor(priorities.production),
-      defence: Math.floor(priorities.defence),
-    };
+    const next = emptyPriorities();
+    for (const id of PRIORITY_IDS) {
+      next[id] = Math.floor(priorities[id]);
+    }
+    return next;
   }
-  const next = {} as Priorities;
+  const next = emptyPriorities();
   for (const id of PRIORITY_IDS) {
     next[id] = workerQuota(priorities, pop, id);
   }

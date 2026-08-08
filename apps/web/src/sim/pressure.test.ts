@@ -41,7 +41,15 @@ describe("pressure systems", () => {
     let state = createNewGame(21);
     state.resources.food = 80;
     state.resources.wood = 80;
-    state.priorities = { food: 40, construction: 20, research: 20, production: 20, defence: 0 };
+    state.priorities = {
+      food: 40,
+      wood: 20,
+      stone: 0,
+      metal: 0,
+      construction: 20,
+      research: 20,
+      defence: 0,
+    };
     state.pressure.nextRaidAt = state.tick + 1;
     state.pressure.raidWarningTicks = 0;
     state.pressure.eventCooldown = 999;
@@ -57,7 +65,15 @@ describe("pressure systems", () => {
     const state = createNewGame(33);
     state.resources.food = 40;
     state.resources.wood = 40;
-    state.priorities = { food: 10, construction: 10, research: 10, production: 10, defence: 60 };
+    state.priorities = {
+      food: 10,
+      wood: 10,
+      stone: 0,
+      metal: 0,
+      construction: 10,
+      research: 10,
+      defence: 60,
+    };
     expect(defenceReadiness(state)).toBeGreaterThan(0.3);
     state.pressure.nextRaidAt = state.tick + 999;
     state.pressure.raidWarningTicks = 1;
@@ -83,7 +99,15 @@ describe("pressure systems", () => {
   it("wolf watch succeeds with enough defence", () => {
     let state = createNewGame(14);
     state.resources.food = 40;
-    state.priorities = { food: 20, construction: 20, research: 20, production: 20, defence: 40 };
+    state.priorities = {
+      food: 20,
+      wood: 20,
+      stone: 0,
+      metal: 0,
+      construction: 20,
+      research: 20,
+      defence: 40,
+    };
     state.pressure.pendingEventId = "wolves";
     state = resolveEventChoice(state, 0);
     expect(state.pressure.pendingEventId).toBeNull();

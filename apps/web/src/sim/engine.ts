@@ -12,7 +12,7 @@ import { BUILDINGS } from "../data/buildings";
 import { TECHS } from "../data/techs";
 import { DEPOSIT_STOCK, generateMap } from "./mapgen";
 import { defaultPressure, seasonFoodMultiplier, tickPressure } from "./pressure";
-import { workerQuota } from "./priorities";
+import { normalizePriorities, workerQuota } from "./priorities";
 import {
   applyStrainGain,
   easeStrain,
@@ -36,7 +36,15 @@ let nextBuildingSeq = 1;
 
 /** Starting headcounts for a village of 5. */
 function defaultPriorities(): Priorities {
-  return { food: 2, construction: 1, research: 0, production: 2, defence: 0 };
+  return {
+    food: 2,
+    wood: 2,
+    stone: 0,
+    metal: 0,
+    construction: 1,
+    research: 0,
+    defence: 0,
+  };
 }
 
 function tileAt(state: GameState, x: number, y: number): Tile | undefined {
@@ -91,7 +99,7 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
   const cy = Math.floor(MAP_SIZE / 2);
 
   const state: GameState = {
-    schemaVersion: 4,
+    schemaVersion: 5,
     tick: 0,
     age: "stone",
     resources: { food: 48, wood: 40, stone: 16, metal: 0, knowledge: 4 },
@@ -183,7 +191,7 @@ export function placeBuilding(state: GameState, type: BuildingId, x: number, y: 
 
 export function setPriorities(state: GameState, priorities: Priorities): GameState {
   const next = cloneState(state);
-  next.priorities = { ...priorities };
+  next.priorities = normalizePriorities(priorities);
   return next;
 }
 
@@ -347,7 +355,9 @@ function assignWorkers(state: GameState): {
 
   staff("research", quota("research"));
   staff("food", quota("food"));
-  staff("production", quota("production"));
+  staff("wood", quota("wood"));
+  staff("stone", quota("stone"));
+  staff("metal", quota("metal"));
   staff("defence", quota("defence"));
 
   // Do not auto-fill leftover people into open slots — Work quotas are hard caps.

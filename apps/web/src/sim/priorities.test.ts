@@ -3,20 +3,44 @@ import { applyWorkerCount, workerQuota, workerTargets } from "./priorities";
 
 describe("worker priorities", () => {
   it("treats values as absolute headcounts when they fit the population", () => {
-    const priorities = { food: 2, construction: 1, research: 0, production: 2, defence: 0 };
+    const priorities = {
+      food: 2,
+      wood: 2,
+      stone: 0,
+      metal: 0,
+      construction: 1,
+      research: 0,
+      defence: 0,
+    };
     expect(workerQuota(priorities, 5, "food")).toBe(2);
     expect(workerQuota(priorities, 5, "research")).toBe(0);
-    expect(workerQuota(priorities, 5, "production")).toBe(2);
+    expect(workerQuota(priorities, 5, "wood")).toBe(2);
   });
 
   it("keeps relative shares when weights exceed population (legacy saves)", () => {
-    const priorities = { food: 0, construction: 0, research: 0, production: 100, defence: 0 };
-    expect(workerQuota(priorities, 5, "production")).toBe(5);
+    const priorities = {
+      food: 0,
+      wood: 100,
+      stone: 0,
+      metal: 0,
+      construction: 0,
+      research: 0,
+      defence: 0,
+    };
+    expect(workerQuota(priorities, 5, "wood")).toBe(5);
     expect(workerQuota(priorities, 5, "food")).toBe(0);
   });
 
   it("clamps edits so assigned workers never exceed population", () => {
-    const priorities = { food: 2, construction: 1, research: 0, production: 2, defence: 0 };
+    const priorities = {
+      food: 2,
+      wood: 2,
+      stone: 0,
+      metal: 0,
+      construction: 1,
+      research: 0,
+      defence: 0,
+    };
     const next = applyWorkerCount(priorities, 5, "defence", 3);
     expect(next.defence).toBe(0);
     expect(applyWorkerCount(priorities, 5, "food", 1).food).toBe(1);
@@ -24,9 +48,11 @@ describe("worker priorities", () => {
     expect(grown.defence).toBe(1);
     expect(workerTargets(grown, 6)).toEqual({
       food: 2,
+      wood: 2,
+      stone: 0,
+      metal: 0,
       construction: 1,
       research: 0,
-      production: 2,
       defence: 1,
     });
   });

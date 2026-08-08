@@ -52,7 +52,15 @@ describe("strategy depth", () => {
       { id: "b1", type: "house", x: 10, y: 10, progress: 1, workers: 0 },
       { id: "b2", type: "watchtower", x: 30, y: 30, progress: 1, workers: 0 },
     ];
-    exposed.priorities = { food: 20, construction: 20, research: 20, production: 20, defence: 20 };
+    exposed.priorities = {
+      food: 20,
+      wood: 20,
+      stone: 0,
+      metal: 0,
+      construction: 20,
+      research: 20,
+      defence: 20,
+    };
 
     const covered = createNewGame(9);
     covered.buildings = [

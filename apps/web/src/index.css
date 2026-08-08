@@ -987,6 +987,12 @@ button.primary.harmony {
   font-size: 0.85rem;
 }
 
+.worker-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .worker-stepper {
   display: inline-flex;
   align-items: center;

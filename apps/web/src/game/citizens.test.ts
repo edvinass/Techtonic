@@ -9,9 +9,11 @@ describe("citizen wood gathering", () => {
     state.resources.wood = 100;
     state.priorities = {
       food: 5,
+      wood: 80,
+      stone: 0,
+      metal: 0,
       construction: 5,
       research: 5,
-      production: 80,
       defence: 5,
     };
     const woodTile = state.map.tiles.find((t) => t.deposit === "wood")!;
@@ -63,9 +65,11 @@ describe("citizen wood gathering", () => {
     state.population.count = 5;
     state.priorities = {
       food: 0,
+      wood: 5,
+      stone: 0,
+      metal: 0,
       construction: 0,
       research: 0,
-      production: 5,
       defence: 0,
     };
     const woodTile = state.map.tiles.find((t) => t.deposit === "wood")!;
@@ -92,9 +96,11 @@ describe("citizen wood gathering", () => {
 
     state.priorities = {
       food: 5,
+      wood: 0,
+      stone: 0,
+      metal: 0,
       construction: 0,
       research: 0,
-      production: 0,
       defence: 0,
     };
     syncCitizens(citizens, state, ox, oy);
@@ -115,7 +121,7 @@ describe("citizen wood gathering", () => {
     expect(foodBound.length).toBeGreaterThan(0);
   });
 
-  it("splits Gather workers between lumber camp and quarry", () => {
+  it("assigns wood and stone workers from separate Work quotas", () => {
     let state = createNewGame(23);
     state.resources.wood = 200;
     state.resources.stone = 50;
@@ -123,9 +129,11 @@ describe("citizen wood gathering", () => {
     state.research.unlocked = ["primitive_tools"];
     state.priorities = {
       food: 0,
+      wood: 2,
+      stone: 2,
+      metal: 0,
       construction: 0,
       research: 0,
-      production: 4,
       defence: 0,
     };
     const woodTile = state.map.tiles.find((t) => t.deposit === "wood")!;

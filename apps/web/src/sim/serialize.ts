@@ -1,14 +1,18 @@
 import { DEPOSIT_STOCK } from "./mapgen";
 import { defaultPressure } from "./pressure";
-import type { GameState, PressureState, RunStats, Tile } from "./types";
+import { normalizePriorities } from "./priorities";
+import type { GameState, Priorities, PressureState, RunStats, Tile } from "./types";
 import { syncBuildingSeq } from "./engine";
 
+/** Pre-v5 Work tab used a single Gather (`production`) quota. */
+type LegacyPriorities = Partial<Priorities> & { production?: number };
+
 export interface SavedGamePayload {
-  schemaVersion: 1 | 2 | 3 | 4;
+  schemaVersion: 1 | 2 | 3 | 4 | 5;
   tick: number;
   age: GameState["age"];
   resources: GameState["resources"];
-  priorities: GameState["priorities"];
+  priorities: GameState["priorities"] | LegacyPriorities;
   map: GameState["map"];
   buildings: GameState["buildings"];
   population: GameState["population"];
@@ -44,7 +48,7 @@ function migrateTiles(tiles: Tile[]): Tile[] {
 
 export function serialize(state: GameState): SavedGamePayload {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     tick: state.tick,
     age: state.age,
     resources: state.resources,
@@ -67,16 +71,17 @@ export function deserialize(payload: SavedGamePayload): GameState {
     payload.schemaVersion !== 1 &&
     payload.schemaVersion !== 2 &&
     payload.schemaVersion !== 3 &&
-    payload.schemaVersion !== 4
+    payload.schemaVersion !== 4 &&
+    payload.schemaVersion !== 5
   ) {
     throw new Error(`Unsupported save schema version: ${payload.schemaVersion}`);
   }
   const state: GameState = {
-    schemaVersion: 4,
+    schemaVersion: 5,
     tick: payload.tick,
     age: payload.age,
     resources: payload.resources,
-    priorities: payload.priorities,
+    priorities: normalizePriorities(payload.priorities),
     map: {
       width: payload.map.width,
       height: payload.map.height,

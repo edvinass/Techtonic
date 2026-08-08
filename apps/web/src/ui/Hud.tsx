@@ -23,11 +23,15 @@ import { ResourceIcon } from "./ResourceIcon";
 
 const PRIORITY_LABELS: Record<PriorityId, string> = {
   food: "Food",
+  wood: "Wood",
+  stone: "Stone",
+  metal: "Metal",
   construction: "Build",
   research: "Research",
-  production: "Gather",
   defence: "Defence",
 };
+
+const RESOURCE_PRIORITIES = new Set<PriorityId>(["food", "wood", "stone", "metal"]);
 
 type SideTab = "build" | "priorities" | "tech" | "age";
 
@@ -453,7 +457,12 @@ export function Hud() {
             </p>
             {PRIORITY_IDS.map((p) => (
               <div key={p} className="priority worker-row">
-                <span>{PRIORITY_LABELS[p]}</span>
+                <span className="worker-label">
+                  {RESOURCE_PRIORITIES.has(p) && (
+                    <ResourceIcon id={p as ResourceId} size={14} />
+                  )}
+                  {PRIORITY_LABELS[p]}
+                </span>
                 <div className="worker-stepper">
                   <button
                     type="button"

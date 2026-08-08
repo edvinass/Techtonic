@@ -113,44 +113,33 @@ function desiredAssignments(state: GameState): Assignment[] {
 
   let researchBudget = quota(state, "research");
   let foodBudget = quota(state, "food");
-  let productionBudget = quota(state, "production");
+  let woodBudget = quota(state, "wood");
+  let stoneBudget = quota(state, "stone");
+  let metalBudget = quota(state, "metal");
 
   const home = state.buildings.find((b) => b.type === "house") ?? state.buildings[0];
   const hasLumberCamp = state.buildings.some(
     (b) => b.type === "lumber_camp" && b.progress >= 1,
   );
 
-  // Production camps (wood/stone/metal) — round-robin so a lumber camp
-  // cannot consume the entire Gather quota before a quarry/mine is staffed.
-  const productionCamps = state.buildings.filter((b) => {
-    if (BUILDINGS[b.type].priority !== "production" || b.progress < 1) return false;
-    return resourceForBuilding(b) != null;
-  });
-  const campFilled = new Map<string, number>();
-  while (productionBudget > 0 && remaining > 0) {
-    let assignedAny = false;
-    for (const b of productionCamps) {
-      if (productionBudget <= 0 || remaining <= 0) break;
-      const filled = campFilled.get(b.id) ?? 0;
-      if (filled >= BUILDINGS[b.type].workerSlots) continue;
-      const res = resourceForBuilding(b);
-      if (!res) continue;
-      list.push({ buildingId: b.id, work: "gather", resource: res });
-      campFilled.set(b.id, filled + 1);
-      remaining -= 1;
-      productionBudget -= 1;
-      assignedAny = true;
+  for (const b of state.buildings) {
+    const res = resourceForBuilding(b);
+    if (res === "wood") {
+      woodBudget -= staffBuilding(b, woodBudget, "gather", "wood");
+    } else if (res === "stone") {
+      stoneBudget -= staffBuilding(b, stoneBudget, "gather", "stone");
+    } else if (res === "metal") {
+      metalBudget -= staffBuilding(b, metalBudget, "gather", "metal");
     }
-    if (!assignedAny) break;
   }
 
-  // No lumber camp yet: production workers chop wild trees and drop off at the house
-  if (!hasLumberCamp && home && productionBudget > 0) {
-    const wildWood = Math.min(productionBudget, remaining, 3);
+  // No lumber camp yet: wood workers chop wild trees and drop off at the house
+  if (!hasLumberCamp && home && woodBudget > 0) {
+    const wildWood = Math.min(woodBudget, remaining, 3);
     for (let i = 0; i < wildWood; i++) {
       list.push({ buildingId: home.id, work: "forage", resource: "wood" });
       remaining -= 1;
-      productionBudget -= 1;
+      woodBudget -= 1;
     }
   }
 

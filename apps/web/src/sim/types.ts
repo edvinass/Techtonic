@@ -2,7 +2,14 @@ export type AgeId = "stone" | "farming" | "metal" | "industrial" | "atomic" | "s
 
 export type ResourceId = "food" | "wood" | "stone" | "metal" | "knowledge";
 
-export type PriorityId = "food" | "construction" | "research" | "production" | "defence";
+export type PriorityId =
+  | "food"
+  | "wood"
+  | "stone"
+  | "metal"
+  | "construction"
+  | "research"
+  | "defence";
 
 export type TerrainId = "grass" | "forest" | "rock" | "water" | "sand" | "fertile";
 
@@ -101,7 +108,7 @@ export interface RunStats {
 }
 
 export interface GameState {
-  schemaVersion: 4;
+  schemaVersion: 4 | 5;
   tick: number;
   age: AgeId;
   resources: Resources;

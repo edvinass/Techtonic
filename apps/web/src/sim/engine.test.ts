@@ -25,7 +25,7 @@ describe("sim engine", () => {
     expect(state.population.count).toBe(5);
   });
 
-  it("staffs lumber camps from production priority", () => {
+  it("staffs lumber camps from wood priority", () => {
     let state = createNewGame(7);
     state.resources.wood = 100;
     const woodTile = state.map.tiles.find((t) => t.deposit === "wood");
@@ -34,7 +34,15 @@ describe("sim engine", () => {
     state.buildings.forEach((b) => {
       if (b.type === "lumber_camp") b.progress = 1;
     });
-    state.priorities = { food: 0, construction: 0, research: 0, production: 100, defence: 0 };
+    state.priorities = {
+      food: 0,
+      wood: 100,
+      stone: 0,
+      metal: 0,
+      construction: 0,
+      research: 0,
+      defence: 0,
+    };
     state = runTicks(state, 2);
     const camp = state.buildings.find((b) => b.type === "lumber_camp");
     expect(camp?.workers).toBeGreaterThan(0);
@@ -77,7 +85,15 @@ describe("sim engine", () => {
       progress: 0,
       workers: 0,
     });
-    state.priorities = { food: 0, construction: 0, research: 0, production: 100, defence: 0 };
+    state.priorities = {
+      food: 0,
+      wood: 100,
+      stone: 0,
+      metal: 0,
+      construction: 0,
+      research: 0,
+      defence: 0,
+    };
     state.population.count = 5;
     const before = state.buildings.find((b) => b.id === "b50")!.progress;
     state = runTicks(state, 5);
