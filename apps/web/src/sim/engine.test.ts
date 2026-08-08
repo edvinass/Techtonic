@@ -61,6 +61,25 @@ describe("sim engine", () => {
     expect(state.research.active).toBeNull();
   });
 
+  it("progresses construction sites even when construction priority is low", () => {
+    let state = createNewGame(5);
+    state.resources.wood = 100;
+    state.buildings.push({
+      id: "b50",
+      type: "lumber_camp",
+      x: 8,
+      y: 8,
+      progress: 0,
+      workers: 0,
+    });
+    state.priorities = { food: 0, construction: 0, research: 0, production: 100, defence: 0 };
+    state.population.count = 5;
+    const before = state.buildings.find((b) => b.id === "b50")!.progress;
+    state = runTicks(state, 5);
+    const after = state.buildings.find((b) => b.id === "b50")!.progress;
+    expect(after).toBeGreaterThan(before);
+  });
+
   it("advances to farming age when gates are met", () => {
     let state = createNewGame(9);
     state.research.unlocked = ["fire", "farming"];

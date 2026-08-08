@@ -146,18 +146,18 @@ function progressBar(g: GameObjects.Graphics, progress: number) {
 }
 
 function scaffold(g: GameObjects.Graphics, alpha: number, height: number) {
-  const d = diamond(0, 0, HW - 6, HH - 3);
-  g.lineStyle(2, 0x8a6a3a, 0.8 * alpha);
+  // Soft posts + plank rails — reads as construction, not a wireframe glitch
+  const d = diamond(0, 0, HW - 8, HH - 4);
   for (const p of [d.N, d.E, d.S, d.W]) {
+    g.lineStyle(3, 0x6b4a2a, 0.55 * alpha);
     g.lineBetween(p.x, p.y, p.x, p.y - height);
+    g.fillStyle(0x8a6a3a, 0.65 * alpha);
+    g.fillCircle(p.x, p.y - height, 1.8);
   }
-  // Crossbeams at mid height
-  const mid = height * 0.55;
-  g.lineStyle(1.5, 0x6b4a2a, 0.7 * alpha);
-  g.lineBetween(d.W.x, d.W.y - mid, d.N.x, d.N.y - mid);
-  g.lineBetween(d.N.x, d.N.y - mid, d.E.x, d.E.y - mid);
-  g.lineBetween(d.E.x, d.E.y - mid, d.S.x, d.S.y - mid);
-  g.lineBetween(d.S.x, d.S.y - mid, d.W.x, d.W.y - mid);
+  const mid = height * 0.5;
+  g.lineStyle(2.5, 0x8a6238, 0.5 * alpha);
+  g.lineBetween(d.W.x, d.W.y - mid, d.E.x, d.E.y - mid);
+  g.lineBetween(d.N.x, d.N.y - mid, d.S.x, d.S.y - mid);
 }
 
 /** Draw a building centered at (0,0) ground point, matching the iso tile diamond. */

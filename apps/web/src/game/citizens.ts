@@ -237,12 +237,15 @@ function startGatherTrip(
     return;
   }
   const pos = worldPos(tile.gx, tile.gy, ox, oy);
+  // Spread workers so they don't stack; step off the building footprint when gathering on-site
+  const onSite = tile.gx === building.x && tile.gy === building.y;
+  const spread = onSite ? 22 : 12;
   c.carrying = null;
   c.carryAmount = 0;
   c.job = {
     kind: "walk",
-    tx: pos.x + (Math.random() - 0.5) * 8,
-    ty: pos.y + (Math.random() - 0.5) * 5,
+    tx: pos.x + (Math.random() - 0.5) * spread + (onSite ? (c.id % 3) * 6 - 6 : 0),
+    ty: pos.y + (Math.random() - 0.5) * (spread * 0.55) + (onSite ? (c.id % 2) * 4 - 2 : 0),
     buildingId,
     work,
     phase: "toResource",
@@ -264,10 +267,13 @@ function startBuildTrip(
     return;
   }
   const pos = worldPos(building.x, building.y, ox, oy);
+  // Ring builders around the scaffold instead of stacking inside it
+  const angle = ((c.id * 2.4) % (Math.PI * 2)) + Math.random() * 0.4;
+  const radius = 16 + (c.id % 3) * 5;
   c.job = {
     kind: "walk",
-    tx: pos.x + (Math.random() - 0.5) * 14,
-    ty: pos.y + (Math.random() - 0.5) * 8,
+    tx: pos.x + Math.cos(angle) * radius,
+    ty: pos.y + Math.sin(angle) * radius * 0.55,
     buildingId,
     work: "build",
     phase: "toSite",

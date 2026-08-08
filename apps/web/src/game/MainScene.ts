@@ -242,6 +242,14 @@ export class MainScene extends Phaser.Scene {
     }
     this.renderCitizens();
     this.updateFloaters(delta);
+
+    // Clear stale placement ghosts when not building (pointermove alone can leave them)
+    if (!useGameStore.getState().selectedBuilding) {
+      this.ghost.clear();
+      this.ghostBuilding.clear();
+    } else if (this.input.activePointer) {
+      this.drawGhost(this.input.activePointer);
+    }
   }
 
   private shouldPan(pointer: Phaser.Input.Pointer): boolean {

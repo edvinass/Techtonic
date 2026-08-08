@@ -234,10 +234,24 @@ function assignWorkers(state: GameState): {
     Object.values(weights).reduce((a, b) => a + b, 0),
   );
   const pop = state.population.count;
-  const quota = (p: PriorityId) => Math.floor((pop * weights[p]) / totalWeight);
+  // Round like citizen assignments so small pops still staff jobs
+  const quota = (p: PriorityId) =>
+    weights[p] <= 0 ? 0 : Math.max(1, Math.round((pop * weights[p]) / totalWeight));
 
   let remaining = pop;
+  const sites = state.buildings.filter((b) => b.progress < 1);
   const complete = state.buildings.filter((b) => b.progress >= 1);
+
+  // Reserve builders first so scaffolds actually complete (citizens already walk to sites)
+  let constructionWorkers = 0;
+  if (sites.length > 0) {
+    constructionWorkers = Math.min(
+      Math.max(sites.length, quota("construction")),
+      remaining,
+      sites.length * 2,
+    );
+    remaining -= constructionWorkers;
+  }
 
   const staff = (priority: PriorityId, budget: number) => {
     const buildings = complete.filter((b) => BUILDINGS[b.type].priority === priority);
@@ -265,8 +279,6 @@ function assignWorkers(state: GameState): {
     remaining -= take;
   }
 
-  const constructionWorkers = Math.min(quota("construction"), remaining);
-  remaining -= constructionWorkers;
   const foragers = Math.min(quota("food"), remaining);
 
   return { constructionWorkers, foragers };
