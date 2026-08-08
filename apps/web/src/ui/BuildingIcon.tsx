@@ -170,6 +170,41 @@ export function BuildingIcon({ id, size = 36, className }: Props) {
           <circle cx="19" cy="3" r="1.8" fill="#c0c4cc" opacity="0.4" />
         </svg>
       );
+    case "boiler_house":
+      return (
+        <svg {...common}>
+          {ground}
+          {iso(18, 24, 10, 5, 9, hex, shade(hex, 0.7), shade(hex, 0.88))}
+          <ellipse cx="16" cy="14" rx="6" ry="3.5" fill="#e8a060" opacity="0.7" />
+          <rect x="23" y="6" width="3" height="12" rx="0.5" fill="#5a3030" />
+          <circle cx="24.5" cy="5" r="2" fill="#f0c080" opacity="0.5" />
+        </svg>
+      );
+    case "power_station":
+      return (
+        <svg {...common}>
+          {ground}
+          {iso(16, 24, 10, 5, 10, hex, shade(hex, 0.72), shade(hex, 0.9))}
+          {iso(26, 25, 5, 2.5, 6, "#2a5a70", "#1a3a48", "#3a6a80")}
+          <line x1="18" y1="10" x2="18" y2="4" stroke="#c0d8e0" strokeWidth="1.5" />
+          <circle cx="18" cy="3" r="2.4" fill="#5ec8e8" />
+          <circle cx="18" cy="3" r="1" fill="#e8f8ff" />
+        </svg>
+      );
+    case "substation":
+      return (
+        <svg {...common}>
+          {ground}
+          {iso(18, 26, 8, 4, 6, hex, shade(hex, 0.72), shade(hex, 0.9))}
+          <line x1="10" y1="18" x2="10" y2="8" stroke="#6a8090" strokeWidth="1.6" />
+          <line x1="18" y1="18" x2="18" y2="6" stroke="#6a8090" strokeWidth="1.6" />
+          <line x1="26" y1="18" x2="26" y2="8" stroke="#6a8090" strokeWidth="1.6" />
+          <line x1="10" y1="8" x2="26" y2="8" stroke="#c0d8e0" strokeWidth="1.2" />
+          <circle cx="10" cy="7" r="1.4" fill="#5ec8e8" />
+          <circle cx="18" cy="5" r="1.4" fill="#5ec8e8" />
+          <circle cx="26" cy="7" r="1.4" fill="#5ec8e8" />
+        </svg>
+      );
     case "laboratory":
       return (
         <svg {...common}>

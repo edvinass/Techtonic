@@ -25,9 +25,10 @@ export type WorkKind =
   | "forage"
   | "defend"
   | "trade"
+  | "energy"
   | "idle";
 
-const RESOURCES: ResourceId[] = ["food", "wood", "stone", "metal", "knowledge"];
+const RESOURCES: ResourceId[] = ["food", "wood", "stone", "metal", "energy", "knowledge"];
 const WORK_KINDS: WorkKind[] = [
   "gather",
   "build",
@@ -36,11 +37,12 @@ const WORK_KINDS: WorkKind[] = [
   "forage",
   "defend",
   "trade",
+  "energy",
   "idle",
 ];
 
 /** Jobs where the worker stands a post rather than hauling goods. */
-const POST_WORK: WorkKind[] = ["defend", "trade"];
+const POST_WORK: WorkKind[] = ["defend", "trade", "energy"];
 
 export type CitizenJob =
   | { kind: "idle" }
@@ -448,6 +450,7 @@ function desiredAssignments(state: GameState): Assignment[] {
   let woodBudget = quota(state, "wood");
   let stoneBudget = quota(state, "stone");
   let metalBudget = quota(state, "metal");
+  let energyBudget = quota(state, "energy");
   let defenceBudget = quota(state, "defence");
   let tradeBudget = quota(state, "trade");
 
@@ -500,6 +503,13 @@ function desiredAssignments(state: GameState): Assignment[] {
       list.push({ buildingId: home.id, work: "forage", resource: "wood" });
       remaining -= 1;
       woodBudget -= 1;
+    }
+  }
+
+  // Energy crews man boilers, stations, and reactors (tick sim uses building.workers)
+  for (const b of state.buildings) {
+    if (BUILDINGS[b.type].priority === "energy") {
+      energyBudget -= staffBuilding(b, energyBudget, "energy", null);
     }
   }
 
@@ -680,6 +690,7 @@ function startPostTrip(
 function isPostBuilding(building: BuildingInstance, work: WorkKind): boolean {
   if (work === "defend") return building.type === "watchtower";
   if (work === "trade") return BUILDINGS[building.type]?.priority === "trade";
+  if (work === "energy") return BUILDINGS[building.type]?.priority === "energy";
   return false;
 }
 
@@ -819,17 +830,19 @@ export function syncCitizens(
     const rank = (x: Assignment) =>
       x.work === "research"
         ? 0
-        : x.work === "defend"
+        : x.work === "energy"
           ? 1
-          : x.work === "trade"
+          : x.work === "defend"
             ? 2
-            : x.work === "gather"
+            : x.work === "trade"
               ? 3
-              : x.work === "farm"
+              : x.work === "gather"
                 ? 4
-                : x.work === "build"
+                : x.work === "farm"
                   ? 5
-                  : 6;
+                  : x.work === "build"
+                    ? 6
+                    : 7;
     return rank(a) - rank(b);
   });
 

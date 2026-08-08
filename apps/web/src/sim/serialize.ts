@@ -8,6 +8,7 @@ import type {
   Priorities,
   PressureState,
   ResourceId,
+  Resources,
   RunStats,
   Tile,
 } from "./types";
@@ -36,10 +37,10 @@ export interface SavedCitizen {
 }
 
 export interface SavedGamePayload {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   tick: number;
   age: GameState["age"];
-  resources: GameState["resources"];
+  resources: Partial<Resources> & Record<string, number>;
   priorities: GameState["priorities"] | LegacyPriorities;
   map: GameState["map"];
   buildings: GameState["buildings"];
@@ -53,6 +54,7 @@ export interface SavedGamePayload {
   starvationTicks?: number;
   stats?: RunStats;
   strain?: number;
+  powerFactor?: number;
   /** Worker world positions / jobs — restored into Phaser on load */
   citizens?: SavedCitizen[];
 }
@@ -84,9 +86,20 @@ function migrateTiles(tiles: Tile[]): Tile[] {
   });
 }
 
+function migrateResources(raw: SavedGamePayload["resources"]): Resources {
+  return {
+    food: raw.food ?? 0,
+    wood: raw.wood ?? 0,
+    stone: raw.stone ?? 0,
+    metal: raw.metal ?? 0,
+    energy: raw.energy ?? 0,
+    knowledge: raw.knowledge ?? 0,
+  };
+}
+
 export function serialize(state: GameState): SavedGamePayload {
   return {
-    schemaVersion: 7,
+    schemaVersion: 8,
     tick: state.tick,
     age: state.age,
     resources: state.resources,
@@ -102,10 +115,11 @@ export function serialize(state: GameState): SavedGamePayload {
     starvationTicks: state.starvationTicks,
     stats: state.stats,
     strain: state.strain,
+    powerFactor: state.powerFactor,
   };
 }
 
-const SUPPORTED_SCHEMAS = [1, 2, 3, 4, 5, 6, 7];
+const SUPPORTED_SCHEMAS = [1, 2, 3, 4, 5, 6, 7, 8];
 
 /** Fill in neighbours / routes for saves written before the Neighbours update. */
 function migrateDiplomacy(
@@ -139,10 +153,10 @@ export function deserialize(payload: SavedGamePayload): GameState {
   };
   const pressure = payload.pressure ?? defaultPressure(payload.rngSeed);
   const state: GameState = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     tick: payload.tick,
     age: payload.age,
-    resources: payload.resources,
+    resources: migrateResources(payload.resources),
     priorities: normalizePriorities(payload.priorities),
     map,
     buildings: payload.buildings,
@@ -164,6 +178,7 @@ export function deserialize(payload: SavedGamePayload): GameState {
       ...(payload.stats?.victoryKind ? { victoryKind: payload.stats.victoryKind } : {}),
     },
     strain: payload.strain ?? 0,
+    powerFactor: payload.powerFactor ?? 1,
   };
   syncBuildingSeq(state);
   ensureStarterStockpile(state);

@@ -57,6 +57,7 @@ describe("strategy depth", () => {
       wood: 20,
       stone: 0,
       metal: 0,
+      energy: 0,
       construction: 20,
       research: 20,
       defence: 20,

@@ -64,6 +64,21 @@ export function ResourceIcon({ id, size = 16, className }: Props) {
           <path d="M8 3.2 L8 9.5" fill="none" stroke="#f0d080" strokeWidth="0.5" opacity="0.45" />
         </svg>
       );
+    case "energy":
+      return (
+        <svg {...common}>
+          <circle cx="8" cy="8" r="6.2" fill={color} opacity="0.18" />
+          <path
+            d="M9.2 1.5 L4.2 8.4 H7.4 L6.2 14.5 L12.2 6.8 H8.8 Z"
+            fill={color}
+          />
+          <path
+            d="M9.2 1.5 L7.6 5.2 L10.2 5.2 Z"
+            fill="#e8f8ff"
+            opacity="0.55"
+          />
+        </svg>
+      );
     case "knowledge":
       return (
         <svg {...common}>

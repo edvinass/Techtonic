@@ -559,7 +559,7 @@ function selectTool(parts: CitizenParts, work: WorkKind | null, resource?: Resou
     toolShield.setVisible(true);
     return;
   }
-  if (work === "research" || resource === "knowledge") {
+  if (work === "research" || work === "energy" || resource === "knowledge") {
     toolStaff.setVisible(true);
     return;
   }

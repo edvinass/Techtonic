@@ -12,6 +12,11 @@ export interface TechModifiers {
   standingDriftMult: number;
   giftPowerMult: number;
   extraRoutesPerPost: number;
+  energyOutputMult: number;
+  energyUseMult: number;
+  energyBatteryBonus: number;
+  energyFuelMult: number;
+  energyStrainMult: number;
 }
 
 export function techModifiers(state: GameState): TechModifiers {
@@ -23,6 +28,11 @@ export function techModifiers(state: GameState): TechModifiers {
   let standingDriftMult = 1;
   let giftPowerMult = 1;
   let extraRoutesPerPost = 0;
+  let energyOutputMult = 1;
+  let energyUseMult = 1;
+  let energyBatteryBonus = 0;
+  let energyFuelMult = 1;
+  let energyStrainMult = 1;
   for (const id of state.research.unlocked) {
     const m = TECHS[id]?.modifiers;
     if (!m) continue;
@@ -34,6 +44,11 @@ export function techModifiers(state: GameState): TechModifiers {
     if (m.standingDriftMult != null) standingDriftMult *= m.standingDriftMult;
     if (m.giftPowerMult != null) giftPowerMult *= m.giftPowerMult;
     if (m.extraRoutesPerPost != null) extraRoutesPerPost += m.extraRoutesPerPost;
+    if (m.energyOutputMult != null) energyOutputMult *= m.energyOutputMult;
+    if (m.energyUseMult != null) energyUseMult *= m.energyUseMult;
+    if (m.energyBatteryBonus != null) energyBatteryBonus += m.energyBatteryBonus;
+    if (m.energyFuelMult != null) energyFuelMult *= m.energyFuelMult;
+    if (m.energyStrainMult != null) energyStrainMult *= m.energyStrainMult;
   }
   return {
     strainGainMult,
@@ -44,6 +59,11 @@ export function techModifiers(state: GameState): TechModifiers {
     standingDriftMult,
     giftPowerMult,
     extraRoutesPerPost,
+    energyOutputMult,
+    energyUseMult,
+    energyBatteryBonus,
+    energyFuelMult,
+    energyStrainMult,
   };
 }
 

@@ -1,5 +1,6 @@
 import type { BuildingInstance, GameState, ResourceId, Tile } from "../sim/types";
 import { BUILDINGS } from "../data/buildings";
+import { buildingPowerFactor } from "../sim/energy";
 import { techModifiers } from "../sim/strategy";
 import { gridToScreen } from "./iso";
 
@@ -9,6 +10,7 @@ export const CARRY_CAPACITY: Record<ResourceId, number> = {
   wood: 8,
   stone: 6,
   metal: 5,
+  energy: 0,
   knowledge: 4,
 };
 
@@ -18,6 +20,7 @@ export const GATHER_PER_SEC: Record<ResourceId, number> = {
   wood: 1.45,
   stone: 1.15,
   metal: 0.95,
+  energy: 0,
   knowledge: 0.7,
 };
 
@@ -49,10 +52,12 @@ export function gatherRateFor(
   }
   const mods = techModifiers(state);
   const woodDoctrine = resource === "wood" ? mods.woodGatherMult : 1;
+  const power = building ? buildingPowerFactor(state, building.type) : 1;
   return (
     GATHER_PER_SEC[resource] *
     buildingMult *
     woodDoctrine *
+    power *
     (opts.hasTools ? 1.15 : 1) *
     (opts.fertileBonus ?? 1)
   );

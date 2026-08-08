@@ -40,9 +40,9 @@ export const NEIGHBOURS: Record<NeighbourId, NeighbourDef> = {
     name: "Ash Wardens",
     epithet: "Keepers of the burned grove",
     blurb:
-      "They remember every stand that ever fell. Their archives are deep and their patience is not — scar the land and they will read it as a threat.",
+      "They remember every stand that ever fell. Their archives run on carefully tended charge, and their patience is not — scar the land and they will read it as a threat.",
     dir: { dx: -1, dy: -1 },
-    surplus: ["knowledge"],
+    surplus: ["knowledge", "energy"],
     wants: ["food", "metal"],
     standingStart: 0,
     aggressionRate: 0.001,
@@ -61,6 +61,7 @@ export const TRADE_VALUE: Record<ResourceId, number> = {
   wood: 1.1,
   stone: 1.5,
   metal: 2.6,
+  energy: 2.8,
   knowledge: 3.2,
 };
 

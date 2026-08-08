@@ -5,6 +5,7 @@ export const PRIORITY_IDS: PriorityId[] = [
   "wood",
   "stone",
   "metal",
+  "energy",
   "construction",
   "research",
   "defence",
@@ -17,6 +18,7 @@ export function emptyPriorities(): Priorities {
     wood: 0,
     stone: 0,
     metal: 0,
+    energy: 0,
     construction: 0,
     research: 0,
     defence: 0,
@@ -35,6 +37,7 @@ export function normalizePriorities(
   next.defence = raw.defence ?? 0;
   next.stone = raw.stone ?? 0;
   next.metal = raw.metal ?? 0;
+  next.energy = raw.energy ?? 0;
   next.trade = raw.trade ?? 0;
   if (!("wood" in raw) && typeof raw.production === "number") {
     next.wood = raw.production;

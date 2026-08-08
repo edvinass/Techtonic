@@ -43,6 +43,7 @@ describe("sim engine", () => {
       wood: 100,
       stone: 0,
       metal: 0,
+      energy: 0,
       construction: 0,
       research: 0,
       defence: 0,
@@ -139,6 +140,7 @@ describe("sim engine", () => {
       wood: 100,
       stone: 0,
       metal: 0,
+      energy: 0,
       construction: 0,
       research: 0,
       defence: 0,
@@ -204,7 +206,7 @@ describe("sim engine", () => {
     let state = createNewGame(9);
     state.research.unlocked = ["fire", "farming"];
     state.population.count = 18;
-    state.resources = { food: 120, wood: 100, stone: 80, metal: 0, knowledge: 10 };
+    state.resources = { food: 120, wood: 100, stone: 80, metal: 0, energy: 0, knowledge: 10 };
     state.buildings.push({
       id: "b99",
       type: "granary",
@@ -250,7 +252,7 @@ describe("sim engine", () => {
     state.age = "farming";
     state.research.unlocked = ["fire", "primitive_tools", "farming", "metallurgy"];
     state.population.count = 32;
-    state.resources = { food: 400, wood: 400, stone: 400, metal: 400, knowledge: 400 };
+    state.resources = { food: 400, wood: 400, stone: 400, metal: 400, energy: 400, knowledge: 400 };
     state.buildings.push({
       id: "b100",
       type: "forge",
@@ -265,7 +267,7 @@ describe("sim engine", () => {
 
     state.research.unlocked.push("steam_power");
     state.population.count = 45;
-    state.resources = { food: 400, wood: 400, stone: 400, metal: 400, knowledge: 400 };
+    state.resources = { food: 400, wood: 400, stone: 400, metal: 400, energy: 400, knowledge: 400 };
     state.buildings.push({
       id: "b101",
       type: "factory",
@@ -279,7 +281,7 @@ describe("sim engine", () => {
 
     state.research.unlocked.push("electricity", "atomic_theory");
     state.population.count = 58;
-    state.resources = { food: 400, wood: 400, stone: 400, metal: 400, knowledge: 400 };
+    state.resources = { food: 400, wood: 400, stone: 400, metal: 400, energy: 400, knowledge: 400 };
     state.buildings.push({
       id: "b102",
       type: "reactor",
@@ -293,7 +295,7 @@ describe("sim engine", () => {
 
     state.research.unlocked.push("rocketry");
     state.population.count = 72;
-    state.resources = { food: 400, wood: 400, stone: 400, metal: 400, knowledge: 400 };
+    state.resources = { food: 400, wood: 400, stone: 400, metal: 400, energy: 400, knowledge: 400 };
     state.buildings.push({
       id: "b103",
       type: "launch_pad",

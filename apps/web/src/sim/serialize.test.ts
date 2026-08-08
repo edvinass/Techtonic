@@ -26,7 +26,7 @@ describe("serialize", () => {
       pressure: undefined,
     };
     const restored = deserialize(v1);
-    expect(restored.schemaVersion).toBe(7);
+    expect(restored.schemaVersion).toBe(8);
     expect(restored.strain).toBe(0);
     expect(restored.pressure.season).toBe("spring");
     expect(restored.pressure.nextRaidAt).toBeGreaterThan(0);
@@ -60,7 +60,7 @@ describe("serialize", () => {
   it("preserves citizen snapshots on the save payload", () => {
     const state = createNewGame(12);
     const payload = serialize(state);
-    expect(payload.schemaVersion).toBe(7);
+    expect(payload.schemaVersion).toBe(8);
     payload.citizens = [
       {
         id: 0,
@@ -143,5 +143,32 @@ describe("serialize", () => {
     expect(restored.priorities.metal).toBe(0);
     expect(restored.priorities.food).toBe(2);
     expect("production" in restored.priorities).toBe(false);
+  });
+
+  it("backfills energy and powerFactor when loading pre-grid saves", () => {
+    const state = createNewGame(12);
+    const payload = serialize(state);
+    const { energy: _drop, ...rest } = payload.resources;
+    const legacy = {
+      ...payload,
+      schemaVersion: 7 as const,
+      resources: rest,
+      powerFactor: undefined,
+      priorities: {
+        food: 2,
+        wood: 2,
+        stone: 0,
+        metal: 0,
+        construction: 1,
+        research: 0,
+        defence: 0,
+        trade: 0,
+      },
+    };
+    const restored = deserialize(legacy);
+    expect(restored.resources.energy).toBe(0);
+    expect(restored.powerFactor).toBe(1);
+    expect(restored.priorities.energy).toBe(0);
+    expect(restored.schemaVersion).toBe(8);
   });
 });

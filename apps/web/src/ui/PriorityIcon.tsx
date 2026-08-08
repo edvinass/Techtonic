@@ -7,12 +7,24 @@ interface Props {
   className?: string;
 }
 
-const RESOURCE_PRIORITIES = new Set<PriorityId>(["food", "wood", "stone", "metal"]);
+const RESOURCE_PRIORITIES = new Set<PriorityId>([
+  "food",
+  "wood",
+  "stone",
+  "metal",
+  "energy",
+]);
 
 /** Compact mark for each work priority (resources reuse ResourceIcon). */
 export function PriorityIcon({ id, size = 22, className }: Props) {
   if (RESOURCE_PRIORITIES.has(id)) {
-    return <ResourceIcon id={id as "food" | "wood" | "stone" | "metal"} size={size} className={className} />;
+    return (
+      <ResourceIcon
+        id={id as "food" | "wood" | "stone" | "metal" | "energy"}
+        size={size}
+        className={className}
+      />
+    );
   }
 
   const common = {
@@ -72,6 +84,7 @@ export const PRIORITY_ACCENT: Record<PriorityId, string> = {
   wood: "#6b8f4e",
   stone: "#8a8f98",
   metal: "#c08a4a",
+  energy: "#5ec8e8",
   construction: "#c9a227",
   research: "#7eb8e8",
   defence: "#6fa85a",

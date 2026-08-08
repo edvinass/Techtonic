@@ -19,6 +19,7 @@ import {
 import { DEPOSIT_STOCK, FERTILE_STOCK, generateMap } from "./mapgen";
 import { defaultPressure, seasonFoodMultiplier, tickPressure } from "./pressure";
 import { normalizePriorities, workerQuota } from "./priorities";
+import { buildingPowerFactor, tickEnergy } from "./energy";
 import {
   applyStrainGain,
   easeStrain,
@@ -47,6 +48,7 @@ function defaultPriorities(): Priorities {
     wood: 2,
     stone: 0,
     metal: 0,
+    energy: 0,
     construction: 1,
     research: 0,
     defence: 0,
@@ -139,10 +141,10 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
   const cy = Math.floor(MAP_SIZE / 2);
 
   const state: GameState = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     tick: 0,
     age: "stone",
-    resources: { food: 96, wood: 80, stone: 32, metal: 0, knowledge: 8 },
+    resources: { food: 96, wood: 80, stone: 32, metal: 0, energy: 0, knowledge: 8 },
     priorities: defaultPriorities(),
     map: { width: MAP_SIZE, height: MAP_SIZE, tiles },
     buildings: [
@@ -172,6 +174,7 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
       tributesPaid: 0,
     },
     strain: 0,
+    powerFactor: 1,
   };
 
   const pileSpot = findAdjacentBuildSpot(state, cx, cy) ?? { x: cx + 1, y: cy };
@@ -494,6 +497,7 @@ function assignWorkers(state: GameState): {
   staff("wood", quota("wood"));
   staff("stone", quota("stone"));
   staff("metal", quota("metal"));
+  staff("energy", quota("energy"));
   staff("defence", quota("defence"));
   staff("trade", quota("trade"));
 
@@ -551,6 +555,7 @@ export function tick(state: GameState): GameState {
   const next = cloneState(state);
   next.tick += 1;
   assignWorkers(next);
+  tickEnergy(next);
 
   // Wood / stone / food / knowledge from gather buildings are delivered by
   // workers walking to resource tiles and depositing carry loads (see game/citizens).
@@ -586,10 +591,13 @@ export function tick(state: GameState): GameState {
 
   if (next.research.active) {
     const tech = TECHS[next.research.active.techId];
-    const researchWorkers = next.buildings
+    const researchPower = next.buildings
       .filter((b) => b.progress >= 1 && BUILDINGS[b.type].priority === "research")
-      .reduce((sum, b) => sum + b.workers, 0);
-    const rate = 0.4 + researchWorkers * 0.45;
+      .reduce(
+        (sum, b) => sum + b.workers * buildingPowerFactor(next, b.type),
+        0,
+      );
+    const rate = 0.4 + researchPower * 0.45;
     next.research.active.progress += rate / tech.researchTicks;
     if (next.research.active.progress >= 1) {
       next.research.unlocked.push(next.research.active.techId);

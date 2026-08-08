@@ -1,12 +1,13 @@
 export type AgeId = "stone" | "farming" | "metal" | "industrial" | "atomic" | "space";
 
-export type ResourceId = "food" | "wood" | "stone" | "metal" | "knowledge";
+export type ResourceId = "food" | "wood" | "stone" | "metal" | "energy" | "knowledge";
 
 export type PriorityId =
   | "food"
   | "wood"
   | "stone"
   | "metal"
+  | "energy"
   | "construction"
   | "research"
   | "defence"
@@ -28,6 +29,9 @@ export type BuildingId =
   | "forge"
   | "workshop"
   | "factory"
+  | "boiler_house"
+  | "power_station"
+  | "substation"
   | "laboratory"
   | "reactor"
   | "observatory"
@@ -48,7 +52,10 @@ export type TechId =
   | "metallurgy"
   | "steam_power"
   | "electricity"
+  | "grid_wiring"
+  | "high_voltage"
   | "atomic_theory"
+  | "cooling_towers"
   | "rocketry"
   | "selective_cuts"
   | "clearcutting"
@@ -201,7 +208,7 @@ export interface RunStats {
 }
 
 export interface GameState {
-  schemaVersion: 4 | 5 | 6 | 7;
+  schemaVersion: 4 | 5 | 6 | 7 | 8;
   tick: number;
   age: AgeId;
   resources: Resources;
@@ -233,6 +240,11 @@ export interface GameState {
    * Raises raid harshness; eases with regrowth and stewardship doctrines.
    */
   strain: number;
+  /**
+   * Grid saturation last tick (0–1). Consumers run at this fraction when
+   * demand exceeds supply + battery.
+   */
+  powerFactor: number;
 }
 
 export interface BuildingDef {
@@ -246,6 +258,19 @@ export interface BuildingDef {
   /** Which priority category can staff this building */
   priority: PriorityId;
   produces?: Partial<Resources>;
+  /** Energy generated per assigned worker each tick (grid sim, not haul) */
+  producesEnergy?: number;
+  /**
+   * Energy demand each tick when complete.
+   * Worker buildings scale by staffed fraction; zero-slot buildings are always-on.
+   */
+  consumesEnergy?: number;
+  /** Wood burned per unit of energy produced */
+  fuelWoodPerEnergy?: number;
+  /** Adds to the settlement battery cap when complete */
+  energyBattery?: number;
+  /** Land Strain gained per unit of energy produced */
+  strainPerEnergy?: number;
   /** Required tile deposit, if any */
   requiresDeposit?: DepositId;
   /** Earliest age this building becomes placeable (and later ages) */
@@ -283,6 +308,16 @@ export interface TechModifiersDef {
   giftPowerMult?: number;
   /** Extra trade routes each Trade Post supports */
   extraRoutesPerPost?: number;
+  /** Multiplier on energy generation */
+  energyOutputMult?: number;
+  /** Multiplier on energy demand from consumers */
+  energyUseMult?: number;
+  /** Flat bonus to battery capacity */
+  energyBatteryBonus?: number;
+  /** Multiplier on wood burned while generating */
+  energyFuelMult?: number;
+  /** Multiplier on Land Strain from energy generation */
+  energyStrainMult?: number;
 }
 
 export interface TechDef {

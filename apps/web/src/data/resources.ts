@@ -16,6 +16,7 @@ export const RESOURCE_ORDER: ResourceId[] = [
   "wood",
   "stone",
   "metal",
+  "energy",
   "knowledge",
 ];
 
@@ -47,6 +48,13 @@ export const RESOURCES: Record<ResourceId, ResourceVisual> = {
     hex: "c08a4a",
     color: 0xc08a4a,
     glyph: "▬",
+  },
+  energy: {
+    id: "energy",
+    label: "Energy",
+    hex: "5ec8e8",
+    color: 0x5ec8e8,
+    glyph: "⚡",
   },
   knowledge: {
     id: "knowledge",

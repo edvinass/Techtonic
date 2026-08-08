@@ -7,6 +7,7 @@ import { currentMonthName, SEASON_INFO } from "../data/events";
 import { RESOURCE_ORDER, RESOURCES } from "../data/resources";
 import { TECH_LIST } from "../data/techs";
 import { ageUpRequirements, getBuildableTypes, isTechAvailable } from "../sim/engine";
+import { energyCap } from "../sim/energy";
 import { tileRemainingPct } from "../sim/mapgen";
 import { defenceReadiness } from "../sim/pressure";
 import {
@@ -42,6 +43,7 @@ const PRIORITY_LABELS: Record<PriorityId, string> = {
   wood: "Wood",
   stone: "Stone",
   metal: "Metal",
+  energy: "Energy",
   construction: "Build",
   research: "Research",
   defence: "Defence",
@@ -70,6 +72,33 @@ function buildingDetailRows(
         value: `${rate.toFixed(2)} / tick when staffed`,
       });
     }
+  }
+  if (def.producesEnergy) {
+    rows.push({
+      label: "Produces Energy",
+      value: `${def.producesEnergy.toFixed(2)} / worker / tick`,
+    });
+  }
+  if (def.consumesEnergy) {
+    rows.push({
+      label: "Needs Energy",
+      value:
+        def.workerSlots > 0
+          ? `${def.consumesEnergy.toFixed(2)} / tick when fully staffed`
+          : `${def.consumesEnergy.toFixed(2)} / tick while complete`,
+    });
+  }
+  if (def.energyBattery) {
+    rows.push({
+      label: "Battery",
+      value: `+${def.energyBattery} grid storage`,
+    });
+  }
+  if (def.fuelWoodPerEnergy) {
+    rows.push({
+      label: "Fuel",
+      value: `${def.fuelWoodPerEnergy.toFixed(2)} wood per energy`,
+    });
   }
   if (def.requiresDeposit) {
     const label = RESOURCES[def.requiresDeposit].label;
@@ -279,6 +308,8 @@ export function Hud() {
   const strainLevel = strain >= 70 ? "critical" : strain >= 40 ? "high" : strain >= 15 ? "warm" : "calm";
   const popTight = state.population.count >= state.population.housingCap;
   const foodLow = state.resources.food < state.population.count * 2;
+  const energyLow = state.powerFactor < 0.98;
+  const batteryCap = energyCap(state);
   const selectedDef = selectedBuilding ? BUILDINGS[selectedBuilding] : null;
   const inspected = inspectedBuildingId
     ? state.buildings.find((b) => b.id === inspectedBuildingId)
@@ -437,13 +468,22 @@ export function Hud() {
           {RESOURCE_ORDER.map((id) => {
             const amount = state.resources[id];
             const delta = deltas[id];
-            const critical = id === "food" && foodLow;
+            const critical =
+              (id === "food" && foodLow) || (id === "energy" && energyLow);
+            const amountLabel =
+              id === "energy"
+                ? `${formatAmount(amount)}/${formatAmount(batteryCap)}`
+                : formatAmount(amount);
+            const title =
+              id === "energy"
+                ? `Energy battery ${amountLabel} · grid ${Math.round(state.powerFactor * 100)}% — open Library`
+                : `${RESOURCES[id].label} — open Library for details`;
             return (
               <span
                 key={id}
                 className={`resource-chip${critical ? " critical" : ""}`}
                 style={{ "--res": `#${RESOURCES[id].hex}` } as CSSProperties}
-                title={`${RESOURCES[id].label} — open Library for details`}
+                title={title}
                 onClick={() => openLibrary(`resource-${id}`)}
                 role="button"
                 tabIndex={0}
@@ -458,7 +498,7 @@ export function Hud() {
                   <ResourceIcon id={id} size={18} />
                 </span>
                 <em>{RESOURCES[id].label}</em>
-                <strong>{formatAmount(amount)}</strong>
+                <strong>{amountLabel}</strong>
                 <span
                   className={`res-delta${
                     delta != null && Math.abs(delta) >= 0.5

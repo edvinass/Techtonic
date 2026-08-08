@@ -360,6 +360,16 @@ export function drawResourceMark(
       drawBoulderPile(g, x, y, s, metalOrePile(salt, color));
       break;
     }
+    case "energy": {
+      g.fillStyle(color, 0.22);
+      g.fillCircle(x, y - 1 * s, 8 * s);
+      g.fillStyle(color, 1);
+      g.fillTriangle(x + 1 * s, y - 9 * s, x - 4 * s, y + 1 * s, x + 0.5 * s, y + 1 * s);
+      g.fillTriangle(x - 0.5 * s, y - 1 * s, x + 4 * s, y - 1 * s, x - 1 * s, y + 9 * s);
+      g.fillStyle(0xe8f8ff, 0.55);
+      g.fillTriangle(x + 1 * s, y - 9 * s, x - 1.5 * s, y - 2 * s, x + 1.5 * s, y - 2 * s);
+      break;
+    }
     case "knowledge": {
       // Soft glow under a faceted star
       g.fillStyle(color, 0.22);

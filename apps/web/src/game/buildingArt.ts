@@ -252,6 +252,15 @@ export function drawBuildingArt(
     case "factory":
       drawFactory(g, alpha);
       break;
+    case "boiler_house":
+      drawBoilerHouse(g, alpha);
+      break;
+    case "power_station":
+      drawPowerStation(g, alpha);
+      break;
+    case "substation":
+      drawSubstation(g, alpha);
+      break;
     case "laboratory":
       drawLaboratory(g, alpha);
       break;
@@ -754,6 +763,59 @@ function drawFactory(g: GameObjects.Graphics, a: number) {
     g.fillCircle(sx - 1, sy - h - 5, 3.5);
     g.fillCircle(sx + 2, sy - h - 9, 2.8);
   }
+}
+
+function drawBoilerHouse(g: GameObjects.Graphics, a: number) {
+  const { base } = isoBox(g, 0, 0, HW - 8, HH - 4, 14, 0xb45a3a, a, {
+    top: 0xd47a5a,
+  });
+  // Brick boiler drum
+  isoBox(g, -2, 2, 10, 5, 10, 0x8a4030, a, { top: 0xa85038 });
+  g.fillStyle(0xe8a060, 0.55 * a);
+  g.fillEllipse(-2, -10, 14, 6);
+  // Stack with heat shimmer
+  g.lineStyle(5, 0x5a3030, a);
+  g.lineBetween(8, -8, 8, -26);
+  g.fillStyle(0x5a3030, a);
+  g.fillEllipse(8, -27, 6, 2.5);
+  g.fillStyle(0xf0c080, 0.35 * a);
+  g.fillCircle(7, -30, 3);
+  g.fillCircle(9, -33, 2.4);
+  isoWindow(g, base, 14, a, { lit: true, ox: -6, oy: -8, w: 3.5, h: 3.5 });
+}
+
+function drawPowerStation(g: GameObjects.Graphics, a: number) {
+  const { base, top } = isoBox(g, 0, 0, HW - 7, HH - 3.5, 16, 0x3a7a9a, a, {
+    top: 0x5a9aba,
+  });
+  // Transformer block
+  isoBox(g, 8, 3, 7, 3.5, 8, 0x2a5a70, a, { top: 0x4a7a90 });
+  // Cable gantry
+  g.lineStyle(1.6, 0xc0d8e0, 0.75 * a);
+  g.lineBetween(top.W.x + 2, top.W.y - 2, top.E.x - 2, top.E.y - 2);
+  g.lineBetween(top.N.x, top.N.y - 2, top.N.x, top.N.y - 10);
+  // Arc glow
+  g.fillStyle(0x5ec8e8, 0.45 * a);
+  g.fillCircle(top.N.x, top.N.y - 11, 3.5);
+  g.fillStyle(0xe8f8ff, 0.55 * a);
+  g.fillCircle(top.N.x, top.N.y - 11, 1.5);
+  isoWindow(g, base, 16, a, { lit: true, ox: -8, oy: -9, w: 4, h: 4 });
+}
+
+function drawSubstation(g: GameObjects.Graphics, a: number) {
+  isoBox(g, 0, 2, HW - 10, HH - 5, 8, 0x5a8aaa, a, { top: 0x7aaaca });
+  // Fence yard
+  const yard = diamond(0, 4, HW - 6, HH - 3);
+  strokePoly(g, [yard.N, yard.E, yard.S, yard.W], 0x8ab0c0, 0.55 * a, 1.2);
+  // Insulator poles
+  for (const ox of [-8, 0, 8]) {
+    g.lineStyle(2, 0x6a8090, a);
+    g.lineBetween(ox, -2, ox, -14);
+    g.fillStyle(0x5ec8e8, 0.5 * a);
+    g.fillCircle(ox, -15, 2);
+  }
+  g.lineStyle(1.4, 0xc0d8e0, 0.65 * a);
+  g.lineBetween(-8, -14, 8, -14);
 }
 
 function drawLaboratory(g: GameObjects.Graphics, a: number) {
