@@ -189,6 +189,18 @@ export function BuildingIcon({ id, size = 36, className }: Props) {
           <rect x="15" y="18" width="6" height="8" fill="#3a2818" />
         </svg>
       );
+    case "grove_sanctuary":
+      return (
+        <svg {...common}>
+          {ground}
+          <ellipse cx="18" cy="26" rx="11" ry="4" fill="#2a4a32" />
+          <rect x="11" y="18" width="2.5" height="8" fill="#8a8f98" />
+          <rect x="22.5" y="18" width="2.5" height="8" fill="#8a8f98" />
+          <rect x="16.5" y="14" width="3" height="10" fill="#5a3d22" />
+          <circle cx="18" cy="12" r="7" fill={hex} />
+          <circle cx="18" cy="20" r="1.8" fill="#c9a227" />
+        </svg>
+      );
     default:
       return (
         <svg {...common}>

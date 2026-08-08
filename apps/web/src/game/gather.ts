@@ -1,5 +1,6 @@
 import type { BuildingInstance, GameState, ResourceId, Tile } from "../sim/types";
 import { BUILDINGS } from "../data/buildings";
+import { techModifiers } from "../sim/strategy";
 import { gridToScreen } from "./iso";
 
 /** Max resources a worker can carry before returning to drop off. */
@@ -26,6 +27,35 @@ export function resourceForBuilding(building: BuildingInstance): ResourceId | nu
   if (!def.produces) return null;
   const key = Object.keys(def.produces)[0] as ResourceId | undefined;
   return key ?? null;
+}
+
+/**
+ * Effective gather rate: base × building `produces` identity × tech doctrines.
+ * Wild forage (no produce building) is slower than camp/farm work.
+ */
+export function gatherRateFor(
+  state: GameState,
+  building: BuildingInstance | null,
+  resource: ResourceId,
+  opts: { hasTools: boolean; wild?: boolean; fertileBonus?: number } = { hasTools: false },
+): number {
+  const wild = opts.wild ?? false;
+  let buildingMult = 1;
+  if (building) {
+    buildingMult = BUILDINGS[building.type]?.produces?.[resource] ?? 1;
+  } else if (wild) {
+    // Hand-forage: half speed for wood, slightly slow for food
+    buildingMult = resource === "wood" ? 0.5 : 0.7;
+  }
+  const mods = techModifiers(state);
+  const woodDoctrine = resource === "wood" ? mods.woodGatherMult : 1;
+  return (
+    GATHER_PER_SEC[resource] *
+    buildingMult *
+    woodDoctrine *
+    (opts.hasTools ? 1.15 : 1) *
+    (opts.fertileBonus ?? 1)
+  );
 }
 
 /** Match MainScene tile elevation so citizens stand on the tile top face. */

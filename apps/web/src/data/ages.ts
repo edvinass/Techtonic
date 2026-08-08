@@ -31,7 +31,7 @@ export const AGES: Record<AgeId, AgeDef> = {
   stone: {
     id: "stone",
     name: "Stone Age",
-    blurb: "Finite forests, hungry winters, and raiders at the treeline.",
+    blurb: "Finite forests, Land Strain, hungry winters, and raiders at the treeline.",
     next: "farming",
     keyTech: "farming",
     landmark: "granary",
@@ -41,7 +41,7 @@ export const AGES: Record<AgeId, AgeDef> = {
   farming: {
     id: "farming",
     name: "Farming Age",
-    blurb: "Farms and storehouses buy time. Dig for metal — and fortify.",
+    blurb: "Farms buy time. Choose Selective Cuts toward Harmony — or Clearcutting toward Ascent.",
     next: "metal",
     keyTech: "metallurgy",
     landmark: "forge",
@@ -81,6 +81,6 @@ export const AGES: Record<AgeId, AgeDef> = {
   space: {
     id: "space",
     name: "Space Age",
-    blurb: "Your people reach for the stars. The long climb is complete.",
+    blurb: "Ascent complete — or you already chose Harmony among the living woods.",
   },
 };

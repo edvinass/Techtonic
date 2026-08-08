@@ -36,7 +36,7 @@ export function GameScreen() {
       void putSave(store.token, slot, {
         name: `${ageName} settlement`,
         age: store.state.age,
-        schema_version: 3,
+        schema_version: 4,
         state: payload,
       })
         .then(() => setSaveMeta(slot, Date.now()))

@@ -175,6 +175,7 @@ describe("sim engine", () => {
     state = advanceAge(state);
     expect(state.age).toBe("space");
     expect(state.outcome).toBe("victory");
+    expect(state.stats.victoryKind).toBe("ascent");
     expect(ageUpRequirements(state).nextAge).toBeNull();
   });
 });

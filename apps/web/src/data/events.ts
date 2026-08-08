@@ -28,6 +28,8 @@ export type EventEffect = {
   knowledgeDelta?: number;
   /** Burn this many forest tiles on the map */
   burnForests?: number;
+  /** Adjust Land Strain (negative eases the land) */
+  strainDelta?: number;
 };
 
 export type ChallengeEventDef = {
@@ -186,6 +188,32 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
           foodMult: 1.4,
           foodMultTicks: 30,
           resources: { food: -10 },
+        },
+      },
+    ],
+  },
+  {
+    id: "scarred_land",
+    title: "Scarred land",
+    text: "Elders point at bare hills where forests stood. The soil itself seems thinner. How will you answer the axe?",
+    choices: [
+      {
+        label: "Rest the woods",
+        hint: "−food now; ease Land Strain",
+        effect: {
+          result: "Axes are hung. Bellies tighten, but the stands breathe.",
+          resources: { food: -16 },
+          strainDelta: -18,
+        },
+      },
+      {
+        label: "Push the clearings",
+        hint: "+wood now; Land Strain rises",
+        effect: {
+          result: "Crews fell the last shade. Timber piles high — for a price.",
+          resources: { wood: 22, food: -6 },
+          burnForests: 2,
+          strainDelta: 14,
         },
       },
     ],

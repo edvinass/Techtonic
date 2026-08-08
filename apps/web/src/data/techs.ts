@@ -19,6 +19,28 @@ export const TECHS: Record<string, TechDef> = {
     requires: ["fire"],
     unlocksBuildings: ["quarry"],
   },
+  selective_cuts: {
+    id: "selective_cuts",
+    name: "Selective Cuts",
+    description:
+      "Doctrine: take less, leave seed trees. Slower lumber, far less Land Strain, faster regrowth. Locks out Clearcutting.",
+    costKnowledge: 20,
+    researchTicks: 26,
+    requires: ["fire"],
+    exclusiveWith: ["clearcutting"],
+    modifiers: { strainGainMult: 0.45, woodGatherMult: 0.85, regrowthMult: 1.75 },
+  },
+  clearcutting: {
+    id: "clearcutting",
+    name: "Clearcutting",
+    description:
+      "Doctrine: fell whole stands for speed. Faster lumber, heavy Land Strain, weak regrowth. Locks out Selective Cuts.",
+    costKnowledge: 20,
+    researchTicks: 26,
+    requires: ["fire"],
+    exclusiveWith: ["selective_cuts"],
+    modifiers: { strainGainMult: 1.55, woodGatherMult: 1.4, regrowthMult: 0.55 },
+  },
   farming: {
     id: "farming",
     name: "Farming",
@@ -31,11 +53,22 @@ export const TECHS: Record<string, TechDef> = {
   fortifications: {
     id: "fortifications",
     name: "Fortifications",
-    description: "Palisades and watchtowers — raids punish the unprepared.",
+    description: "Palisades and watchtowers — place them near houses; coverage beats raw numbers.",
     costKnowledge: 22,
     researchTicks: 28,
     requires: ["primitive_tools"],
     unlocksBuildings: ["watchtower", "palisade"],
+  },
+  stewardship: {
+    id: "stewardship",
+    name: "Stewardship",
+    description:
+      "Bind the settlement to the living woods. Unlocks the Grove Sanctuary and the Harmony victory path.",
+    costKnowledge: 40,
+    researchTicks: 42,
+    requires: ["selective_cuts", "farming"],
+    unlocksBuildings: ["grove_sanctuary"],
+    modifiers: { strainGainMult: 0.75, regrowthMult: 1.35 },
   },
   metallurgy: {
     id: "metallurgy",
@@ -76,7 +109,7 @@ export const TECHS: Record<string, TechDef> = {
   rocketry: {
     id: "rocketry",
     name: "Rocketry",
-    description: "Leave the ground behind. Key for the Space Age.",
+    description: "Leave the ground behind. Key for the Space Age (Ascent victory).",
     costKnowledge: 120,
     researchTicks: 72,
     requires: ["atomic_theory"],

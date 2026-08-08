@@ -6,6 +6,13 @@ import { RESOURCE_ORDER, RESOURCES } from "../data/resources";
 import { TECH_LIST } from "../data/techs";
 import { ageUpRequirements, getBuildableTypes, isTechAvailable } from "../sim/engine";
 import { defenceReadiness } from "../sim/pressure";
+import {
+  forestCoverRatio,
+  HARMONY_THRESHOLDS,
+  harmonyRequirements,
+  housingDefenceCoverage,
+  isTechExcluded,
+} from "../sim/strategy";
 import type { PriorityId, ResourceId, Resources } from "../sim/types";
 import { useGameStore } from "../store/gameStore";
 import { putSave } from "../api/client";
@@ -47,6 +54,7 @@ export function Hud() {
   const updatePriorities = useGameStore((s) => s.updatePriorities);
   const research = useGameStore((s) => s.research);
   const tryAgeUp = useGameStore((s) => s.tryAgeUp);
+  const tryHarmonyVictory = useGameStore((s) => s.tryHarmonyVictory);
   const togglePause = useGameStore((s) => s.togglePause);
   const statusMessage = useGameStore((s) => s.statusMessage);
   const token = useGameStore((s) => s.token);
@@ -116,11 +124,17 @@ export function Hud() {
   const age = AGES[state.age];
   const buildable = getBuildableTypes(state);
   const ageReq = ageUpRequirements(state);
+  const harmonyReq = harmonyRequirements(state);
   const defencePct = Math.round(defenceReadiness(state) * 100);
+  const coverPct = Math.round(housingDefenceCoverage(state) * 100);
+  const forestPct = Math.round(forestCoverRatio(state) * 100);
+  const strain = Math.round(state.strain);
+  const strainLevel = strain >= 70 ? "critical" : strain >= 40 ? "high" : strain >= 15 ? "warm" : "calm";
   const popTight = state.population.count >= state.population.housingCap;
   const foodLow = state.resources.food < state.population.count * 2;
   const selectedDef = selectedBuilding ? BUILDINGS[selectedBuilding] : null;
   const outcome = state.outcome;
+  const victoryKind = state.stats.victoryKind;
 
   async function saveToSlot(slot: number) {
     const current = useGameStore.getState().state;
@@ -131,7 +145,7 @@ export function Hud() {
       await putSave(token, slot, {
         name: `${AGES[current.age].name} settlement`,
         age: current.age,
-        schema_version: 3,
+        schema_version: 4,
         state: payload,
       });
       setSaveMeta(slot, Date.now());
@@ -164,10 +178,18 @@ export function Hud() {
       {outcome !== "playing" && (
         <div className={`outcome-overlay ${outcome}`}>
           <div className="outcome-card">
-            <h2>{outcome === "victory" ? "Victory" : "Defeat"}</h2>
+            <h2>
+              {outcome === "victory"
+                ? victoryKind === "harmony"
+                  ? "Harmony"
+                  : "Ascent"
+                : "Defeat"}
+            </h2>
             <p>
               {outcome === "victory"
-                ? "The launch succeeds. Your people leave the cradle of earth behind."
+                ? victoryKind === "harmony"
+                  ? "The woods endure. Your people choose the living world over the void."
+                  : "The launch succeeds. Your people leave the cradle of earth behind."
                 : "Hunger and hardship empty the camp. The long climb ends here."}
             </p>
             <ul className="outcome-stats">
@@ -182,6 +204,9 @@ export function Hud() {
               </li>
               <li>
                 Wood harvested <strong>{Math.floor(state.stats.woodHarvested)}</strong>
+              </li>
+              <li>
+                Peak Land Strain <strong>{strain}</strong>
               </li>
               <li>
                 Survived <strong>{state.tick}</strong> ticks
@@ -207,6 +232,12 @@ export function Hud() {
           {state.pressure.raidWarningTicks > 0 && (
             <span className="raid-warn">Raid in {state.pressure.raidWarningTicks}</span>
           )}
+          <span
+            className={`strain-pill strain-${strainLevel}`}
+            title="Land Strain rises when you overharvest. High strain hardens raids and can kill forests."
+          >
+            Strain {strain}
+          </span>
         </div>
 
         <div className="resource-bar" role="group" aria-label="Resources">
@@ -401,8 +432,8 @@ export function Hud() {
           <section className="chrome-panel">
             <h3>Work priorities</h3>
             <p className="muted panel-hint">
-              Defence readiness <strong>{defencePct}%</strong> — towers, palisades, and this slider
-              blunt raids.
+              Defence <strong>{defencePct}%</strong> · home coverage{" "}
+              <strong>{coverPct}%</strong> — place towers/palisades near houses.
             </p>
             {PRIORITIES.map((p) => (
               <label key={p} className="priority">
@@ -448,26 +479,40 @@ export function Hud() {
                 </div>
               </div>
             )}
+            <p className="muted panel-hint">
+              Doctrines can lock each other out — Selective Cuts vs Clearcutting is a real fork.
+            </p>
             <div className="tech-list">
               {TECH_LIST.map((tech) => {
                 const unlocked = state.research.unlocked.includes(tech.id);
+                const excluded = isTechExcluded(state, tech.id);
                 const available = isTechAvailable(state, tech.id);
                 const affordable = state.resources.knowledge >= tech.costKnowledge;
                 return (
                   <button
                     key={tech.id}
                     type="button"
-                    disabled={unlocked || !available || !!state.research.active || !affordable}
-                    className={unlocked ? "unlocked" : ""}
-                    title={tech.description}
+                    disabled={
+                      unlocked || excluded || !available || !!state.research.active || !affordable
+                    }
+                    className={`${unlocked ? "unlocked" : ""}${excluded ? " excluded" : ""}${
+                      tech.exclusiveWith?.length ? " doctrine" : ""
+                    }`}
+                    title={
+                      excluded
+                        ? `Locked by opposing doctrine (${tech.exclusiveWith?.join(", ")})`
+                        : tech.description
+                    }
                     onClick={() => research(tech.id)}
                   >
                     <strong>
                       {tech.name}
                       {unlocked ? " ✓" : ""}
+                      {excluded ? " ✕" : ""}
+                      {tech.exclusiveWith?.length && !unlocked && !excluded ? " ⇄" : ""}
                     </strong>
                     <span className="cost-row">
-                      {!unlocked && (
+                      {!unlocked && !excluded && (
                         <span
                           className={`cost-item${!affordable ? " short" : ""}`}
                           title="Knowledge"
@@ -476,7 +521,9 @@ export function Hud() {
                           {tech.costKnowledge}
                         </span>
                       )}
-                      <span className="tech-desc">{tech.description}</span>
+                      <span className="tech-desc">
+                        {excluded ? "Locked by opposing doctrine." : tech.description}
+                      </span>
                     </span>
                   </button>
                 );
@@ -485,53 +532,92 @@ export function Hud() {
           </section>
         )}
 
-        {!sideCollapsed && sideTab === "age" && nextAge && (
-          <section className="age-up chrome-panel">
-            <h3>Advance to {nextAge.name}</h3>
-            <p className="muted panel-hint">{age.blurb}</p>
-            <ul>
-              {keyTechName && (
-                <li className={ageReq.hasTech ? "ok" : ""}>Research {keyTechName}</li>
-              )}
-              {landmarkName && (
-                <li className={ageReq.hasLandmark ? "ok" : ""}>
-                  Build {landmarkName} landmark
-                </li>
-              )}
-              <li className={ageReq.hasPopulation ? "ok" : ""}>
-                Population ≥ {age.minPopulation ?? 0}
-              </li>
-              <li className={ageReq.canPay ? "ok" : ""}>
-                Pay{" "}
-                <span className="cost-row inline">
-                  {(Object.entries(age.cost ?? {}) as [ResourceId, number][]).map(([k, v]) => (
-                    <span key={k} className="cost-item" title={RESOURCES[k].label}>
-                      <ResourceIcon id={k} size={12} /> {v}
+        {!sideCollapsed && sideTab === "age" && (
+          <>
+            {nextAge && (
+              <section className="age-up chrome-panel">
+                <h3>Ascent → {nextAge.name}</h3>
+                <p className="muted panel-hint">{age.blurb}</p>
+                <ul>
+                  {keyTechName && (
+                    <li className={ageReq.hasTech ? "ok" : ""}>Research {keyTechName}</li>
+                  )}
+                  {landmarkName && (
+                    <li className={ageReq.hasLandmark ? "ok" : ""}>
+                      Build {landmarkName} landmark
+                    </li>
+                  )}
+                  <li className={ageReq.hasPopulation ? "ok" : ""}>
+                    Population ≥ {age.minPopulation ?? 0}
+                  </li>
+                  <li className={ageReq.canPay ? "ok" : ""}>
+                    Pay{" "}
+                    <span className="cost-row inline">
+                      {(Object.entries(age.cost ?? {}) as [ResourceId, number][]).map(([k, v]) => (
+                        <span key={k} className="cost-item" title={RESOURCES[k].label}>
+                          <ResourceIcon id={k} size={12} /> {v}
+                        </span>
+                      ))}
                     </span>
-                  ))}
-                </span>
-              </li>
-            </ul>
-            <button
-              type="button"
-              className="primary"
-              disabled={!ageReq.ready}
-              onClick={() => {
-                if (tryAgeUp() && token) {
-                  void saveToSlot(saveSlot ?? 1);
-                }
-              }}
-            >
-              Enter {nextAge.name}
-            </button>
-          </section>
-        )}
+                  </li>
+                </ul>
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={!ageReq.ready}
+                  onClick={() => {
+                    if (tryAgeUp() && token) {
+                      void saveToSlot(saveSlot ?? 1);
+                    }
+                  }}
+                >
+                  Enter {nextAge.name}
+                </button>
+              </section>
+            )}
 
-        {!sideCollapsed && sideTab === "age" && !nextAge && (
-          <section className="age-up done chrome-panel">
-            <h3>{age.name}</h3>
-            <p>{age.blurb}</p>
-          </section>
+            {!nextAge && (
+              <section className="age-up done chrome-panel">
+                <h3>{age.name}</h3>
+                <p>{age.blurb}</p>
+              </section>
+            )}
+
+            <section className="age-up chrome-panel harmony-panel">
+              <h3>Harmony path</h3>
+              <p className="muted panel-hint">
+                Alternate victory: steward the forests instead of leaving them. Cover{" "}
+                <strong>{forestPct}%</strong> · Strain <strong>{strain}</strong>.
+              </p>
+              <ul>
+                <li className={harmonyReq.hasTech ? "ok" : ""}>Research Stewardship</li>
+                <li className={harmonyReq.hasLandmark ? "ok" : ""}>
+                  Build Grove Sanctuary
+                </li>
+                <li className={harmonyReq.hasPopulation ? "ok" : ""}>
+                  Population ≥ {HARMONY_THRESHOLDS.minPopulation}
+                </li>
+                <li className={harmonyReq.forestOk ? "ok" : ""}>
+                  Forest cover ≥ {Math.round(HARMONY_THRESHOLDS.minForest * 100)}%
+                </li>
+                <li className={harmonyReq.strainOk ? "ok" : ""}>
+                  Land Strain ≤ {HARMONY_THRESHOLDS.maxStrain}
+                </li>
+              </ul>
+              <button
+                type="button"
+                className="primary harmony"
+                disabled={!harmonyReq.ready}
+                onClick={() => {
+                  if (tryHarmonyVictory() && token) {
+                    void saveToSlot(saveSlot ?? 1);
+                  }
+                }}
+              >
+                Claim Harmony
+              </button>
+            </section>
+          </>
         )}
       </aside>
     </div>

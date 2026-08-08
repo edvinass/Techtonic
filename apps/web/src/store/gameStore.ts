@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { AGES } from "../data/ages";
 import {
   advanceAge,
+  claimHarmonyVictory,
   createNewGame,
   harvestDeposit,
   placeBuilding,
@@ -37,6 +38,7 @@ interface GameStore {
   updatePriorities: (p: Priorities) => void;
   research: (techId: TechId) => void;
   tryAgeUp: () => boolean;
+  tryHarmonyVictory: () => boolean;
   togglePause: () => void;
   stepTick: () => void;
   setSaveMeta: (slot: number, at: number) => void;
@@ -107,7 +109,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastSavedAt: null,
       tutorialDismissed: false,
       statusMessage:
-        "Stone Age begins. Forests run out. Winters bite. Fortify before the raids.",
+        "Stone Age begins. Forests are finite — Land Strain rises with every axe swing. Fortify homes before the raids.",
     });
   },
 
@@ -156,9 +158,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const next = advanceAge(state);
     if (next === state) return false;
     const ageName = AGES[next.age]?.name ?? next.age;
+    const won = next.outcome === "victory";
     set({
       state: next,
-      statusMessage: `Your people enter the ${ageName}!`,
+      statusMessage: won
+        ? "Ascent victory — your people reach the stars!"
+        : `Your people enter the ${ageName}!`,
+    });
+    return true;
+  },
+
+  tryHarmonyVictory: () => {
+    const { state } = get();
+    if (!state) return false;
+    const next = claimHarmonyVictory(state);
+    if (next === state) return false;
+    set({
+      state: next,
+      statusMessage: "Harmony victory — the living world endures!",
     });
     return true;
   },
@@ -176,7 +193,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const banner = next.pressure.lastBanner;
     if (banner) next.pressure.lastBanner = null;
     let status = banner;
-    if (next.outcome === "victory") status = "Victory — your people reach the stars!";
+    if (next.outcome === "victory") {
+      status =
+        next.stats.victoryKind === "harmony"
+          ? "Harmony victory — the living world endures!"
+          : "Ascent victory — your people reach the stars!";
+    }
     if (next.outcome === "defeat") status = "Defeat — the settlement has fallen.";
     set({
       state: next,

@@ -3,6 +3,13 @@ import { BUILDINGS } from "../data/buildings";
 import { TECHS } from "../data/techs";
 import { DEPOSIT_STOCK, generateMap } from "./mapgen";
 import { defaultPressure, seasonFoodMultiplier, tickPressure } from "./pressure";
+import {
+  applyStrainGain,
+  easeStrain,
+  harmonyRequirements,
+  isTechExcluded,
+  techModifiers,
+} from "./strategy";
 import type {
   AgeId,
   BuildingId,
@@ -76,7 +83,7 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
   const cy = Math.floor(MAP_SIZE / 2);
 
   const state: GameState = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     tick: 0,
     age: "stone",
     resources: { food: 28, wood: 32, stone: 12, metal: 0, knowledge: 5 },
@@ -100,6 +107,7 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
     outcome: "playing",
     starvationTicks: 0,
     stats: { peakPop: 5, raidsSurvived: 0, raidsFailed: 0, woodHarvested: 0 },
+    strain: 0,
   };
   state.population.housingCap = recalcHousing(state);
   return state;
@@ -181,6 +189,7 @@ export function isTechAvailable(state: GameState, techId: TechId): boolean {
   const tech = TECHS[techId];
   if (!tech) return false;
   if (state.research.unlocked.includes(techId)) return false;
+  if (isTechExcluded(state, techId)) return false;
   return tech.requires.every((r) => state.research.unlocked.includes(r));
 }
 
@@ -243,8 +252,23 @@ export function advanceAge(state: GameState): GameState {
   if (next.age === "space") {
     next.outcome = "victory";
     next.paused = true;
-    next.pressure.lastBanner = "Launch succeeds — your people reach the stars!";
+    next.stats.victoryKind = "ascent";
+    next.pressure.lastBanner = "Ascent — launch succeeds! Your people reach the stars!";
   }
+  return next;
+}
+
+/** Claim Harmony victory when stewardship path conditions are met. */
+export function claimHarmonyVictory(state: GameState): GameState {
+  if (state.outcome !== "playing") return state;
+  const req = harmonyRequirements(state);
+  if (!req.ready) return state;
+  const next = cloneState(state);
+  next.outcome = "victory";
+  next.paused = true;
+  next.stats.victoryKind = "harmony";
+  next.pressure.lastBanner =
+    "Harmony — the woods endure and your people choose the living world over the void.";
   return next;
 }
 
@@ -258,12 +282,20 @@ export function harvestDeposit(state: GameState, gx: number, gy: number, amount:
   const taken = Math.min(tile.stock, amount);
   tile.stock -= taken;
   if (tile.deposit === "wood") state.stats.woodHarvested += taken;
+  if (taken > 0) {
+    applyStrainGain(state, tile.deposit, taken);
+  }
   if (tile.stock <= 0) {
     tile.stock = 0;
+    const depleted = tile.deposit;
     tile.deposit = null;
     if (tile.terrain === "forest") {
       tile.terrain = "grass";
       tile.elev = Math.min(tile.elev ?? 1, 1);
+    }
+    // Clear-cutting a whole stand spikes strain harder than drip harvesting
+    if (depleted === "wood") {
+      applyStrainGain(state, "wood", 4);
     }
   }
   return taken;
@@ -334,8 +366,16 @@ function assignWorkers(state: GameState): {
 
 /** Slow forest regrowth on empty grass next to living forest (autumn/spring). */
 function tickRegrowth(state: GameState): void {
+  // High strain slows the world's recovery even outside growth seasons
+  if (state.tick % 8 === 0) {
+    easeStrain(state, state.strain > 60 ? 0.35 : 0.7);
+  }
+
   if (state.pressure.season !== "spring" && state.pressure.season !== "autumn") return;
-  if (state.tick % 12 !== 0) return;
+  const mods = techModifiers(state);
+  // Clearcutting / high strain stretch the regrowth interval
+  const interval = Math.max(6, Math.round(12 / mods.regrowthMult + state.strain / 25));
+  if (state.tick % interval !== 0) return;
   const { width, height, tiles } = state.map;
   const candidates: Tile[] = [];
   for (const t of tiles) {
@@ -354,10 +394,16 @@ function tickRegrowth(state: GameState): void {
     if (nearForest) candidates.push(t);
   }
   if (!candidates.length) return;
-  const pick = candidates[Math.floor((state.rngSeed + state.tick * 7) % candidates.length)];
-  pick.terrain = "forest";
-  pick.deposit = "wood";
-  pick.stock = Math.floor(DEPOSIT_STOCK.wood * 0.45);
+  const picks = Math.min(candidates.length, mods.regrowthMult >= 1.4 ? 2 : 1);
+  for (let i = 0; i < picks; i++) {
+    const idx = Math.floor((state.rngSeed + state.tick * 7 + i * 13) % candidates.length);
+    const pick = candidates.splice(idx % candidates.length, 1)[0];
+    if (!pick) break;
+    pick.terrain = "forest";
+    pick.deposit = "wood";
+    pick.stock = Math.floor(DEPOSIT_STOCK.wood * 0.45);
+    easeStrain(state, 2.5);
+  }
 }
 
 export function tick(state: GameState): GameState {

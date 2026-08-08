@@ -471,7 +471,8 @@ input[type="text"] {
 
 .age-pill,
 .season-pill,
-.raid-warn {
+.raid-warn,
+.strain-pill {
   display: inline-flex;
   align-items: center;
   padding: 0.2rem 0.55rem;
@@ -529,6 +530,47 @@ input[type="text"] {
   }
   50% {
     opacity: 0.65;
+  }
+}
+
+.strain-pill {
+  font-weight: 600;
+  border: 1px solid rgba(160, 140, 90, 0.45);
+  background: rgba(80, 70, 40, 0.35);
+  color: #e8d8b0;
+}
+
+.strain-pill.strain-calm {
+  border-color: rgba(111, 168, 90, 0.45);
+  background: rgba(60, 90, 50, 0.35);
+  color: #c8e8b8;
+}
+
+.strain-pill.strain-warm {
+  border-color: rgba(200, 160, 70, 0.5);
+  background: rgba(120, 90, 30, 0.4);
+}
+
+.strain-pill.strain-high {
+  border-color: rgba(210, 120, 50, 0.55);
+  background: rgba(130, 60, 20, 0.45);
+  color: #f2d0a8;
+}
+
+.strain-pill.strain-critical {
+  border-color: rgba(200, 70, 50, 0.65);
+  background: rgba(120, 30, 20, 0.55);
+  color: #ffd0b8;
+  animation: strain-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes strain-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
   }
 }
 
@@ -903,6 +945,25 @@ input[type="text"] {
 .tech-list button.unlocked {
   opacity: 0.7;
   border-color: rgba(111, 168, 90, 0.35);
+}
+
+.tech-list button.doctrine:not(.unlocked):not(.excluded) {
+  border-color: rgba(201, 162, 39, 0.45);
+}
+
+.tech-list button.excluded {
+  opacity: 0.42;
+  border-color: rgba(140, 80, 70, 0.35);
+  text-decoration: line-through;
+}
+
+button.primary.harmony {
+  background: linear-gradient(180deg, #4a8f5a, #2f6a3c);
+  border-color: rgba(111, 168, 90, 0.55);
+}
+
+.harmony-panel {
+  margin-top: 0.65rem;
 }
 
 .build-list .cost-row,

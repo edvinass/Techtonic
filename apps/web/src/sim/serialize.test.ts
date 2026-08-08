@@ -26,7 +26,8 @@ describe("serialize", () => {
       pressure: undefined,
     };
     const restored = deserialize(v1);
-    expect(restored.schemaVersion).toBe(3);
+    expect(restored.schemaVersion).toBe(4);
+    expect(restored.strain).toBe(0);
     expect(restored.pressure.season).toBe("spring");
     expect(restored.pressure.nextRaidAt).toBeGreaterThan(0);
     expect(restored.outcome).toBe("playing");

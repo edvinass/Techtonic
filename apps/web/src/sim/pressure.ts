@@ -3,6 +3,7 @@ import type { EventEffect } from "../data/events";
 import { BUILDINGS } from "../data/buildings";
 import { ageIndex } from "../data/ages";
 import { createRng } from "./rng";
+import { housingDefenceCoverage, strainRaidMultiplier } from "./strategy";
 import type { GameState, Priorities } from "./types";
 
 export function defaultPressure(seed: number): GameState["pressure"] {
@@ -40,6 +41,8 @@ export function defenceReadiness(state: GameState | Priorities): number {
     .filter((b) => b.progress >= 1 && b.type === "watchtower")
     .reduce((s, b) => s + b.workers, 0);
   ready += towerStaff * 0.04;
+  // Coverage of houses by nearby walls/towers — placement matters
+  ready += housingDefenceCoverage(gs) * 0.14;
   return Math.min(1, ready);
 }
 
@@ -102,6 +105,9 @@ export function applyEffect(state: GameState, effect: EventEffect, defenceBoost 
     if (n > 0) {
       // appended to result below
     }
+  }
+  if (effect.strainDelta) {
+    state.strain = Math.max(0, Math.min(100, state.strain + effect.strainDelta));
   }
   clampRes(state);
 
@@ -189,15 +195,32 @@ export function tickPressure(state: GameState): void {
     p.lastBanner = "Scouts spot a raiding pack approaching… raise Defence and man the towers!";
   }
 
-  // Challenge events — more frequent as ages advance
-  const eventChance = 0.28 + ageIndex(state.age) * 0.03;
+  // Challenge events — more frequent as ages advance; strained lands invite wildfire
+  const eventChance = 0.28 + ageIndex(state.age) * 0.03 + (state.strain >= 55 ? 0.12 : 0);
   if (p.eventCooldown <= 0 && state.tick > 18 && state.tick % 6 === 0) {
     const rng = createRng(state.rngSeed + state.tick * 31);
     if (rng() < eventChance) {
-      const def = CHALLENGE_EVENTS[Math.floor(rng() * CHALLENGE_EVENTS.length)];
+      let pool = CHALLENGE_EVENTS;
+      if (state.strain >= 55) {
+        const strained = CHALLENGE_EVENTS.filter(
+          (e) => e.id === "wildfire" || e.id === "scarred_land",
+        );
+        // Bias toward land-stress events when Strain is high
+        if (strained.length && rng() < 0.6) pool = strained;
+      }
+      const def = pool[Math.floor(rng() * pool.length)];
       p.pendingEventId = def.id;
       state.paused = true;
       p.lastBanner = `Challenge: ${def.title}`;
+    }
+  }
+
+  // Spontaneous dieback when strain is extreme — the map itself rebels
+  if (state.strain >= 80 && state.tick % 20 === 0) {
+    const burned = burnForests(state, 2);
+    if (burned > 0) {
+      state.strain = Math.max(0, state.strain - 4);
+      p.lastBanner = `Land Strain cracks the woods — ${burned} stands die back. Ease the axe or the world will.`;
     }
   }
 }
@@ -205,32 +228,36 @@ export function tickPressure(state: GameState): void {
 function resolveRaid(state: GameState): void {
   const ready = defenceReadiness(state);
   const rng = createRng(state.rngSeed + state.tick * 13);
+  const coverage = housingDefenceCoverage(state);
   const ageHarsh = 1 + ageIndex(state.age) * 0.18;
+  const harsh = ageHarsh * strainRaidMultiplier(state.strain) * (1.25 - coverage * 0.45);
 
   if (ready >= 0.28) {
     const spoils = 2 + Math.floor(rng() * 4);
     state.resources.food += spoils;
     state.stats.raidsSurvived += 1;
-    state.pressure.lastBanner = `Raiders driven off! Scavenged +${spoils} food. Defences held.`;
+    const coverNote = coverage >= 0.7 ? " Covered homes held firm." : "";
+    state.pressure.lastBanner = `Raiders driven off! Scavenged +${spoils} food. Defences held.${coverNote}`;
   } else if (ready >= 0.16) {
-    const foodLoss = Math.floor((14 + Math.floor(rng() * 10)) * ageHarsh);
-    const woodLoss = Math.floor((8 + Math.floor(rng() * 8)) * ageHarsh);
+    const foodLoss = Math.floor((14 + Math.floor(rng() * 10)) * harsh);
+    const woodLoss = Math.floor((8 + Math.floor(rng() * 8)) * harsh);
     state.resources.food = Math.max(0, state.resources.food - foodLoss);
     state.resources.wood = Math.max(0, state.resources.wood - woodLoss);
     state.stats.raidsFailed += 1;
     state.pressure.lastBanner = `Raid blunted but costly (−${foodLoss} food, −${woodLoss} wood).`;
   } else {
-    const foodLoss = Math.floor((24 + Math.floor(rng() * 14)) * ageHarsh);
-    const woodLoss = Math.floor((16 + Math.floor(rng() * 12)) * ageHarsh);
+    const foodLoss = Math.floor((24 + Math.floor(rng() * 14)) * harsh);
+    const woodLoss = Math.floor((16 + Math.floor(rng() * 12)) * harsh);
     state.resources.food = Math.max(0, state.resources.food - foodLoss);
     state.resources.wood = Math.max(0, state.resources.wood - woodLoss);
     state.stats.raidsFailed += 1;
-    if (state.population.count > 3 && rng() < 0.55) {
+    const popChance = coverage < 0.35 ? 0.7 : 0.45;
+    if (state.population.count > 3 && rng() < popChance) {
       const lost = rng() < 0.3 && state.population.count > 5 ? 2 : 1;
       state.population.count -= lost;
       state.pressure.lastBanner = `Brutal raid! −${foodLoss} food, −${woodLoss} wood, and ${lost} villager${lost > 1 ? "s" : ""} lost.`;
     } else {
-      state.pressure.lastBanner = `Raid tears through camp (−${foodLoss} food, −${woodLoss} wood). Fortify!`;
+      state.pressure.lastBanner = `Raid tears through camp (−${foodLoss} food, −${woodLoss} wood). Fortify near homes!`;
     }
   }
 }

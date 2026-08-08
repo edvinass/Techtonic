@@ -4,7 +4,7 @@ import type { GameState, PressureState, RunStats, Tile } from "./types";
 import { syncBuildingSeq } from "./engine";
 
 export interface SavedGamePayload {
-  schemaVersion: 1 | 2 | 3;
+  schemaVersion: 1 | 2 | 3 | 4;
   tick: number;
   age: GameState["age"];
   resources: GameState["resources"];
@@ -18,6 +18,7 @@ export interface SavedGamePayload {
   outcome?: GameState["outcome"];
   starvationTicks?: number;
   stats?: RunStats;
+  strain?: number;
 }
 
 function migrateTiles(tiles: Tile[]): Tile[] {
@@ -43,7 +44,7 @@ function migrateTiles(tiles: Tile[]): Tile[] {
 
 export function serialize(state: GameState): SavedGamePayload {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     tick: state.tick,
     age: state.age,
     resources: state.resources,
@@ -57,15 +58,21 @@ export function serialize(state: GameState): SavedGamePayload {
     outcome: state.outcome,
     starvationTicks: state.starvationTicks,
     stats: state.stats,
+    strain: state.strain,
   };
 }
 
 export function deserialize(payload: SavedGamePayload): GameState {
-  if (payload.schemaVersion !== 1 && payload.schemaVersion !== 2 && payload.schemaVersion !== 3) {
+  if (
+    payload.schemaVersion !== 1 &&
+    payload.schemaVersion !== 2 &&
+    payload.schemaVersion !== 3 &&
+    payload.schemaVersion !== 4
+  ) {
     throw new Error(`Unsupported save schema version: ${payload.schemaVersion}`);
   }
   const state: GameState = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     tick: payload.tick,
     age: payload.age,
     resources: payload.resources,
@@ -89,6 +96,7 @@ export function deserialize(payload: SavedGamePayload): GameState {
       raidsFailed: 0,
       woodHarvested: 0,
     },
+    strain: payload.strain ?? 0,
   };
   syncBuildingSeq(state);
   return state;

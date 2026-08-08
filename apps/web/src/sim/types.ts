@@ -25,7 +25,8 @@ export type BuildingId =
   | "launch_pad"
   | "watchtower"
   | "palisade"
-  | "storehouse";
+  | "storehouse"
+  | "grove_sanctuary";
 
 export type TechId =
   | "fire"
@@ -36,7 +37,12 @@ export type TechId =
   | "steam_power"
   | "electricity"
   | "atomic_theory"
-  | "rocketry";
+  | "rocketry"
+  | "selective_cuts"
+  | "clearcutting"
+  | "stewardship";
+
+export type VictoryKind = "ascent" | "harmony";
 
 export type SeasonId = "spring" | "summer" | "autumn" | "winter";
 
@@ -91,10 +97,11 @@ export interface RunStats {
   raidsSurvived: number;
   raidsFailed: number;
   woodHarvested: number;
+  victoryKind?: VictoryKind;
 }
 
 export interface GameState {
-  schemaVersion: 3;
+  schemaVersion: 4;
   tick: number;
   age: AgeId;
   resources: Resources;
@@ -120,6 +127,11 @@ export interface GameState {
   /** Consecutive ticks with empty food while population > 1 */
   starvationTicks: number;
   stats: RunStats;
+  /**
+   * Land Strain (0–100): overharvest scars the world.
+   * Raises raid harshness; eases with regrowth and stewardship doctrines.
+   */
+  strain: number;
 }
 
 export interface BuildingDef {
@@ -147,6 +159,15 @@ export interface BuildingDef {
   color: number;
 }
 
+export interface TechModifiersDef {
+  /** Multiplier on strain gained from harvesting */
+  strainGainMult?: number;
+  /** Multiplier on wood gather speed */
+  woodGatherMult?: number;
+  /** Multiplier on forest regrowth / strain ease */
+  regrowthMult?: number;
+}
+
 export interface TechDef {
   id: TechId;
   name: string;
@@ -155,6 +176,9 @@ export interface TechDef {
   researchTicks: number;
   requires: TechId[];
   unlocksBuildings?: BuildingId[];
+  /** Mutually exclusive sibling techs — picking one locks the others out */
+  exclusiveWith?: TechId[];
+  modifiers?: TechModifiersDef;
 }
 
 export interface AgeDef {

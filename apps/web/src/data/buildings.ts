@@ -22,7 +22,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   lumber_camp: {
     id: "lumber_camp",
     name: "Lumber Camp",
-    description: "Harvests finite forest stands. Place on a wood deposit.",
+    description: "Harvests finite forest stands. Place on a wood deposit. Faster than wild chopping.",
     cost: { wood: 16 },
     buildTicks: 7,
     workerSlots: 3,
@@ -35,7 +35,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   quarry: {
     id: "quarry",
     name: "Quarry",
-    description: "Extracts finite stone from rock deposits.",
+    description: "Extracts finite stone from rock deposits. Slightly slower than a lumber camp.",
     cost: { wood: 22 },
     buildTicks: 9,
     workerSlots: 3,
@@ -62,7 +62,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   watchtower: {
     id: "watchtower",
     name: "Watchtower",
-    description: "Raises defence readiness. Staff it under Defence priority.",
+    description: "Raises defence. Place within 5 tiles of houses — coverage matters more than stacking.",
     cost: { wood: 30, stone: 18 },
     buildTicks: 12,
     workerSlots: 2,
@@ -75,7 +75,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   palisade: {
     id: "palisade",
     name: "Palisade",
-    description: "Wooden wall segment. Stack several to harden the camp.",
+    description: "Wooden wall. Best within 3 tiles of houses to cover them in raids.",
     cost: { wood: 22, stone: 6 },
     buildTicks: 8,
     workerSlots: 0,
@@ -101,7 +101,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   farm: {
     id: "farm",
     name: "Farm",
-    description: "Grows food on grass or fertile soil. Far more reliable than foraging.",
+    description: "Grows food on grass or fertile soil — much faster than wild foraging.",
     cost: { wood: 22, stone: 12 },
     buildTicks: 11,
     workerSlots: 4,
@@ -220,7 +220,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   launch_pad: {
     id: "launch_pad",
     name: "Launch Pad",
-    description: "Landmark of spaceflight. Complete it to win.",
+    description: "Landmark of spaceflight. Complete it for the Ascent victory.",
     cost: { stone: 48, metal: 110, knowledge: 60 },
     buildTicks: 32,
     workerSlots: 0,
@@ -229,6 +229,21 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     requiresTech: "rocketry",
     isLandmark: true,
     color: 0xd0d4dc,
+  },
+  grove_sanctuary: {
+    id: "grove_sanctuary",
+    name: "Grove Sanctuary",
+    description:
+      "Landmark of Stewardship. Keep the forests living and Land Strain low to claim Harmony victory.",
+    cost: { wood: 40, stone: 28, food: 36, knowledge: 24 },
+    buildTicks: 22,
+    workerSlots: 0,
+    priority: "construction",
+    foodStorageBonus: 0.06,
+    ages: FROM_FARMING,
+    requiresTech: "stewardship",
+    isLandmark: true,
+    color: 0x4a8f5a,
   },
 };
 

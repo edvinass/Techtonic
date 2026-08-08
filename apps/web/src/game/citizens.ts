@@ -3,7 +3,7 @@ import { BUILDINGS } from "../data/buildings";
 import {
   carryCapacityFor,
   findResourceTile,
-  GATHER_PER_SEC,
+  gatherRateFor,
   resourceForBuilding,
   worldPos,
 } from "./gather";
@@ -445,12 +445,13 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
     }
 
     if (c.job.kind === "gather") {
-      const wild = c.job.work === "forage" && c.job.resource === "wood";
+      const isForage = c.job.work === "forage";
+      const wildWood = isForage && c.job.resource === "wood";
       const depletes =
         c.job.resource === "wood" ||
         c.job.resource === "stone" ||
         c.job.resource === "metal";
-      const cap = carryCapacityFor(c.job.resource, hasTools, wild);
+      const cap = carryCapacityFor(c.job.resource, hasTools, wildWood);
       const fertileBonus =
         c.job.resource === "food" && c.job.work === "farm"
           ? (() => {
@@ -458,11 +459,14 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
               return t?.terrain === "fertile" ? 1.35 : 1;
             })()
           : 1;
-      const rate =
-        GATHER_PER_SEC[c.job.resource] *
-        (hasTools ? 1.15 : 1) *
-        (wild ? 0.5 : 1) *
-        fertileBonus;
+      // Forage jobs are anchored to a house — don't use house produce rates
+      const home =
+        isForage ? null : (buildingById(state, c.job.buildingId) ?? null);
+      const rate = gatherRateFor(state, home, c.job.resource, {
+        hasTools,
+        wild: isForage,
+        fertileBonus,
+      });
       const gain = (rate * dt) / 1000;
 
       if (depletes && onHarvest && c.job.tile) {

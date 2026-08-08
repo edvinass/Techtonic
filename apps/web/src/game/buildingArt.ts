@@ -223,6 +223,9 @@ export function drawBuildingArt(
     case "storehouse":
       drawStorehouse(g, alpha);
       break;
+    case "grove_sanctuary":
+      drawGroveSanctuary(g, alpha);
+      break;
   }
 
   if (progress < 1) {
@@ -230,7 +233,8 @@ export function drawBuildingArt(
       type === "granary" ||
       type === "factory" ||
       type === "reactor" ||
-      type === "launch_pad";
+      type === "launch_pad" ||
+      type === "grove_sanctuary";
     scaffold(g, alpha, tall ? 36 : 28);
     progressBar(g, progress);
   } else if (opts.active) {
@@ -655,4 +659,24 @@ function drawStorehouse(g: GameObjects.Graphics, a: number) {
   isoBox(g, 6, 5, 5, 2.5, 4, 0xc4b04a, a, { top: 0xd8c45a });
   g.lineStyle(1.5, 0x5a3d22, 0.7 * a);
   g.lineBetween(top.W.x + 4, top.W.y + 2, top.E.x - 4, top.E.y + 2);
+}
+
+function drawGroveSanctuary(g: GameObjects.Graphics, a: number) {
+  const ring = diamond(0, 2, HW - 4, HH - 2);
+  fillPoly(g, [ring.N, ring.E, ring.S, ring.W], 0x2a4a32, 0.55 * a);
+  strokePoly(g, [ring.N, ring.E, ring.S, ring.W], 0x4a8f5a, 0.7 * a);
+  // Standing stones
+  isoBox(g, -10, 2, 3, 2, 12, 0x8a8f98, a, { top: 0xa8adb8 });
+  isoBox(g, 10, 2, 3, 2, 12, 0x8a8f98, a, { top: 0xa8adb8 });
+  isoBox(g, 0, 6, 3.5, 2, 10, 0x7a8088, a, { top: 0x9aa0a8 });
+  // Central living tree
+  g.fillStyle(0x5a3d22, a);
+  g.fillRect(-2, -18, 4, 16);
+  g.fillStyle(0x4a8f5a, a);
+  g.fillCircle(0, -22, 10);
+  g.fillStyle(0x6baf6a, 0.85 * a);
+  g.fillCircle(-5, -20, 6);
+  g.fillCircle(5, -21, 6);
+  g.fillStyle(0xc9a227, 0.55 * a);
+  g.fillCircle(0, -8, 2.5);
 }
