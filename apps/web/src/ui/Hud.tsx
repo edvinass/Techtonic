@@ -140,14 +140,20 @@ export function Hud() {
     }
   }
 
+  const nextAge = ageReq.nextAge ? AGES[ageReq.nextAge] : null;
+  const keyTechName = age.keyTech
+    ? (TECH_LIST.find((t) => t.id === age.keyTech)?.name ?? age.keyTech)
+    : null;
+  const landmarkName = age.landmark ? (BUILDINGS[age.landmark]?.name ?? age.landmark) : null;
+
   const tabs: { id: SideTab; label: string; badge?: string }[] = [
     { id: "build", label: "Build" },
     { id: "priorities", label: "Work" },
     { id: "tech", label: "Tech", badge: state.research.active ? "…" : undefined },
     {
       id: "age",
-      label: state.age === "stone" ? "Age" : "Era",
-      badge: state.age === "stone" && ageReq.ready ? "!" : undefined,
+      label: "Age",
+      badge: ageReq.ready ? "!" : undefined,
     },
   ];
 
@@ -435,25 +441,30 @@ export function Hud() {
           </section>
         )}
 
-        {!sideCollapsed && sideTab === "age" && state.age === "stone" && (
+        {!sideCollapsed && sideTab === "age" && nextAge && (
           <section className="age-up">
-            <h3>Advance to Farming Age</h3>
+            <h3>Advance to {nextAge.name}</h3>
+            <p className="muted panel-hint">{age.blurb}</p>
             <ul>
-              <li className={ageReq.hasTech ? "ok" : ""}>Research Farming</li>
-              <li className={ageReq.hasLandmark ? "ok" : ""}>Build Granary landmark</li>
-              <li className={ageReq.hasPopulation ? "ok" : ""}>Population ≥ 12</li>
+              {keyTechName && (
+                <li className={ageReq.hasTech ? "ok" : ""}>Research {keyTechName}</li>
+              )}
+              {landmarkName && (
+                <li className={ageReq.hasLandmark ? "ok" : ""}>
+                  Build {landmarkName} landmark
+                </li>
+              )}
+              <li className={ageReq.hasPopulation ? "ok" : ""}>
+                Population ≥ {age.minPopulation ?? 0}
+              </li>
               <li className={ageReq.canPay ? "ok" : ""}>
                 Pay{" "}
                 <span className="cost-row inline">
-                  <span className="cost-item">
-                    <ResourceIcon id="food" size={12} /> 40
-                  </span>
-                  <span className="cost-item">
-                    <ResourceIcon id="wood" size={12} /> 30
-                  </span>
-                  <span className="cost-item">
-                    <ResourceIcon id="stone" size={12} /> 20
-                  </span>
+                  {(Object.entries(age.cost ?? {}) as [ResourceId, number][]).map(([k, v]) => (
+                    <span key={k} className="cost-item" title={RESOURCES[k].label}>
+                      <ResourceIcon id={k} size={12} /> {v}
+                    </span>
+                  ))}
                 </span>
               </li>
             </ul>
@@ -467,15 +478,15 @@ export function Hud() {
                 }
               }}
             >
-              Enter Farming Age
+              Enter {nextAge.name}
             </button>
           </section>
         )}
 
-        {!sideCollapsed && sideTab === "age" && state.age === "farming" && (
+        {!sideCollapsed && sideTab === "age" && !nextAge && (
           <section className="age-up done">
-            <h3>Farming Age</h3>
-            <p>Farms unlocked. Houses shelter more people. The path to the stars continues…</p>
+            <h3>{age.name}</h3>
+            <p>{age.blurb}</p>
           </section>
         )}
       </aside>

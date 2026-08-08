@@ -79,4 +79,68 @@ describe("sim engine", () => {
     state = advanceAge(state);
     expect(state.age).toBe("farming");
   });
+
+  it("places metal deposits near the spawn and advances through later ages", () => {
+    let state = createNewGame(11);
+    expect(state.map.tiles.some((t) => t.deposit === "metal")).toBe(true);
+
+    state.age = "farming";
+    state.research.unlocked = ["fire", "primitive_tools", "farming", "metallurgy"];
+    state.population.count = 20;
+    state.resources = { food: 100, wood: 100, stone: 100, metal: 100, knowledge: 40 };
+    state.buildings.push({
+      id: "b100",
+      type: "forge",
+      x: 11,
+      y: 11,
+      progress: 1,
+      workers: 0,
+    });
+    expect(ageUpRequirements(state).ready).toBe(true);
+    state = advanceAge(state);
+    expect(state.age).toBe("metal");
+
+    state.research.unlocked.push("steam_power");
+    state.population.count = 28;
+    state.resources = { food: 100, wood: 100, stone: 100, metal: 100, knowledge: 40 };
+    state.buildings.push({
+      id: "b101",
+      type: "factory",
+      x: 12,
+      y: 12,
+      progress: 1,
+      workers: 0,
+    });
+    state = advanceAge(state);
+    expect(state.age).toBe("industrial");
+
+    state.research.unlocked.push("electricity", "atomic_theory");
+    state.population.count = 36;
+    state.resources = { food: 100, wood: 100, stone: 100, metal: 100, knowledge: 40 };
+    state.buildings.push({
+      id: "b102",
+      type: "reactor",
+      x: 13,
+      y: 13,
+      progress: 1,
+      workers: 0,
+    });
+    state = advanceAge(state);
+    expect(state.age).toBe("atomic");
+
+    state.research.unlocked.push("rocketry");
+    state.population.count = 45;
+    state.resources = { food: 100, wood: 100, stone: 100, metal: 120, knowledge: 80 };
+    state.buildings.push({
+      id: "b103",
+      type: "launch_pad",
+      x: 14,
+      y: 14,
+      progress: 1,
+      workers: 0,
+    });
+    state = advanceAge(state);
+    expect(state.age).toBe("space");
+    expect(ageUpRequirements(state).nextAge).toBeNull();
+  });
 });

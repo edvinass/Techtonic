@@ -17,9 +17,12 @@ export function generateMap(width: number, height: number, seed: number): Tile[]
       } else if (n < 0.18) {
         terrain = "forest";
         deposit = "wood";
-      } else if (n < 0.28) {
+      } else if (n < 0.26) {
         terrain = "rock";
         deposit = "stone";
+      } else if (n < 0.30) {
+        terrain = "rock";
+        deposit = "metal";
       } else {
         terrain = "grass";
       }
@@ -48,6 +51,11 @@ export function generateMap(width: number, height: number, seed: number): Tile[]
   if (stoneTile) {
     stoneTile.terrain = "rock";
     stoneTile.deposit = "stone";
+  }
+  const metalTile = tiles.find((t) => t.x === cx - 3 && t.y === cy);
+  if (metalTile) {
+    metalTile.terrain = "rock";
+    metalTile.deposit = "metal";
   }
 
   return tiles;

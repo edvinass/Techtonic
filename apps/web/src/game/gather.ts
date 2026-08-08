@@ -47,7 +47,8 @@ export function findResourceTile(
   preferAwayFrom?: { x: number; y: number },
 ): { gx: number; gy: number } | null {
   const candidates: { gx: number; gy: number; score: number }[] = [];
-  const maxDist = resource === "wood" || resource === "stone" ? 14 : 8;
+  const maxDist =
+    resource === "wood" || resource === "stone" || resource === "metal" ? 14 : 8;
 
   if (resource === "wood") {
     for (const t of state.map.tiles) {
@@ -65,11 +66,23 @@ export function findResourceTile(
     }
   } else if (resource === "stone") {
     for (const t of state.map.tiles) {
+      // Prefer stone deposits; bare rock OK; skip metal ore veins
+      if (t.deposit === "metal") continue;
       if (t.deposit !== "stone" && t.terrain !== "rock") continue;
       const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
       if (dist > maxDist) continue;
       let score = dist;
       if (t.deposit === "stone") score -= 0.5;
+      if (t.x === building.x && t.y === building.y) score += 8;
+      score += Math.random() * 1.5;
+      candidates.push({ gx: t.x, gy: t.y, score });
+    }
+  } else if (resource === "metal") {
+    for (const t of state.map.tiles) {
+      if (t.deposit !== "metal") continue;
+      const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
+      if (dist > maxDist) continue;
+      let score = dist;
       if (t.x === building.x && t.y === building.y) score += 8;
       score += Math.random() * 1.5;
       candidates.push({ gx: t.x, gy: t.y, score });
@@ -109,12 +122,16 @@ export function findResourceTile(
 
   if (!candidates.length) {
     // Global fallback: any matching resource on the map nearest the building
-    if (resource === "wood" || resource === "stone") {
-      const deposit = resource === "wood" ? "wood" : "stone";
-      const terrain = resource === "wood" ? "forest" : "rock";
+    if (resource === "wood" || resource === "stone" || resource === "metal") {
       let best: { gx: number; gy: number; score: number } | null = null;
       for (const t of state.map.tiles) {
-        if (t.deposit !== deposit && t.terrain !== terrain) continue;
+        const match =
+          resource === "metal"
+            ? t.deposit === "metal"
+            : resource === "wood"
+              ? t.deposit === "wood" || t.terrain === "forest"
+              : (t.deposit === "stone" || t.terrain === "rock") && t.deposit !== "metal";
+        if (!match) continue;
         const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
         if (t.x === building.x && t.y === building.y) continue;
         if (!best || dist < best.score) best = { gx: t.x, gy: t.y, score: dist };
@@ -142,7 +159,7 @@ export function carryCapacityFor(
   let base = CARRY_CAPACITY[resource];
   // Hand-chopping without a lumber camp is slower / smaller loads
   if (wild && resource === "wood") base = Math.max(3, Math.floor(base * 0.5));
-  return hasTools && (resource === "wood" || resource === "stone")
+  return hasTools && (resource === "wood" || resource === "stone" || resource === "metal")
     ? Math.ceil(base * 1.25)
     : base;
 }

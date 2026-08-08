@@ -275,7 +275,7 @@ function selectTool(parts: CitizenParts, work: WorkKind | null, resource?: Resou
     toolHoe.setVisible(true);
     return;
   }
-  if (resource === "stone" || work === "build") {
+  if (resource === "stone" || resource === "metal" || work === "build") {
     toolPick.setVisible(true);
     return;
   }

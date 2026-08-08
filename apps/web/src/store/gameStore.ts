@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { AGES } from "../data/ages";
 import {
   advanceAge,
   createNewGame,
@@ -150,9 +151,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!state) return false;
     const next = advanceAge(state);
     if (next === state) return false;
+    const ageName = AGES[next.age]?.name ?? next.age;
     set({
       state: next,
-      statusMessage: "Your people enter the Farming Age!",
+      statusMessage: `Your people enter the ${ageName}!`,
     });
     return true;
   },

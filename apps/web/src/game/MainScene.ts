@@ -304,7 +304,8 @@ export class MainScene extends Phaser.Scene {
     this.tileGraphics.clear();
     this.buildingLayer.removeAll(true);
 
-    const farmingTint = state.age === "farming";
+    // Later ages tint developed grassland slightly richer
+    const lushGrass = state.age !== "stone";
 
     // Draw back-to-front so south faces of nearer tiles occlude correctly
     const tiles = [...state.map.tiles].sort((a, b) => a.x + a.y - (b.x + b.y));
@@ -312,7 +313,7 @@ export class MainScene extends Phaser.Scene {
       const { sx, sy } = gridToScreen(tile.x, tile.y);
       let color = TERRAIN_COLORS[tile.terrain];
       let side = TERRAIN_SIDE[tile.terrain];
-      if (farmingTint && tile.terrain === "grass") {
+      if (lushGrass && tile.terrain === "grass") {
         color = 0x6fa85a;
         side = 0x4a7a3a;
       }
@@ -322,6 +323,8 @@ export class MainScene extends Phaser.Scene {
         drawResourceMark(this.tileGraphics, ox + sx, oy + sy - elev, "wood", 1);
       } else if (tile.deposit === "stone") {
         drawResourceMark(this.tileGraphics, ox + sx, oy + sy - elev, "stone", 1);
+      } else if (tile.deposit === "metal") {
+        drawResourceMark(this.tileGraphics, ox + sx, oy + sy - elev, "metal", 1);
       }
     }
 

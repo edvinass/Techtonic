@@ -1,4 +1,4 @@
-import { AGES } from "../data/ages";
+import { AGES, HOUSE_AGE_BONUS, ageReached } from "../data/ages";
 import { BUILDINGS } from "../data/buildings";
 import { TECHS } from "../data/techs";
 import { generateMap } from "./mapgen";
@@ -34,11 +34,12 @@ function occupied(state: GameState, x: number, y: number): boolean {
 
 function recalcHousing(state: GameState): number {
   let cap = 4;
+  const houseBonus = HOUSE_AGE_BONUS[state.age] ?? 0;
   for (const b of state.buildings) {
     if (b.progress < 1) continue;
     const def = BUILDINGS[b.type];
     if (def?.housing) {
-      const ageBonus = state.age === "farming" && b.type === "house" ? 1 : 0;
+      const ageBonus = b.type === "house" ? houseBonus : 0;
       cap += def.housing + ageBonus;
     }
   }
@@ -98,17 +99,14 @@ export function isBuildingUnlocked(state: GameState, type: BuildingId): boolean 
     return false;
   }
 
-  // Farm only after entering Farming Age
-  if (type === "farm") {
-    return state.age === "farming";
+  // Current age's advancement landmark can be placed once its tech is ready
+  const ageDef = AGES[state.age];
+  if (def.isLandmark && ageDef?.landmark === type) {
+    return true;
   }
 
-  // Granary landmark can be built in Stone once Farming tech is researched
-  if (type === "granary") {
-    return state.research.unlocked.includes("farming");
-  }
-
-  return def.ages.includes(state.age) || def.ages.includes("stone");
+  // Available from the earliest listed age onward (ages[0] is the unlock age)
+  return ageReached(state.age, def.ages[0]);
 }
 
 export function canPlaceBuilding(

@@ -1,4 +1,4 @@
-export type AgeId = "stone" | "farming";
+export type AgeId = "stone" | "farming" | "metal" | "industrial" | "atomic" | "space";
 
 export type ResourceId = "food" | "wood" | "stone" | "metal" | "knowledge";
 
@@ -6,15 +6,33 @@ export type PriorityId = "food" | "construction" | "research" | "production" | "
 
 export type TerrainId = "grass" | "forest" | "rock" | "water";
 
+export type DepositId = "wood" | "stone" | "metal";
+
 export type BuildingId =
   | "house"
   | "lumber_camp"
   | "quarry"
   | "research_hut"
   | "farm"
-  | "granary";
+  | "granary"
+  | "mine"
+  | "forge"
+  | "workshop"
+  | "factory"
+  | "laboratory"
+  | "reactor"
+  | "observatory"
+  | "launch_pad";
 
-export type TechId = "fire" | "primitive_tools" | "farming";
+export type TechId =
+  | "fire"
+  | "primitive_tools"
+  | "farming"
+  | "metallurgy"
+  | "steam_power"
+  | "electricity"
+  | "atomic_theory"
+  | "rocketry";
 
 export type SeasonId = "spring" | "summer" | "autumn" | "winter";
 
@@ -40,7 +58,7 @@ export interface Tile {
   x: number;
   y: number;
   terrain: TerrainId;
-  deposit?: "wood" | "stone" | null;
+  deposit?: DepositId | null;
 }
 
 export interface BuildingInstance {
@@ -95,8 +113,8 @@ export interface BuildingDef {
   priority: PriorityId;
   produces?: Partial<Resources>;
   /** Required tile deposit, if any */
-  requiresDeposit?: "wood" | "stone";
-  /** Ages where this building can be placed */
+  requiresDeposit?: DepositId;
+  /** Earliest age this building becomes placeable (and later ages) */
   ages: AgeId[];
   /** Tech required to unlock placement */
   requiresTech?: TechId;
@@ -117,6 +135,8 @@ export interface TechDef {
 export interface AgeDef {
   id: AgeId;
   name: string;
+  /** Short blurb shown when this is the current (or final) age */
+  blurb: string;
   next?: AgeId;
   keyTech?: TechId;
   landmark?: BuildingId;

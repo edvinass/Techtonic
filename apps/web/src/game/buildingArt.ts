@@ -168,12 +168,12 @@ export function drawBuildingArt(
 ): void {
   const alpha = opts.alpha ?? 1;
   const progress = opts.progress ?? 1;
-  const farming = opts.age === "farming";
+  const evolved = opts.age !== undefined && opts.age !== "stone";
   isoShadow(g, alpha);
 
   switch (type) {
     case "house":
-      drawHouse(g, alpha, farming);
+      drawHouse(g, alpha, evolved);
       break;
     case "lumber_camp":
       drawLumberCamp(g, alpha);
@@ -190,10 +190,39 @@ export function drawBuildingArt(
     case "granary":
       drawGranary(g, alpha);
       break;
+    case "mine":
+      drawMine(g, alpha);
+      break;
+    case "forge":
+      drawForge(g, alpha);
+      break;
+    case "workshop":
+      drawWorkshop(g, alpha);
+      break;
+    case "factory":
+      drawFactory(g, alpha);
+      break;
+    case "laboratory":
+      drawLaboratory(g, alpha);
+      break;
+    case "reactor":
+      drawReactor(g, alpha);
+      break;
+    case "observatory":
+      drawObservatory(g, alpha);
+      break;
+    case "launch_pad":
+      drawLaunchPad(g, alpha);
+      break;
   }
 
   if (progress < 1) {
-    scaffold(g, alpha, type === "granary" ? 36 : 28);
+    const tall =
+      type === "granary" ||
+      type === "factory" ||
+      type === "reactor" ||
+      type === "launch_pad";
+    scaffold(g, alpha, tall ? 36 : 28);
     progressBar(g, progress);
   } else if (opts.active) {
     const glow = diamond(0, -10, 18, 10);
@@ -201,9 +230,9 @@ export function drawBuildingArt(
   }
 }
 
-function drawHouse(g: GameObjects.Graphics, a: number, farming: boolean) {
-  const wall = farming ? 0xd2b48c : 0xb8956a;
-  const roof = farming ? 0x8f6a3a : 0x6b8f4e;
+function drawHouse(g: GameObjects.Graphics, a: number, evolved: boolean) {
+  const wall = evolved ? 0xd2b48c : 0xb8956a;
+  const roof = evolved ? 0x8f6a3a : 0x6b8f4e;
   const hw = HW - 8;
   const hh = HH - 4;
   const wallH = 16;
@@ -474,4 +503,98 @@ function drawGranary(g: GameObjects.Graphics, a: number) {
   for (let y = base.W.y; y > base.W.y - deckH - 6; y -= 4) {
     g.lineBetween(lx - 2, y, lx + 2, y);
   }
+}
+
+function drawMine(g: GameObjects.Graphics, a: number) {
+  const pit = diamond(0, 2, HW - 9, HH - 4);
+  fillPoly(g, [pit.N, pit.E, pit.S, pit.W], 0x3a3228, 0.9 * a);
+  strokePoly(g, [pit.N, pit.E, pit.S, pit.W], 0x2a2218, 0.55 * a);
+  isoBox(g, -6, 1, 8, 4, 7, 0xc08a4a, a, { top: 0xd4a86a });
+  isoBox(g, 7, 3, 7, 3.5, 5, 0x8a6a3a, a, { top: 0xb08a4a });
+  g.lineStyle(2.5, 0x5a3d22, a);
+  g.lineBetween(pit.N.x, pit.N.y, pit.N.x, pit.N.y - 18);
+  g.lineBetween(pit.N.x, pit.N.y - 18, pit.S.x, pit.S.y - 6);
+  g.fillStyle(0xc08a4a, a);
+  g.fillCircle(pit.S.x, pit.S.y - 5, 2.5);
+}
+
+function drawForge(g: GameObjects.Graphics, a: number) {
+  const { top } = isoBox(g, 0, 0, HW - 8, HH - 4, 14, 0x6a4a3a, a, { top: 0x8a5a3a });
+  isoBox(g, 0, -14, 10, 5, 10, 0xb45a3a, a, { top: 0xd47a4a });
+  g.fillStyle(0xff8a3a, 0.7 * a);
+  g.fillCircle(0, -20, 4);
+  g.fillStyle(0xffd27a, 0.8 * a);
+  g.fillCircle(0, -21, 2);
+  g.lineStyle(2, 0x4a3020, a);
+  g.lineBetween(top.E.x - 2, top.E.y - 2, top.E.x - 2, top.E.y - 16);
+}
+
+function drawWorkshop(g: GameObjects.Graphics, a: number) {
+  const { top } = isoBox(g, 0, 0, HW - 7, HH - 3.5, 16, 0x6a7a8a, a, { top: 0x8a9aaa });
+  isoBox(g, -4, 2, 6, 3, 6, 0x5a6570, a, { top: 0x7a8590 });
+  g.lineStyle(1.5, 0xc0c4cc, 0.7 * a);
+  g.lineBetween(top.W.x + 4, top.W.y - 4, top.E.x - 4, top.E.y - 4);
+  g.fillStyle(0xe8c95a, 0.55 * a);
+  g.fillCircle(top.N.x, top.N.y - 2, 2.5);
+}
+
+function drawFactory(g: GameObjects.Graphics, a: number) {
+  isoBox(g, -4, 0, HW - 10, HH - 5, 18, 0x5a6570, a, { top: 0x7a8590 });
+  isoBox(g, 8, 2, 10, 5, 12, 0x4a5560, a, { top: 0x6a7580 });
+  // Smokestacks
+  g.lineStyle(4, 0x3a4048, a);
+  g.lineBetween(-8, -18, -8, -34);
+  g.lineBetween(4, -12, 4, -28);
+  g.fillStyle(0xc0c4cc, 0.35 * a);
+  g.fillCircle(-8, -36, 3);
+  g.fillCircle(4, -30, 2.5);
+}
+
+function drawLaboratory(g: GameObjects.Graphics, a: number) {
+  const { top } = isoBox(g, 0, 0, HW - 8, HH - 4, 18, 0x4a8aaa, a, { top: 0x6ab0cc });
+  fillPoly(
+    g,
+    [
+      { x: top.N.x - 4, y: top.N.y + 4 },
+      { x: top.N.x + 4, y: top.N.y + 4 },
+      { x: top.N.x + 4, y: top.N.y - 6 },
+      { x: top.N.x - 4, y: top.N.y - 6 },
+    ],
+    0xb8e0f0,
+    0.55 * a,
+  );
+  g.fillStyle(0xe8f6ff, 0.7 * a);
+  g.fillCircle(top.E.x - 6, top.E.y - 8, 2);
+}
+
+function drawReactor(g: GameObjects.Graphics, a: number) {
+  const dome = diamond(0, -6, HW - 10, HH - 5);
+  fillPoly(g, [dome.N, dome.E, dome.S, dome.W], 0x3a4a48, a);
+  isoBox(g, 0, 4, HW - 12, HH - 6, 10, 0x2a3a38, a, { top: 0x3ecf7a });
+  g.fillStyle(0x3ecf7a, 0.55 * a);
+  g.fillCircle(0, -10, 8);
+  g.fillStyle(0xa8ffe0, 0.45 * a);
+  g.fillCircle(0, -12, 4);
+}
+
+function drawObservatory(g: GameObjects.Graphics, a: number) {
+  isoBox(g, 0, 2, HW - 9, HH - 4.5, 12, 0x3a4a8a, a, { top: 0x5a6aaa });
+  g.fillStyle(0x2a3a6a, a);
+  g.fillCircle(0, -16, 10);
+  g.fillStyle(0xc0d0f0, 0.35 * a);
+  g.fillCircle(-3, -18, 4);
+  g.lineStyle(2, 0x8a9acc, a);
+  g.lineBetween(0, -16, 8, -28);
+}
+
+function drawLaunchPad(g: GameObjects.Graphics, a: number) {
+  const pad = diamond(0, 4, HW - 6, HH - 3);
+  fillPoly(g, [pad.N, pad.E, pad.S, pad.W], 0xd0d4dc, a);
+  strokePoly(g, [pad.N, pad.E, pad.S, pad.W], 0x8a9098, 0.6 * a);
+  // Rocket body
+  isoBox(g, 0, -2, 6, 3, 22, 0xe8ecf0, a, { top: 0xffffff });
+  g.fillStyle(0xc94545, a);
+  g.fillTriangle(-5, -24, 5, -24, 0, -34);
+  g.fillStyle(0xff8a3a, 0.65 * a);
+  g.fillTriangle(-3, 2, 3, 2, 0, 10);
 }

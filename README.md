@@ -1,6 +1,6 @@
 # Techtonic
 
-A web strategy game: grow a Stone Age settlement into later ages. The MVP covers **Stone Age → Farming Age** with isometric building, five resources, research, age-up, and cloud saves.
+A web strategy game: grow a Stone Age settlement toward the stars. Ages run **Stone → Farming → Metal → Industrial → Atomic → Space**, with isometric building, five resources, research, age-up landmarks, and cloud saves.
 
 ## Stack
 
@@ -61,13 +61,13 @@ cd apps/web
 npm test
 ```
 
-## MVP loop
+## Core loop
 
-1. Gather wood/stone and forage food via priorities  
+1. Gather wood/stone (and later metal) and forage food via priorities  
 2. Build houses and production camps on the isometric map  
-3. Accrue knowledge → research **Fire** → **Farming**  
-4. Build the **Granary** landmark, reach population 12, pay the age cost  
-5. Enter the **Farming Age** (farms unlock, houses shelter more)  
+3. Accrue knowledge → research techs that unlock buildings and age gates  
+4. Meet each age’s checklist (key tech, landmark, population, resources)  
+5. Advance: Farming → Metal → Industrial → Atomic → Space  
 6. Cloud save/load with email + password (3 slots, autosave every 60s)
 
 ## Controls
