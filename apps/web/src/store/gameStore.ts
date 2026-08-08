@@ -37,6 +37,10 @@ interface GameStore {
   lastSavedAt: number | null;
   statusMessage: string | null;
   tutorialDismissed: boolean;
+  /** In-game / menu reference encyclopedia */
+  libraryOpen: boolean;
+  /** Optional entry id to focus when opening the library */
+  libraryFocusId: string | null;
   /** Citizens from a loaded save, consumed once by MainScene */
   pendingCitizens: SavedCitizen[] | null;
   /** Live Phaser scene registers this so saves include worker positions */
@@ -59,6 +63,8 @@ interface GameStore {
   setSaveMeta: (slot: number, at: number) => void;
   setStatus: (msg: string | null) => void;
   dismissTutorial: () => void;
+  openLibrary: (focusId?: string | null) => void;
+  closeLibrary: () => void;
   setCitizenSnapshotGetter: (getter: (() => SavedCitizen[]) | null) => void;
   /** Read loaded/stashed citizens without clearing (Strict Mode safe). */
   peekPendingCitizens: () => SavedCitizen[] | null;
@@ -103,6 +109,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   lastSavedAt: null,
   statusMessage: null,
   tutorialDismissed: false,
+  libraryOpen: false,
+  libraryFocusId: null,
   pendingCitizens: null,
   citizenSnapshotGetter: null,
 
@@ -127,6 +135,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       inspectedBuildingId: null,
       pendingCitizens: null,
       citizenSnapshotGetter: null,
+      libraryOpen: false,
+      libraryFocusId: null,
     });
   },
 
@@ -140,9 +150,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       saveSlot: null,
       lastSavedAt: null,
       tutorialDismissed: false,
+      libraryOpen: false,
+      libraryFocusId: null,
       pendingCitizens: null,
       statusMessage:
-        "Stone Age begins. Forests are finite — Land Strain rises with every axe swing. Fortify homes before the raids.",
+        "Stone Age begins. Build a Stockpile, assign Food workers, then research Fire — open Library anytime for help.",
     });
   },
 
@@ -155,6 +167,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       selectedBuilding: null,
       inspectedBuildingId: null,
       lastSavedAt: Date.now(),
+      libraryOpen: false,
+      libraryFocusId: null,
       pendingCitizens: payload.citizens?.length ? payload.citizens : null,
       statusMessage: `Loaded slot ${slot}`,
     });
@@ -271,6 +285,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setStatus: (msg) => set({ statusMessage: msg }),
 
   dismissTutorial: () => set({ tutorialDismissed: true }),
+
+  openLibrary: (focusId = null) => {
+    play("ui");
+    set({ libraryOpen: true, libraryFocusId: focusId ?? null });
+  },
+
+  closeLibrary: () => set({ libraryOpen: false, libraryFocusId: null }),
 
   setCitizenSnapshotGetter: (getter) => set({ citizenSnapshotGetter: getter }),
 

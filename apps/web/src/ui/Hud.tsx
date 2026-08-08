@@ -122,6 +122,9 @@ export function Hud() {
   const lastSavedAt = useGameStore((s) => s.lastSavedAt);
   const tutorialDismissed = useGameStore((s) => s.tutorialDismissed);
   const dismissTutorial = useGameStore((s) => s.dismissTutorial);
+  const openLibrary = useGameStore((s) => s.openLibrary);
+  const closeLibrary = useGameStore((s) => s.closeLibrary);
+  const libraryOpen = useGameStore((s) => s.libraryOpen);
 
   const [sideTab, setSideTab] = useState<SideTab>("build");
   const [sideCollapsed, setSideCollapsed] = useState(false);
@@ -151,23 +154,37 @@ export function Hud() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
+        const store = useGameStore.getState();
+        if (store.libraryOpen) {
+          store.closeLibrary();
+          return;
+        }
         const {
           selectedBuilding: sel,
           selectBuilding: clear,
           inspectedBuildingId: inspected,
           inspectBuilding: clearInspect,
-        } = useGameStore.getState();
+        } = store;
         if (sel) {
           clear(null);
-          useGameStore.getState().setStatus(null);
+          store.setStatus(null);
         } else if (inspected) {
           clearInspect(null);
         }
         setSaveOpen(false);
       }
+      if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
+        const t = e.target as HTMLElement | null;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        e.preventDefault();
+        const store = useGameStore.getState();
+        if (store.libraryOpen) store.closeLibrary();
+        else store.openLibrary();
+      }
       if (e.key === "p" || e.key === "P") {
         const t = e.target as HTMLElement | null;
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        if (useGameStore.getState().libraryOpen) return;
         useGameStore.getState().togglePause();
       }
     }
@@ -341,22 +358,33 @@ export function Hud() {
           <span className="brand-mark sm" aria-hidden />
           <span className="brand">Techtonic</span>
           <span className="age-pill">{age.name}</span>
-          <span
-            className={`season-pill season-${state.pressure.season}`}
-            title={SEASON_INFO[state.pressure.season].blurb}
+          <button
+            type="button"
+            className={`season-pill season-${state.pressure.season} as-button`}
+            title={`${SEASON_INFO[state.pressure.season].blurb} Click for Library.`}
+            onClick={() => openLibrary(`season-${state.pressure.season}`)}
           >
             {currentMonthName(state.pressure.season, state.pressure.seasonTick)} ·{" "}
             {SEASON_INFO[state.pressure.season].label}
-          </span>
+          </button>
           {state.pressure.raidWarningTicks > 0 && (
-            <span className="raid-warn">Raid in {state.pressure.raidWarningTicks}</span>
+            <button
+              type="button"
+              className="raid-warn as-button"
+              title="A raid is approaching. Click to learn how Defence and coverage work."
+              onClick={() => openLibrary("pressure-raids")}
+            >
+              Raid in {state.pressure.raidWarningTicks}
+            </button>
           )}
-          <span
-            className={`strain-pill strain-${strainLevel}`}
-            title="Land Strain rises when you overharvest. High strain hardens raids and can kill forests."
+          <button
+            type="button"
+            className={`strain-pill strain-${strainLevel} as-button`}
+            title="Land Strain rises when you overharvest. Click for Library."
+            onClick={() => openLibrary("pressure-strain")}
           >
             Strain {strain}
-          </span>
+          </button>
         </div>
 
         <div className="resource-bar" role="group" aria-label="Resources">
@@ -369,7 +397,16 @@ export function Hud() {
                 key={id}
                 className={`resource-chip${critical ? " critical" : ""}`}
                 style={{ "--res": `#${RESOURCES[id].hex}` } as CSSProperties}
-                title={RESOURCES[id].label}
+                title={`${RESOURCES[id].label} — open Library for details`}
+                onClick={() => openLibrary(`resource-${id}`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openLibrary(`resource-${id}`);
+                  }
+                }}
               >
                 <span className="resource-icon-wrap">
                   <ResourceIcon id={id} size={18} />
@@ -395,14 +432,27 @@ export function Hud() {
         </div>
 
         <div className="hud-actions">
-          <span className={`pop-chip${popTight ? " tight" : ""}`} title="Population / housing">
+          <button
+            type="button"
+            className={`pop-chip${popTight ? " tight" : ""} as-button`}
+            title="People / housing capacity. Build Houses to raise the cap. Click for Library."
+            onClick={() => openLibrary("basics-food")}
+          >
             <span className="pop-label">Pop</span>
             <strong>
               {state.population.count}
               <span className="pop-sep">/</span>
               {state.population.housingCap}
             </strong>
-          </span>
+          </button>
+          <button
+            type="button"
+            className={`library-btn${libraryOpen ? " active" : ""}`}
+            onClick={() => (libraryOpen ? closeLibrary() : openLibrary())}
+            title="Game library — what everything does (?)"
+          >
+            Library
+          </button>
           <button
             type="button"
             className={`pause-btn${state.paused ? " is-paused" : ""}`}
@@ -484,7 +534,17 @@ export function Hud() {
               ))}
             </dl>
           )}
-          <p className="muted building-inspect-hint">Click empty ground or Esc to close</p>
+          <p className="muted building-inspect-hint">
+            <button
+              type="button"
+              className="text-link"
+              onClick={() => openLibrary(`building-${inspected.type}`)}
+            >
+              More in Library
+            </button>
+            {" · "}
+            Click empty ground or Esc to close
+          </p>
         </aside>
       )}
       {statusMessage && (
@@ -496,16 +556,43 @@ export function Hud() {
         </div>
       )}
 
-      {!tutorialDismissed && outcome === "playing" && !inspected && (
-        <div className="tutorial">
-          <p>
-            Forests and ore run out. Winters and raids punish thin Defence — research Fortifications
-            for towers and walls. Farms want fertile soil by the river. Pan with WASD / right-drag;
-            pause with P. Click a finished building for details.
+      {!tutorialDismissed && outcome === "playing" && !inspected && !libraryOpen && (
+        <div className="tutorial" role="dialog" aria-labelledby="tutorial-title">
+          <p className="eyebrow">Getting started</p>
+          <h3 id="tutorial-title">Stone Age camp</h3>
+          <ol className="tutorial-steps">
+            <li>
+              <strong>Build</strong> a Stockpile near trees, then Houses for growth.
+            </li>
+            <li>
+              Open <strong>Work</strong> and assign Food workers so nobody starves.
+            </li>
+            <li>
+              Research <strong>Fire</strong>, then <strong>Fortifications</strong> before raids.
+            </li>
+            <li>
+              Watch <strong>Season</strong> and <strong>Strain</strong> — winter and overharvest hurt.
+            </li>
+          </ol>
+          <p className="muted tutorial-controls">
+            WASD / right-drag pan · scroll zoom · P pause · click a building for details ·{" "}
+            <kbd>?</kbd> opens Library
           </p>
-          <button type="button" onClick={dismissTutorial}>
-            Got it
-          </button>
+          <div className="tutorial-actions">
+            <button
+              type="button"
+              className="primary"
+              onClick={() => {
+                dismissTutorial();
+                openLibrary("basics-loop");
+              }}
+            >
+              Open library
+            </button>
+            <button type="button" onClick={dismissTutorial}>
+              Got it
+            </button>
+          </div>
         </div>
       )}
 
@@ -544,7 +631,14 @@ export function Hud() {
         {!sideCollapsed && sideTab === "build" && (
           <section className="chrome-panel">
             <h3>Build</h3>
-            <p className="muted panel-hint">Select a building, then click the map.</p>
+            <p className="muted panel-hint">
+              Select a building, then click the map. Costs are paid up front; cancel refunds them.
+              Hover a card or open{" "}
+              <button type="button" className="text-link" onClick={() => openLibrary("building-stockpile")}>
+                Library → Buildings
+              </button>{" "}
+              for full details.
+            </p>
             {scaffolds.length > 0 && (
               <div className="scaffold-list">
                 <p className="muted panel-hint scaffold-heading">Under construction</p>
@@ -623,6 +717,12 @@ export function Hud() {
         {!sideCollapsed && sideTab === "priorities" && (
           <section className="chrome-panel workers-panel">
             <h3>Workers</h3>
+            <p className="muted panel-hint">
+              Split your population across jobs. Idle people produce nothing.{" "}
+              <button type="button" className="text-link" onClick={() => openLibrary("workers-overview")}>
+                What each job does
+              </button>
+            </p>
 
             <div className="worker-force" aria-label="Workforce assignment">
               <div className="worker-force-meta">
@@ -650,25 +750,31 @@ export function Hud() {
               </p>
             )}
 
-            <div className="worker-readiness">
-              <div className="worker-meter" title="Defence readiness from towers and walls">
+            <button
+              type="button"
+              className="worker-readiness as-button-block"
+              title="Open Library: Defence & coverage"
+              onClick={() => openLibrary("workers-defence")}
+            >
+              <div className="worker-meter">
                 <span className="worker-meter-label">Defence</span>
                 <div className="worker-meter-track">
                   <div className="worker-meter-fill defence" style={{ width: `${defencePct}%` }} />
                 </div>
                 <em>{defencePct}%</em>
               </div>
-              <div
-                className="worker-meter"
-                title="Share of houses within range of a watchtower or palisade"
-              >
+              <div className="worker-meter">
                 <span className="worker-meter-label">Coverage</span>
                 <div className="worker-meter-track">
                   <div className="worker-meter-fill cover" style={{ width: `${coverPct}%` }} />
                 </div>
                 <em>{coverPct}%</em>
               </div>
-            </div>
+              <p className="muted worker-meter-caption">
+                Readiness from towers/walls/guards · Coverage = houses within tower (5) or palisade (3)
+                range
+              </p>
+            </button>
 
             <div className="worker-list">
               {PRIORITY_IDS.map((p, i) => {
@@ -757,8 +863,11 @@ export function Hud() {
               </div>
             )}
             <p className="muted panel-hint">
-              Techs unlock with your age. Doctrines can lock each other out — Selective Cuts vs
-              Clearcutting is a real fork.
+              Spend Knowledge to research. Age gates some techs. Doctrines lock each other out —
+              Selective Cuts vs Clearcutting.{" "}
+              <button type="button" className="text-link" onClick={() => openLibrary("pressure-doctrines")}>
+                Explain doctrines
+              </button>
             </p>
             <div className="tech-list">
               {TECH_LIST.map((tech) => {
@@ -823,7 +932,12 @@ export function Hud() {
             {nextAge && (
               <section className="age-up chrome-panel">
                 <h3>Ascent → {nextAge.name}</h3>
-                <p className="muted panel-hint">{age.blurb}</p>
+                <p className="muted panel-hint">
+                  {age.blurb} Meet every checklist item, then pay the cost to advance.{" "}
+                  <button type="button" className="text-link" onClick={() => openLibrary("victory-ascent")}>
+                    Ascent victory
+                  </button>
+                </p>
                 <ul>
                   {keyTechName && (
                     <li className={ageReq.hasTech ? "ok" : ""}>Research {keyTechName}</li>
@@ -872,8 +986,11 @@ export function Hud() {
             <section className="age-up chrome-panel harmony-panel">
               <h3>Harmony path</h3>
               <p className="muted panel-hint">
-                Alternate victory: steward the forests instead of leaving them. Cover{" "}
-                <strong>{forestPct}%</strong> · Strain <strong>{strain}</strong>.
+                Alternate victory: steward forests instead of launching. Forest cover{" "}
+                <strong>{forestPct}%</strong> · Strain <strong>{strain}</strong>.{" "}
+                <button type="button" className="text-link" onClick={() => openLibrary("victory-harmony")}>
+                  How Harmony works
+                </button>
               </p>
               <ul>
                 <li className={harmonyReq.hasTech ? "ok" : ""}>Research Stewardship</li>

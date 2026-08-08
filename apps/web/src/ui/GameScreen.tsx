@@ -19,8 +19,16 @@ export function GameScreen() {
 
   useEffect(() => {
     const id = window.setInterval(() => {
-      const current = useGameStore.getState().state;
-      if (current && !current.paused && !current.pressure.pendingEventId) stepTick();
+      const store = useGameStore.getState();
+      const current = store.state;
+      if (
+        current &&
+        !current.paused &&
+        !current.pressure.pendingEventId &&
+        !store.libraryOpen
+      ) {
+        stepTick();
+      }
     }, TICK_MS);
     return () => window.clearInterval(id);
   }, [stepTick]);

@@ -72,11 +72,11 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
   {
     id: "poor_harvest",
     title: "Failed forage",
-    text: "The berry patches fail and stores look thin. Your people look to you.",
+    text: "The berry patches fail and stores look thin. Your people look to you — both options cost something.",
     choices: [
       {
         label: "Ration carefully",
-        hint: "−food now, harsher ongoing hunger",
+        hint: "Spend food now; hunger stays worse for a while",
         effect: {
           result: "Rations stretch the stores — everyone eats less for a while.",
           resources: { food: -18 },
@@ -86,7 +86,7 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
       },
       {
         label: "Send foragers farther",
-        hint: "−wood, gamble for food",
+        hint: "Spend wood on a wider search; small food return",
         effect: {
           result: "Foragers trek wide. Some return empty-handed.",
           resources: { wood: -14, food: 4 },
@@ -97,11 +97,11 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
   {
     id: "disease",
     title: "Sickness in the camp",
-    text: "A fever spreads among the huts. Elders argue over quarantine versus remedies.",
+    text: "A fever spreads among the huts. Elders argue over quarantine versus remedies — neither choice is free.",
     choices: [
       {
         label: "Quarantine the sick",
-        hint: "Growth stalls hard; may lose a villager",
+        hint: "Stops growth for a long time; lose one villager",
         effect: {
           result: "The sick are kept apart. Growth pauses; one does not recover.",
           growthHaltTicks: 36,
@@ -110,7 +110,7 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
       },
       {
         label: "Brew healing draughts",
-        hint: "−knowledge & food, keep growing",
+        hint: "Spend Knowledge and food; growth continues",
         effect: {
           result: "Healers spend hard-won lore on bitter medicines.",
           knowledgeDelta: -12,
@@ -126,7 +126,7 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
     choices: [
       {
         label: "Fight the flames",
-        hint: "−food (effort), fewer trees burn",
+        hint: "Spend food & wood; fewer forest tiles burn",
         effect: {
           result: "Buckets and beaters spare most stands. Exhaustion costs food.",
           resources: { food: -14, wood: -8 },
@@ -135,7 +135,7 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
       },
       {
         label: "Cut a firebreak",
-        hint: "Sacrifice timber — fire still scars the map",
+        hint: "Spend more wood; more forest still burns",
         effect: {
           result: "You fell trees for a break. The fire dies, but the woods are scarred.",
           resources: { wood: -28 },
@@ -147,11 +147,11 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
   {
     id: "wolves",
     title: "Wolves at the edge",
-    text: "Eyes gleam beyond the firelight. The pack is hungry — so are you.",
+    text: "Eyes gleam beyond the firelight. The pack is hungry — so are you. Choose how to meet them.",
     choices: [
       {
         label: "Stand watch",
-        hint: "Needs strong Defence / towers; else lose people",
+        hint: "Small food cost; outcome depends on Defence readiness",
         effect: {
           result: "Guards hold the line… if you kept Defence high.",
           resources: { food: -8 },
@@ -159,7 +159,7 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
       },
       {
         label: "Leave a tribute of meat",
-        hint: "Heavy −food, avoid a bloodier raid",
+        hint: "Heavy food cost; avoids a bloodier clash",
         effect: {
           result: "A carcass is left at the treeline. The wolves take it and fade.",
           resources: { food: -26 },
@@ -170,11 +170,11 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
   {
     id: "discovery",
     title: "Strange markings",
-    text: "A child finds carved stones in a hollow. Scholars itch to study them.",
+    text: "A child finds carved stones in a hollow. Scholars itch to study them — or you can leave well enough alone.",
     choices: [
       {
         label: "Study the stones",
-        hint: "+knowledge, briefly pause growth",
+        hint: "Gain Knowledge; population growth pauses briefly",
         effect: {
           result: "The markings hint at forgotten craft. Minds race; hands idle.",
           knowledgeDelta: 16,
@@ -183,7 +183,7 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
       },
       {
         label: "Leave them be",
-        hint: "Safe, small food find nearby",
+        hint: "No risk — find a small food cache instead",
         effect: {
           result: "You seal the hollow. Foragers notice an overlooked cache instead.",
           resources: { food: 12 },
@@ -194,11 +194,11 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
   {
     id: "drought",
     title: "Dry season",
-    text: "Creeks shrink. Farms wilt. Someone must decide how hard to push the land.",
+    text: "Creeks shrink. Farms wilt. Decide whether to spend materials softening the drought, or endure it.",
     choices: [
       {
         label: "Dig irrigation ditches",
-        hint: "−wood & stone, soften the drought",
+        hint: "Spend wood & stone; hunger rises less",
         effect: {
           result: "Ditches buy time. Hunger still rises, but slower.",
           resources: { wood: -12, stone: -8 },
@@ -208,7 +208,7 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
       },
       {
         label: "Endure the thirst",
-        hint: "Harsh hunger, no material cost",
+        hint: "No wood/stone cost; harsher hunger for longer",
         effect: {
           result: "Lips crack. The settlement scrapes by on thin porridge.",
           foodMult: 1.4,
@@ -221,11 +221,11 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
   {
     id: "scarred_land",
     title: "Scarred land",
-    text: "Elders point at bare hills where forests stood. The soil itself seems thinner. How will you answer the axe?",
+    text: "Elders point at bare hills where forests stood. Rest the woods to ease Land Strain, or push clearings for timber.",
     choices: [
       {
         label: "Rest the woods",
-        hint: "−food now; ease Land Strain",
+        hint: "Spend food; Land Strain falls",
         effect: {
           result: "Axes are hung. Bellies tighten, but the stands breathe.",
           resources: { food: -16 },
@@ -234,7 +234,7 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
       },
       {
         label: "Push the clearings",
-        hint: "+wood now; Land Strain rises",
+        hint: "Gain wood; Land Strain rises and forests burn",
         effect: {
           result: "Crews fell the last shade. Timber piles high — for a price.",
           resources: { wood: 22, food: -6 },
@@ -248,4 +248,52 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
 
 export function getEventDef(id: string): ChallengeEventDef | undefined {
   return CHALLENGE_EVENTS.find((e) => e.id === id);
+}
+
+/** Concrete bullet lines for challenge choice effects (shown in the modal). */
+export function formatEventEffect(effect: EventEffect): string[] {
+  const lines: string[] = [];
+  if (effect.resources) {
+    for (const [k, v] of Object.entries(effect.resources)) {
+      if (v == null || v === 0) continue;
+      const label = k.charAt(0).toUpperCase() + k.slice(1);
+      lines.push(v > 0 ? `Gain ${v} ${label}` : `Lose ${Math.abs(v)} ${label}`);
+    }
+  }
+  if (effect.knowledgeDelta) {
+    lines.push(
+      effect.knowledgeDelta > 0
+        ? `Gain ${effect.knowledgeDelta} Knowledge`
+        : `Lose ${Math.abs(effect.knowledgeDelta)} Knowledge`,
+    );
+  }
+  if (effect.popDelta) {
+    lines.push(
+      effect.popDelta > 0
+        ? `Gain ${effect.popDelta} population`
+        : `Lose ${Math.abs(effect.popDelta)} population`,
+    );
+  }
+  if (effect.foodMult != null && effect.foodMultTicks) {
+    const worse = effect.foodMult > 1;
+    lines.push(
+      worse
+        ? `Hunger ×${effect.foodMult.toFixed(2)} for ${effect.foodMultTicks} ticks`
+        : `Easier hunger ×${effect.foodMult.toFixed(2)} for ${effect.foodMultTicks} ticks`,
+    );
+  }
+  if (effect.growthHaltTicks) {
+    lines.push(`Population growth paused for ${effect.growthHaltTicks} ticks`);
+  }
+  if (effect.burnForests) {
+    lines.push(`Burns about ${effect.burnForests} forest tiles`);
+  }
+  if (effect.strainDelta) {
+    lines.push(
+      effect.strainDelta > 0
+        ? `Land Strain +${effect.strainDelta}`
+        : `Land Strain ${effect.strainDelta}`,
+    );
+  }
+  return lines;
 }

@@ -9,6 +9,7 @@ export function MenuScreen() {
   const newGame = useGameStore((s) => s.newGame);
   const loadGame = useGameStore((s) => s.loadGame);
   const logout = useGameStore((s) => s.logout);
+  const openLibrary = useGameStore((s) => s.openLibrary);
   const [saves, setSaves] = useState<SaveMeta[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,9 +74,18 @@ export function MenuScreen() {
           </button>
         </div>
 
-        <button type="button" className="primary new-game-btn" onClick={newGame}>
-          New Stone Age game
-        </button>
+        <div className="menu-actions">
+          <button type="button" className="primary new-game-btn" onClick={newGame}>
+            New Stone Age game
+          </button>
+          <button type="button" className="library-menu-btn" onClick={() => openLibrary("basics-goal")}>
+            How to play — Game library
+          </button>
+        </div>
+        <p className="muted menu-library-hint">
+          Resources, workers, buildings, techs, seasons, raids, and both victory paths — explained in
+          plain language. Also available in-game via Library or <kbd>?</kbd>.
+        </p>
 
         <h2 className="panel-section-title">Cloud save slots</h2>
         {loading && <p className="muted">Loading saves…</p>}
