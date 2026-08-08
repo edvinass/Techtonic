@@ -2,6 +2,7 @@ import { AGES } from "../data/ages";
 import { BUILDINGS } from "../data/buildings";
 import { TECHS } from "../data/techs";
 import { generateMap } from "./mapgen";
+import { defaultPressure, seasonFoodMultiplier, tickPressure } from "./pressure";
 import type {
   AgeId,
   BuildingId,
@@ -19,7 +20,7 @@ const GROWTH_FOOD_BUFFER = 5;
 let nextBuildingSeq = 1;
 
 function defaultPriorities(): Priorities {
-  return { food: 25, construction: 20, research: 15, production: 35, defence: 5 };
+  return { food: 25, construction: 18, research: 15, production: 30, defence: 12 };
 }
 
 function tileAt(state: GameState, x: number, y: number): Tile | undefined {
@@ -63,7 +64,7 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
   const cy = Math.floor(MAP_SIZE / 2);
 
   const state: GameState = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     tick: 0,
     age: "stone",
     resources: { food: 40, wood: 50, stone: 20, metal: 0, knowledge: 8 },
@@ -81,6 +82,7 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
     ],
     population: { count: 5, housingCap: 8 },
     research: { unlocked: [], active: null },
+    pressure: defaultPressure(seed),
     rngSeed: seed,
     paused: false,
   };
@@ -283,7 +285,8 @@ export function tick(state: GameState): GameState {
   // Keep a tiny knowledge trickle so Fire can be started before a research hut.
   next.resources.knowledge += 0.04 + next.population.count * 0.015;
 
-  next.resources.food -= next.population.count * FOOD_PER_CITIZEN;
+  const foodUse = next.population.count * FOOD_PER_CITIZEN * seasonFoodMultiplier(next);
+  next.resources.food -= foodUse;
   const starving = next.resources.food < 0;
   if (starving) next.resources.food = 0;
 
@@ -312,7 +315,9 @@ export function tick(state: GameState): GameState {
   }
 
   next.population.housingCap = recalcHousing(next);
+  const growthOk = next.pressure.growthHaltTicks <= 0;
   if (
+    growthOk &&
     !starving &&
     next.resources.food >= GROWTH_FOOD_BUFFER &&
     next.population.count < next.population.housingCap &&
@@ -322,6 +327,7 @@ export function tick(state: GameState): GameState {
     next.resources.food -= 2;
   }
 
+  tickPressure(next);
   return next;
 }
 

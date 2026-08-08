@@ -3,6 +3,7 @@ import { putSave } from "../api/client";
 import { PhaserGame } from "../game/PhaserGame";
 import { AGES } from "../data/ages";
 import { useGameStore } from "../store/gameStore";
+import { EventModal } from "./EventModal";
 import { Hud } from "./Hud";
 
 const TICK_MS = 1000;
@@ -19,7 +20,7 @@ export function GameScreen() {
   useEffect(() => {
     const id = window.setInterval(() => {
       const current = useGameStore.getState().state;
-      if (current && !current.paused) stepTick();
+      if (current && !current.paused && !current.pressure.pendingEventId) stepTick();
     }, TICK_MS);
     return () => window.clearInterval(id);
   }, [stepTick]);
@@ -35,7 +36,7 @@ export function GameScreen() {
       void putSave(store.token, slot, {
         name: `${ageName} settlement`,
         age: store.state.age,
-        schema_version: 1,
+        schema_version: 2,
         state: payload,
       })
         .then(() => setSaveMeta(slot, Date.now()))
@@ -52,6 +53,7 @@ export function GameScreen() {
     <div className="game-screen">
       <PhaserGame />
       <Hud />
+      <EventModal />
     </div>
   );
 }

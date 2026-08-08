@@ -52,6 +52,8 @@ describe("sim engine", () => {
   it("progresses research after spending knowledge", () => {
     let state = createNewGame(3);
     state.resources.knowledge = 50;
+    state.pressure.eventCooldown = 9999;
+    state.pressure.nextRaidAt = 9999;
     state = startResearch(state, "fire");
     expect(state.research.active?.techId).toBe("fire");
     state = runTicks(state, 80);

@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { AGES } from "../data/ages";
 import { BUILDINGS } from "../data/buildings";
+import { SEASON_INFO } from "../data/events";
 import { RESOURCE_ORDER, RESOURCES } from "../data/resources";
 import { TECH_LIST } from "../data/techs";
 import { ageUpRequirements, getBuildableTypes, isTechAvailable } from "../sim/engine";
@@ -51,7 +52,7 @@ export function Hud() {
       await putSave(token, slot, {
         name: `${AGES[current.age].name} settlement`,
         age: current.age,
-        schema_version: 1,
+        schema_version: 2,
         state: payload,
       });
       setSaveMeta(slot, Date.now());
@@ -67,6 +68,12 @@ export function Hud() {
         <div>
           <span className="brand">Techtonic</span>
           <span className="age-pill">{age.name}</span>
+          <span className={`season-pill season-${state.pressure.season}`}>
+            {SEASON_INFO[state.pressure.season].label}
+          </span>
+          {state.pressure.raidWarningTicks > 0 && (
+            <span className="raid-warn">Raid in {state.pressure.raidWarningTicks}</span>
+          )}
         </div>
         <div className="resources">
           {RESOURCE_ORDER.map((id) => (
@@ -172,6 +179,7 @@ export function Hud() {
               <em>{state.priorities[p]}</em>
             </label>
           ))}
+          <p className="muted priority-hint">Defence blunts raids and wolf attacks.</p>
         </section>
 
         <section>

@@ -16,8 +16,25 @@ export type BuildingId =
 
 export type TechId = "fire" | "primitive_tools" | "farming";
 
+export type SeasonId = "spring" | "summer" | "autumn" | "winter";
+
 export type Resources = Record<ResourceId, number>;
 export type Priorities = Record<PriorityId, number>;
+
+export interface PressureState {
+  season: SeasonId;
+  seasonTick: number;
+  nextRaidAt: number;
+  /** Countdown; >0 means raid warning active */
+  raidWarningTicks: number;
+  pendingEventId: string | null;
+  eventCooldown: number;
+  growthHaltTicks: number;
+  /** Extra food consumption multiplier from events */
+  foodMult: number;
+  foodMultTicks: number;
+  lastBanner: string | null;
+}
 
 export interface Tile {
   x: number;
@@ -42,7 +59,7 @@ export interface ActiveResearch {
 }
 
 export interface GameState {
-  schemaVersion: 1;
+  schemaVersion: 2;
   tick: number;
   age: AgeId;
   resources: Resources;
@@ -61,6 +78,7 @@ export interface GameState {
     unlocked: TechId[];
     active: ActiveResearch | null;
   };
+  pressure: PressureState;
   rngSeed: number;
   paused: boolean;
 }

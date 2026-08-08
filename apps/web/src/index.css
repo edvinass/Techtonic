@@ -237,6 +237,53 @@ input[type="text"] {
   font-size: 0.8rem;
 }
 
+.season-pill {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  border: 1px solid rgba(200, 180, 120, 0.35);
+  background: rgba(200, 180, 120, 0.12);
+}
+
+.season-pill.season-winter {
+  border-color: rgba(140, 180, 210, 0.45);
+  background: rgba(140, 180, 210, 0.16);
+}
+
+.season-pill.season-summer {
+  border-color: rgba(210, 160, 70, 0.45);
+  background: rgba(210, 160, 70, 0.14);
+}
+
+.raid-warn {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: #f2d6b0;
+  border: 1px solid rgba(200, 90, 60, 0.55);
+  background: rgba(140, 40, 20, 0.45);
+  animation: raid-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes raid-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+.priority-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+}
+
 .resources {
   display: flex;
   flex-wrap: wrap;
@@ -430,4 +477,75 @@ input[type="text"] {
   .hud-side section {
     min-width: 260px;
   }
+}
+
+.event-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(6, 10, 8, 0.62);
+  pointer-events: auto;
+}
+
+.event-modal {
+  width: min(420px, 100%);
+  background: linear-gradient(165deg, rgba(28, 36, 30, 0.98), rgba(16, 22, 18, 0.98));
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 1.25rem 1.35rem 1.1rem;
+  box-shadow: var(--shadow);
+}
+
+.event-modal .eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+
+.event-modal h2 {
+  margin: 0 0 0.5rem;
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.45rem;
+}
+
+.event-modal .lede {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.event-choices {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.event-choice {
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid rgba(111, 168, 90, 0.28);
+  background: rgba(111, 168, 90, 0.08);
+}
+
+.event-choice:hover {
+  border-color: rgba(111, 168, 90, 0.55);
+  background: rgba(111, 168, 90, 0.16);
+}
+
+.event-choice span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.event-pause-note {
+  margin: 0.85rem 0 0;
+  font-size: 0.78rem;
+  text-align: center;
 }

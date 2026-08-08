@@ -8,6 +8,7 @@ import {
   startResearch,
   tick,
 } from "../sim/engine";
+import { resolveEventChoice } from "../sim/pressure";
 import { deserialize, serialize, type SavedGamePayload } from "../sim/serialize";
 import type { BuildingId, GameState, Priorities, ResourceId, TechId } from "../sim/types";
 
@@ -42,6 +43,7 @@ interface GameStore {
   getSavePayload: () => SavedGamePayload | null;
   /** Worker drop-off after a gather trip (carry-limited). */
   depositResources: (resource: ResourceId, amount: number) => void;
+  resolveEvent: (choiceIndex: 0 | 1) => void;
 }
 
 const TOKEN_KEY = "techtonic_token";
@@ -163,8 +165,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   stepTick: () => {
     const { state } = get();
-    if (!state) return;
-    set({ state: tick(state) });
+    if (!state || state.pressure.pendingEventId) return;
+    const next = tick(state);
+    const banner = next.pressure.lastBanner;
+    if (banner) next.pressure.lastBanner = null;
+    set({
+      state: next,
+      ...(banner ? { statusMessage: banner } : {}),
+    });
   },
 
   setSaveMeta: (slot, at) => set({ saveSlot: slot, lastSavedAt: at }),
@@ -185,5 +193,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const next = structuredClone(state);
     next.resources[resource] += amount;
     set({ state: next });
+  },
+
+  resolveEvent: (choiceIndex) => {
+    const { state } = get();
+    if (!state?.pressure.pendingEventId) return;
+    const next = resolveEventChoice(state, choiceIndex);
+    const banner = next.pressure.lastBanner;
+    if (banner) next.pressure.lastBanner = null;
+    set({
+      state: next,
+      statusMessage: banner ?? "Decision made.",
+    });
   },
 }));
