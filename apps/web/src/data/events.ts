@@ -3,7 +3,33 @@ import type { Resources } from "../sim/types";
 export type SeasonId = "spring" | "summer" | "autumn" | "winter";
 
 export const SEASON_ORDER: SeasonId[] = ["spring", "summer", "autumn", "winter"];
-export const SEASON_LENGTH = 90; // ticks per season (~6 min year)
+
+/** Ticks per calendar month (1 tick ≈ 1s). Three months make a season. */
+export const MONTH_LENGTH = 90;
+/** Ticks per season (~4.5 min); full year ~18 min. */
+export const SEASON_LENGTH = MONTH_LENGTH * 3;
+
+/** Northern-hemisphere months, three per season starting in spring. */
+export const MONTH_NAMES = [
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+  "January",
+  "February",
+] as const;
+
+export function currentMonthName(season: SeasonId, seasonTick: number): string {
+  const seasonIdx = SEASON_ORDER.indexOf(season);
+  const monthInSeason = Math.min(2, Math.floor(Math.max(0, seasonTick) / MONTH_LENGTH));
+  return MONTH_NAMES[seasonIdx * 3 + monthInSeason];
+}
 
 export const SEASON_INFO: Record<
   SeasonId,

@@ -10,7 +10,7 @@ import {
 } from "../data/balance";
 import { BUILDINGS } from "../data/buildings";
 import { TECHS } from "../data/techs";
-import { DEPOSIT_STOCK, generateMap } from "./mapgen";
+import { DEPOSIT_STOCK, FERTILE_STOCK, generateMap } from "./mapgen";
 import { defaultPressure, seasonFoodMultiplier, tickPressure } from "./pressure";
 import { normalizePriorities, workerQuota } from "./priorities";
 import {
@@ -345,10 +345,25 @@ export function claimHarmonyVictory(state: GameState): GameState {
   return next;
 }
 
-/** Reduce deposit stock; clear terrain when exhausted. Mutates `state`. */
+/** Reduce deposit / fertile stock; clear terrain when exhausted. Mutates `state`. */
 export function harvestDeposit(state: GameState, gx: number, gy: number, amount: number): number {
   const tile = tileAt(state, gx, gy);
-  if (!tile || !tile.deposit || amount <= 0) return 0;
+  if (!tile || amount <= 0) return 0;
+
+  // Wild food forage on fertile banks (no mineral/wood deposit)
+  if (!tile.deposit && tile.terrain === "fertile") {
+    if (tile.stock === undefined) tile.stock = FERTILE_STOCK;
+    const taken = Math.min(tile.stock, amount);
+    tile.stock -= taken;
+    if (tile.stock <= 0) {
+      tile.stock = 0;
+      tile.terrain = "grass";
+      tile.elev = Math.min(tile.elev ?? 1, 1);
+    }
+    return taken;
+  }
+
+  if (!tile.deposit) return 0;
   if (tile.stock === undefined) {
     tile.stock = DEPOSIT_STOCK[tile.deposit];
   }

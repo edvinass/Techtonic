@@ -8,6 +8,31 @@ export const DEPOSIT_STOCK: Record<DepositId, number> = {
   metal: 180,
 };
 
+/** Gatherable wild-food units on a fresh fertile tile. */
+export const FERTILE_STOCK = 70;
+
+/** Cap used for remaining-% display (deposits + fertile forage). */
+export function tileStockCap(tile: Tile): number | null {
+  if (tile.deposit) return DEPOSIT_STOCK[tile.deposit];
+  if (tile.terrain === "fertile") return FERTILE_STOCK;
+  return null;
+}
+
+/** Remaining gatherable resource as 0–100, or null if the tile has none. */
+export function tileRemainingPct(tile: Tile): number | null {
+  const cap = tileStockCap(tile);
+  if (cap == null) return null;
+  const stock = tile.stock ?? cap;
+  return Math.max(0, Math.min(100, Math.round((100 * stock) / cap)));
+}
+
+function setFertile(tile: Tile, elev?: number): void {
+  tile.terrain = "fertile";
+  tile.deposit = null;
+  tile.stock = FERTILE_STOCK;
+  if (elev !== undefined) tile.elev = elev;
+}
+
 function hash2(x: number, y: number, seed: number): number {
   let n = (x * 374761393 + y * 668265263 + seed * 1274126177) | 0;
   n = (n ^ (n >>> 13)) * 1274126177;
@@ -283,10 +308,7 @@ export function generateMap(width: number, height: number, seed: number): Tile[]
       t.stock = undefined;
       t.elev = 0;
     } else if (rng() < 0.7) {
-      t.terrain = "fertile";
-      t.deposit = null;
-      t.stock = undefined;
-      t.elev = Math.min(1, t.elev ?? 1);
+      setFertile(t, Math.min(1, t.elev ?? 1));
     }
   }
 
@@ -325,10 +347,14 @@ export function generateMap(width: number, height: number, seed: number): Tile[]
       const t = tiles[idx(cx + dx, cy + dy, width)];
       const dist = Math.abs(dx) + Math.abs(dy);
       if (dist <= 2) {
-        t.terrain = dist === 0 ? "fertile" : "grass";
-        t.deposit = null;
-        t.stock = undefined;
-        t.elev = 1;
+        if (dist === 0) {
+          setFertile(t, 1);
+        } else {
+          t.terrain = "grass";
+          t.deposit = null;
+          t.stock = undefined;
+          t.elev = 1;
+        }
       } else if (t.terrain === "water") {
         t.terrain = "sand";
         t.deposit = null;
@@ -365,8 +391,7 @@ export function generateMap(width: number, height: number, seed: number): Tile[]
     if (!inBounds(cx + dx, cy + dy, width, height)) continue;
     const t = tiles[idx(cx + dx, cy + dy, width)];
     if (t.terrain === "water" || t.deposit) continue;
-    t.terrain = "fertile";
-    t.elev = 1;
+    setFertile(t, 1);
   }
 
   return tiles;

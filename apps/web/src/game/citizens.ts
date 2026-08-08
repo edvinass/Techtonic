@@ -502,7 +502,8 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
       const depletes =
         c.job.resource === "wood" ||
         c.job.resource === "stone" ||
-        c.job.resource === "metal";
+        c.job.resource === "metal" ||
+        (c.job.resource === "food" && isForage);
       const cap = carryCapacityFor(c.job.resource, hasTools, wildWood);
       const fertileBonus =
         c.job.resource === "food" && c.job.work === "farm"

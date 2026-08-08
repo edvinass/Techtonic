@@ -3,6 +3,7 @@ import { play } from "../audio/sfx";
 import { BUILDINGS } from "../data/buildings";
 import { RESOURCES } from "../data/resources";
 import { canPlaceBuilding } from "../sim/engine";
+import { tileRemainingPct } from "../sim/mapgen";
 import type { GameState, ResourceId, SeasonId, TerrainId, Tile } from "../sim/types";
 import { useGameStore } from "../store/gameStore";
 import { drawBuildingArt } from "./buildingArt";
@@ -55,6 +56,20 @@ function shadeColor(color: number, factor: number): number {
   const g = Math.min(255, Math.max(0, Math.round(((color >> 8) & 0xff) * factor)));
   const b = Math.min(255, Math.max(0, Math.round((color & 0xff) * factor)));
   return (r << 16) | (g << 8) | b;
+}
+
+function lerpColor(a: number, b: number, t: number): number {
+  const u = Math.max(0, Math.min(1, t));
+  const ar = (a >> 16) & 0xff;
+  const ag = (a >> 8) & 0xff;
+  const ab = a & 0xff;
+  const br = (b >> 16) & 0xff;
+  const bg = (b >> 8) & 0xff;
+  const bb = b & 0xff;
+  const r = Math.round(ar + (br - ar) * u);
+  const g = Math.round(ag + (bg - ag) * u);
+  const bl = Math.round(ab + (bb - ab) * u);
+  return (r << 16) | (g << 8) | bl;
 }
 
 function tileElevPx(tile: Tile): number {
@@ -292,7 +307,11 @@ export class MainScene extends Phaser.Scene {
     let stockBuckets = 0;
     for (const t of state.map.tiles) {
       if (t.terrain === "forest") forestN += 1;
-      if (t.deposit) stockBuckets += 1 + Math.floor((t.stock ?? 0) / 12);
+      if (t.deposit || t.terrain === "fertile") {
+        // Bucket by remaining % so visuals refresh as tiles deplete
+        const pct = tileRemainingPct(t) ?? 0;
+        stockBuckets += 1 + Math.floor(pct / 10);
+      }
     }
     const mapSig = `${forestN}:${stockBuckets}`;
     const structureHash = `${state.age}:${state.pressure.season}:${state.buildings
@@ -363,15 +382,20 @@ export class MainScene extends Phaser.Scene {
 
     if (tile.deposit) {
       const name = RESOURCES[tile.deposit].label;
-      const stock = Math.round(tile.stock ?? 0);
+      const pct = tileRemainingPct(tile);
       const label =
-        stock <= 0 ? `${name} deposit (depleted)` : `${name} deposit · ${stock}`;
-      return { key: `d:${gx},${gy}:${tile.deposit}`, label };
+        pct == null || pct <= 0
+          ? `${name} deposit (depleted)`
+          : `${name} deposit · ${pct}%`;
+      return { key: `d:${gx},${gy}:${tile.deposit}:${pct ?? 0}`, label };
     }
 
     const terrainLabel = TERRAIN_HINT[tile.terrain];
     if (!terrainLabel) return null;
-    return { key: `t:${gx},${gy}:${tile.terrain}`, label: terrainLabel };
+    const pct = tileRemainingPct(tile);
+    const label =
+      pct != null ? `${terrainLabel} · ${pct}%` : terrainLabel;
+    return { key: `t:${gx},${gy}:${tile.terrain}:${pct ?? "x"}`, label };
   }
 
   private clearHover() {
@@ -626,15 +650,23 @@ export class MainScene extends Phaser.Scene {
       let color = TERRAIN_COLORS[tile.terrain] ?? TERRAIN_COLORS.grass;
       let side = TERRAIN_SIDE[tile.terrain] ?? TERRAIN_SIDE.grass;
 
+      const remainPct = tileRemainingPct(tile);
+      const remain = remainPct == null ? 1 : remainPct / 100;
+
       if (tile.terrain === "grass") {
         color = SEASON_GRASS[season].top;
         side = SEASON_GRASS[season].side;
         if (state.age !== "stone") color = shadeColor(color, 1.08);
       } else if (tile.terrain === "fertile") {
-        color = season === "winter" ? 0x7a8a5a : 0x6aaa42;
-        side = 0x4a7a30;
+        // Rich green when full → dull straw as forage is stripped
+        const lush = season === "winter" ? 0x7a8a5a : 0x6aaa42;
+        const spent = season === "winter" ? 0x8a8470 : 0x9a8a4a;
+        color = lerpColor(lush, spent, 1 - remain);
+        side = shadeColor(color, 0.72);
       } else if (tile.terrain === "forest") {
-        color = season === "autumn" ? 0x6a5a28 : season === "winter" ? 0x4a5a48 : 0x2f5a28;
+        const lush = season === "autumn" ? 0x6a5a28 : season === "winter" ? 0x4a5a48 : 0x2f5a28;
+        const spent = season === "winter" ? 0x6a6a58 : 0x5a4a28;
+        color = lerpColor(lush, spent, 1 - remain);
         side = shadeColor(color, 0.7);
       } else if (tile.terrain === "water") {
         color = shadeColor(0x2f6a9e, 0.92 + shimmer * 0.12);
@@ -652,16 +684,22 @@ export class MainScene extends Phaser.Scene {
 
       const topY = oy + sy - elev;
       if (tile.terrain === "forest" || tile.deposit === "wood") {
-        const stockScale = tile.stock !== undefined ? Math.max(0.35, Math.min(1, tile.stock / 55)) : 1;
-        this.drawForestStand(this.tileGraphics, ox + sx, topY, stockScale, season, tile.x * 31 + tile.y);
+        this.drawForestStand(
+          this.tileGraphics,
+          ox + sx,
+          topY,
+          remain,
+          season,
+          tile.x * 31 + tile.y,
+        );
       } else if (tile.deposit === "stone") {
-        drawResourceMark(this.tileGraphics, ox + sx, topY, "stone", 0.95);
+        drawResourceMark(this.tileGraphics, ox + sx, topY, "stone", 0.55 + 0.4 * remain);
       } else if (tile.deposit === "metal") {
-        drawResourceMark(this.tileGraphics, ox + sx, topY, "metal", 1);
+        drawResourceMark(this.tileGraphics, ox + sx, topY, "metal", 0.55 + 0.45 * remain);
       } else if (tile.terrain === "grass" && (tile.x + tile.y) % 3 === 0) {
         this.drawGrassTufts(this.tileGraphics, ox + sx, topY, season);
       } else if (tile.terrain === "fertile" && !state.buildings.some((b) => b.x === tile.x && b.y === tile.y)) {
-        this.drawFertileTufts(this.tileGraphics, ox + sx, topY);
+        this.drawFertileTufts(this.tileGraphics, ox + sx, topY, remain);
       }
     }
 
@@ -695,23 +733,44 @@ export class MainScene extends Phaser.Scene {
     scale: number,
     season: SeasonId,
     salt: number,
+    remain = 1,
   ) {
     const s = scale;
-    const canopy =
+    // Low remaining → brown/sparse “depleted” canopy instead of lush green
+    const lush =
       season === "autumn" ? 0x9a6a2a : season === "winter" ? 0x5a6a58 : 0x2f6a28;
+    const spent = season === "winter" ? 0x6a6558 : 0x6a5a28;
+    const canopy = lerpColor(spent, lush, remain);
     const canopyLit = shadeColor(canopy, 1.18);
     const canopyDeep = shadeColor(canopy, 0.78);
     g.fillStyle(0x000000, 0.22 * s);
     g.fillEllipse(x, y + 2, 20 * s, 9 * s);
     g.fillStyle(0x5a3d22, 1);
     g.fillRect(x - 1.6 * s, y - 5 * s, 3.2 * s, 9 * s);
+
+    if (remain < 0.28) {
+      // Stump / bare trunk — stand has been stripped
+      g.fillStyle(0x4a3220, 1);
+      g.fillEllipse(x, y - 1 * s, 7 * s, 3.2 * s);
+      g.fillStyle(0x6a4a28, 1);
+      g.fillRect(x - 2 * s, y - 6 * s, 4 * s, 5 * s);
+      return;
+    }
+
     const ox = ((salt * 17) % 5) - 2;
-    for (const [dy, hw, col] of [
-      [-24, 12, canopyDeep],
-      [-17, 11, canopy],
-      [-11, 9, canopyLit],
-      [-6, 7, canopy],
-    ] as const) {
+    const layers =
+      remain < 0.5
+        ? ([
+            [-14, 8, canopyDeep],
+            [-8, 6, canopy],
+          ] as const)
+        : ([
+            [-24, 12, canopyDeep],
+            [-17, 11, canopy],
+            [-11, 9, canopyLit],
+            [-6, 7, canopy],
+          ] as const);
+    for (const [dy, hw, col] of layers) {
       const d = {
         N: { x: x + ox, y: y + dy * s - hw * 0.5 * s },
         E: { x: x + ox + hw * s, y: y + dy * s },
@@ -729,30 +788,33 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  /** Dense multi-tree stand so forests read as woodland, not single cones. */
+  /** Dense multi-tree stand; thins to stumps as wood stock falls. */
   private drawForestStand(
     g: Phaser.GameObjects.Graphics,
     x: number,
     y: number,
-    scale: number,
+    remain: number,
     season: SeasonId,
     salt: number,
   ) {
-    const count = 2 + (salt % 2);
+    const scale = Math.max(0.4, Math.min(1, 0.35 + remain * 0.65));
+    const count = remain < 0.35 ? 1 : remain < 0.65 ? 2 : 2 + (salt % 2);
     const offsets =
-      count === 3
-        ? [
-            [-7, 3, 0.72],
-            [8, 2, 0.78],
-            [0, -2, 1],
-          ]
-        : [
-            [-6, 2, 0.8],
-            [5, -1, 1],
-          ];
+      count === 1
+        ? [[0, 0, 1]]
+        : count === 2
+          ? [
+              [-6, 2, 0.8],
+              [5, -1, 1],
+            ]
+          : [
+              [-7, 3, 0.72],
+              [8, 2, 0.78],
+              [0, -2, 1],
+            ];
     for (let i = 0; i < offsets.length; i++) {
       const [dx, dy, sc] = offsets[i];
-      this.drawTree(g, x + dx, y + dy, scale * sc, season, salt + i * 13);
+      this.drawTree(g, x + dx, y + dy, scale * sc, season, salt + i * 13, remain);
     }
   }
 
@@ -775,17 +837,27 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private drawFertileTufts(g: Phaser.GameObjects.Graphics, x: number, y: number) {
-    g.fillStyle(0x8fbf4a, 0.9);
-    for (const [dx, dy] of [
+  private drawFertileTufts(
+    g: Phaser.GameObjects.Graphics,
+    x: number,
+    y: number,
+    remain = 1,
+  ) {
+    const tip = lerpColor(0xb0a050, 0x8fbf4a, remain);
+    g.fillStyle(tip, 0.55 + 0.35 * remain);
+    const all = [
       [-6, 0],
       [4, -2],
       [2, 3],
       [-2, -3],
       [7, 1],
       [-8, -1],
-    ] as const) {
-      g.fillTriangle(x + dx, y + dy - 4.5, x + dx - 2, y + dy, x + dx + 2, y + dy);
+    ] as const;
+    const n = remain < 0.25 ? 2 : remain < 0.55 ? 3 : all.length;
+    for (let i = 0; i < n; i++) {
+      const [dx, dy] = all[i];
+      const h = 2.5 + 2 * remain;
+      g.fillTriangle(x + dx, y + dy - h, x + dx - 2, y + dy, x + dx + 2, y + dy);
     }
   }
 

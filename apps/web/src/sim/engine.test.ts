@@ -130,6 +130,20 @@ describe("sim engine", () => {
     expect(wood.stock).toBe(before - 10);
   });
 
+  it("depletes fertile land when foraged and turns it to grass when empty", () => {
+    const state = createNewGame(42);
+    const fertile = state.map.tiles.find((t) => t.terrain === "fertile" && !t.deposit)!;
+    expect(fertile).toBeTruthy();
+    expect(fertile.stock).toBeGreaterThan(0);
+    const before = fertile.stock!;
+    const taken = harvestDeposit(state, fertile.x, fertile.y, 10);
+    expect(taken).toBe(10);
+    expect(fertile.stock).toBe(before - 10);
+    harvestDeposit(state, fertile.x, fertile.y, before);
+    expect(fertile.terrain).toBe("grass");
+    expect(fertile.stock).toBe(0);
+  });
+
   it("places metal deposits near the spawn and advances through later ages", () => {
     let state = createNewGame(11);
     expect(state.map.tiles.some((t) => t.deposit === "metal")).toBe(true);

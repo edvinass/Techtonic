@@ -80,7 +80,7 @@ export function findResourceTile(
   const maxDist =
     resource === "wood" || resource === "stone" || resource === "metal" ? 14 : 8;
 
-  const hasStock = (t: Tile) => t.stock === undefined || t.stock > 0;
+  const hasStock = (t: Tile) => (t.stock ?? 1) > 0;
 
   if (resource === "wood") {
     for (const t of state.map.tiles) {
@@ -132,10 +132,11 @@ export function findResourceTile(
     } else {
       // Wild foraging: fertile land only (grass is barren for food)
       for (const t of state.map.tiles) {
-        if (t.terrain !== "fertile" || t.deposit) continue;
+        if (t.terrain !== "fertile" || t.deposit || !hasStock(t)) continue;
         const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
         if (dist < 2 || dist > 7) continue;
         let score = dist + Math.random();
+        if ((t.stock ?? 99) < 20) score += 1.5; // prefer fuller banks
         candidates.push({ gx: t.x, gy: t.y, score });
       }
     }
@@ -166,7 +167,7 @@ export function findResourceTile(
             : resource === "wood"
               ? (t.deposit === "wood" && hasStock(t)) || t.terrain === "forest"
               : resource === "food"
-                ? t.terrain === "fertile" && !t.deposit
+                ? t.terrain === "fertile" && !t.deposit && hasStock(t)
                 : t.deposit === "stone" && hasStock(t);
         if (!match) continue;
         const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);

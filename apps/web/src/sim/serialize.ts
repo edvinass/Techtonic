@@ -1,4 +1,4 @@
-import { DEPOSIT_STOCK } from "./mapgen";
+import { DEPOSIT_STOCK, FERTILE_STOCK } from "./mapgen";
 import { defaultPressure } from "./pressure";
 import { normalizePriorities } from "./priorities";
 import type { GameState, Priorities, PressureState, RunStats, Tile } from "./types";
@@ -36,9 +36,15 @@ function migrateTiles(tiles: Tile[]): Tile[] {
       deposit: t.deposit ?? null,
       elev: t.elev ?? (t.terrain === "rock" ? 3 : t.terrain === "water" ? 0 : 1),
     };
-    // Legacy terrains unknown to older saves stay as-is; ensure stock on deposits
+    // Legacy terrains unknown to older saves stay as-is; ensure stock on deposits / fertile
     if (tile.deposit && (t.stock === undefined || t.stock === null)) {
       tile.stock = DEPOSIT_STOCK[tile.deposit];
+    } else if (
+      tile.terrain === "fertile" &&
+      !tile.deposit &&
+      (t.stock === undefined || t.stock === null)
+    ) {
+      tile.stock = FERTILE_STOCK;
     } else if (t.stock !== undefined) {
       tile.stock = t.stock;
     }

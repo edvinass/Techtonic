@@ -79,7 +79,7 @@ export interface Tile {
   y: number;
   terrain: TerrainId;
   deposit?: DepositId | null;
-  /** Remaining gatherable units on this deposit */
+  /** Remaining gatherable units (deposit stock or fertile forage) */
   stock?: number;
   /** Terrain height for visuals / walk feel (0–4) */
   elev?: number;

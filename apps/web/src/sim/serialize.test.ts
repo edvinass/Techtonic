@@ -34,6 +34,18 @@ describe("serialize", () => {
     expect(restored.map.tiles.some((t) => t.deposit && (t.stock ?? 0) > 0)).toBe(true);
   });
 
+  it("backfills fertile stock on legacy tiles missing stock", () => {
+    const state = createNewGame(12);
+    const payload = serialize(state);
+    for (const t of payload.map.tiles) {
+      if (t.terrain === "fertile") delete (t as { stock?: number }).stock;
+    }
+    const restored = deserialize(payload);
+    const fertile = restored.map.tiles.filter((t) => t.terrain === "fertile" && !t.deposit);
+    expect(fertile.length).toBeGreaterThan(0);
+    expect(fertile.every((t) => (t.stock ?? 0) > 0)).toBe(true);
+  });
+
   it("adds a starter stockpile when loading a save without one", () => {
     const state = createNewGame(12);
     const payload = serialize(state);

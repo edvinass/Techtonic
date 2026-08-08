@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { isMuted, play, toggleMute } from "../audio/sfx";
 import { AGES } from "../data/ages";
 import { BUILDINGS } from "../data/buildings";
-import { SEASON_INFO } from "../data/events";
+import { currentMonthName, SEASON_INFO } from "../data/events";
 import { RESOURCE_ORDER, RESOURCES } from "../data/resources";
 import { TECH_LIST } from "../data/techs";
 import { ageUpRequirements, getBuildableTypes, isTechAvailable } from "../sim/engine";
@@ -229,6 +229,7 @@ export function Hud() {
             className={`season-pill season-${state.pressure.season}`}
             title={SEASON_INFO[state.pressure.season].blurb}
           >
+            {currentMonthName(state.pressure.season, state.pressure.seasonTick)} ·{" "}
             {SEASON_INFO[state.pressure.season].label}
           </span>
           {state.pressure.raidWarningTicks > 0 && (

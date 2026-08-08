@@ -88,7 +88,17 @@ describe("gather rules", () => {
       expect(tile).toBeTruthy();
       const found = state.map.tiles.find((t) => t.x === tile!.gx && t.y === tile!.gy);
       expect(found?.terrain).toBe("fertile");
+      expect((found?.stock ?? 0) > 0).toBe(true);
     }
+  });
+
+  it("skips depleted fertile land for wild food foragers", () => {
+    const state = createNewGame(11);
+    const home = state.buildings.find((b) => b.type === "house")!;
+    for (const t of state.map.tiles) {
+      if (t.terrain === "fertile") t.stock = 0;
+    }
+    expect(findResourceTile(state, home, "food")).toBeNull();
   });
 
   it("multiplies gather speed by building produces rates", () => {

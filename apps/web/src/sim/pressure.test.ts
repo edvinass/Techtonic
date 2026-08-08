@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SEASON_LENGTH } from "../data/events";
+import { currentMonthName, MONTH_LENGTH, SEASON_LENGTH } from "../data/events";
 import { createNewGame, tick } from "./engine";
 import {
   defenceReadiness,
@@ -20,11 +20,17 @@ function runTicks(state: ReturnType<typeof createNewGame>, n: number) {
 describe("pressure systems", () => {
   it("advances seasons after SEASON_LENGTH ticks", () => {
     let state = createNewGame(11);
+    state.resources.food = 50_000;
     state.pressure.eventCooldown = 9999;
     state.pressure.nextRaidAt = 9999;
     expect(state.pressure.season).toBe("spring");
-    state = runTicks(state, SEASON_LENGTH);
+    expect(currentMonthName(state.pressure.season, state.pressure.seasonTick)).toBe("March");
+    state = runTicks(state, MONTH_LENGTH);
+    expect(state.pressure.season).toBe("spring");
+    expect(currentMonthName(state.pressure.season, state.pressure.seasonTick)).toBe("April");
+    state = runTicks(state, SEASON_LENGTH - MONTH_LENGTH);
     expect(state.pressure.season).toBe("summer");
+    expect(currentMonthName(state.pressure.season, state.pressure.seasonTick)).toBe("June");
     expect(state.pressure.lastBanner ?? "").toMatch(/Summer/i);
   });
 
