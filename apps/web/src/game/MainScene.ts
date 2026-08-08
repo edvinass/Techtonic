@@ -9,6 +9,7 @@ import { createCitizenArt, updateCitizenArt, type CitizenNode } from "./citizenA
 import { stepCitizens, syncCitizens, type Citizen } from "./citizens";
 import { gridToScreen, screenToGrid, TILE_HEIGHT, TILE_WIDTH } from "./iso";
 import { drawResourceMark } from "./resourceArt";
+import { mapTextResolution } from "./textRes";
 
 const TERRAIN_COLORS: Record<TerrainId, number> = {
   grass: 0x5a8f4d,
@@ -389,6 +390,7 @@ export class MainScene extends Phaser.Scene {
         color: `#${visual.hex}`,
         stroke: "#142017",
         strokeThickness: 3,
+        resolution: mapTextResolution(this.dpr(), this.userZoom),
       });
       label.setOrigin(0, 1);
       label.setAlpha(Math.min(1, f.life / 450));

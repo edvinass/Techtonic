@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { RESOURCES } from "../data/resources";
 import type { ResourceId } from "../sim/types";
 import type { Citizen, WorkKind } from "./citizens";
+import { mapTextResolution } from "./textRes";
 
 const SKIN = [0xf0c8a0, 0xe8b890, 0xd4a574, 0xc68642, 0x8d5524] as const;
 const HAIR = [0x2a1c10, 0x4a3020, 0x6b4423, 0xc4a060, 0x1a120c] as const;
@@ -201,12 +202,14 @@ export function createCitizenArt(scene: Phaser.Scene, c: Citizen): CitizenNode {
   const bundle = makeBundle(scene);
   bundle.setVisible(false);
 
+  const dpr = (scene.game.registry.get("dpr") as number) || 1;
   const label = scene.add.text(0, -32, "", {
     fontFamily: "DM Sans, sans-serif",
-    fontSize: "9px",
+    fontSize: "10px",
     color: "#fff8e8",
     stroke: "#142017",
     strokeThickness: 2,
+    resolution: mapTextResolution(dpr),
   });
   label.setOrigin(0.5, 1);
   label.setVisible(false);
