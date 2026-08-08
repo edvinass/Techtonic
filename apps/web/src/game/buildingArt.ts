@@ -116,33 +116,24 @@ function isoGableRoof(
   strokePoly(g, [top.W, top.S, ridgeE, ridgeW], edge, 0.35 * alpha, 1);
 }
 
-function progressBar(g: GameObjects.Graphics, progress: number) {
-  const bar = diamond(0, 14, 20, 8);
-  fillPoly(g, [bar.N, bar.E, bar.S, bar.W], 0x1b2618, 0.75);
-  const t = Math.max(0.05, Math.min(1, progress));
-  if (t <= 0.5) {
-    const u = t * 2;
-    const fillN = {
-      x: bar.W.x + (bar.N.x - bar.W.x) * u,
-      y: bar.W.y + (bar.N.y - bar.W.y) * u,
-    };
-    const fillS = {
-      x: bar.W.x + (bar.S.x - bar.W.x) * u,
-      y: bar.W.y + (bar.S.y - bar.W.y) * u,
-    };
-    fillPoly(g, [bar.W, fillN, fillS], 0xe8c95a, 1);
-  } else {
-    const u = (t - 0.5) * 2;
-    const n2 = {
-      x: bar.N.x + (bar.E.x - bar.N.x) * u,
-      y: bar.N.y + (bar.E.y - bar.N.y) * u,
-    };
-    const s2 = {
-      x: bar.S.x + (bar.E.x - bar.S.x) * u,
-      y: bar.S.y + (bar.E.y - bar.S.y) * u,
-    };
-    fillPoly(g, [bar.W, bar.N, n2, s2, bar.S], 0xe8c95a, 1);
+/** Horizontal construction bar floating above the scaffold. */
+function progressBar(g: GameObjects.Graphics, progress: number, aboveY: number) {
+  const w = 30;
+  const h = 5;
+  const x = -w / 2;
+  const y = -aboveY - 10;
+  const t = Math.max(0, Math.min(1, progress));
+
+  g.fillStyle(0x000000, 0.35);
+  g.fillRoundedRect(x + 1, y + 1, w, h, 2);
+  g.fillStyle(0x1b2618, 0.9);
+  g.fillRoundedRect(x, y, w, h, 2);
+  if (t > 0) {
+    g.fillStyle(0xe8c95a, 1);
+    g.fillRoundedRect(x + 1, y + 1, Math.max(2, (w - 2) * t), h - 2, 1.5);
   }
+  g.lineStyle(1, 0x3a4a32, 0.85);
+  g.strokeRoundedRect(x, y, w, h, 2);
 }
 
 function scaffold(g: GameObjects.Graphics, alpha: number, height: number) {
@@ -238,8 +229,9 @@ export function drawBuildingArt(
       type === "reactor" ||
       type === "launch_pad" ||
       type === "grove_sanctuary";
-    scaffold(g, alpha, tall ? 36 : 28);
-    progressBar(g, progress);
+    const scaffoldH = tall ? 36 : 28;
+    scaffold(g, alpha, scaffoldH);
+    progressBar(g, progress, scaffoldH);
   } else if (opts.active) {
     const glow = diamond(0, -10, 18, 10);
     fillPoly(g, [glow.N, glow.E, glow.S, glow.W], 0xfff3c4, 0.12 * alpha);
