@@ -8,6 +8,13 @@ import {
   resourceForBuilding,
   worldPos,
 } from "./gather";
+import {
+  findPath,
+  isWalkable,
+  nearestWalkable,
+  worldToGrid,
+  type GridPos,
+} from "./pathfinding";
 
 export type WorkKind = "gather" | "build" | "research" | "farm" | "forage" | "idle";
 
@@ -17,6 +24,8 @@ export type CitizenJob =
       kind: "walk";
       tx: number;
       ty: number;
+      /** Remaining world-space waypoints (next hop first); routes around water/rock */
+      path: { x: number; y: number }[];
       buildingId: string;
       work: WorkKind;
       phase: "toResource" | "toDropoff" | "toSite" | "wander";
@@ -86,6 +95,39 @@ export function findNearestDropoff(
   );
 }
 
+function routeWalk(
+  c: Citizen,
+  state: GameState,
+  ox: number,
+  oy: number,
+  dest: { x: number; y: number },
+  goalTile?: GridPos | null,
+): { tx: number; ty: number; path: { x: number; y: number }[] } | null {
+  const from = worldToGrid(c.x, c.y, ox, oy);
+  const start = nearestWalkable(state, from) ?? from;
+  const rawGoal = goalTile ?? worldToGrid(dest.x, dest.y, ox, oy);
+  // Rock goals (quarries) are allowed; if unreachable, stand on nearest walkable
+  let cells = findPath(state, start, rawGoal);
+  if (!cells.length) {
+    const alt = nearestWalkable(state, rawGoal);
+    if (alt) cells = findPath(state, start, alt);
+  }
+  if (!cells.length) return null;
+
+  const path: { x: number; y: number }[] = [];
+  for (let i = 1; i < cells.length; i++) {
+    const p = worldPos(cells[i].x, cells[i].y, ox, oy);
+    path.push(p);
+  }
+  // Final hop uses the exact world destination (spread / ring offset)
+  if (path.length) {
+    path[path.length - 1] = { x: dest.x, y: dest.y };
+  } else {
+    path.push({ x: dest.x, y: dest.y });
+  }
+  return { tx: dest.x, ty: dest.y, path };
+}
+
 function startDropoffTrip(
   c: Citizen,
   state: GameState,
@@ -108,10 +150,18 @@ function startDropoffTrip(
     return;
   }
   const drop = worldPos(dropoff.x, dropoff.y, ox, oy);
+  const dest = {
+    x: drop.x + (Math.random() - 0.5) * 8,
+    y: drop.y + (Math.random() - 0.5) * 6,
+  };
+  const routed = routeWalk(c, state, ox, oy, dest, { x: dropoff.x, y: dropoff.y });
+  if (!routed) {
+    c.job = { kind: "idle" };
+    return;
+  }
   c.job = {
     kind: "walk",
-    tx: drop.x + (Math.random() - 0.5) * 8,
-    ty: drop.y + (Math.random() - 0.5) * 6,
+    ...routed,
     buildingId: workBuildingId,
     work,
     phase: "toDropoff",
@@ -281,12 +331,20 @@ function startGatherTrip(
   // Spread workers so they don't stack; step off the building footprint when gathering on-site
   const onSite = tile.gx === building.x && tile.gy === building.y;
   const spread = onSite ? 22 : 12;
+  const dest = {
+    x: pos.x + (Math.random() - 0.5) * spread + (onSite ? (c.id % 3) * 6 - 6 : 0),
+    y: pos.y + (Math.random() - 0.5) * (spread * 0.55) + (onSite ? (c.id % 2) * 4 - 2 : 0),
+  };
+  const routed = routeWalk(c, state, ox, oy, dest, { x: tile.gx, y: tile.gy });
   c.carrying = null;
   c.carryAmount = 0;
+  if (!routed) {
+    c.job = { kind: "idle" };
+    return;
+  }
   c.job = {
     kind: "walk",
-    tx: pos.x + (Math.random() - 0.5) * spread + (onSite ? (c.id % 3) * 6 - 6 : 0),
-    ty: pos.y + (Math.random() - 0.5) * (spread * 0.55) + (onSite ? (c.id % 2) * 4 - 2 : 0),
+    ...routed,
     buildingId,
     work,
     phase: "toResource",
@@ -311,10 +369,18 @@ function startBuildTrip(
   // Ring builders around the scaffold instead of stacking inside it
   const angle = ((c.id * 2.4) % (Math.PI * 2)) + Math.random() * 0.4;
   const radius = 16 + (c.id % 3) * 5;
+  const dest = {
+    x: pos.x + Math.cos(angle) * radius,
+    y: pos.y + Math.sin(angle) * radius * 0.55,
+  };
+  const routed = routeWalk(c, state, ox, oy, dest, { x: building.x, y: building.y });
+  if (!routed) {
+    c.job = { kind: "idle" };
+    return;
+  }
   c.job = {
     kind: "walk",
-    tx: pos.x + Math.cos(angle) * radius,
-    ty: pos.y + Math.sin(angle) * radius * 0.55,
+    ...routed,
     buildingId,
     work: "build",
     phase: "toSite",
@@ -333,6 +399,25 @@ export function syncCitizens(
   const homePos = home
     ? worldPos(home.x, home.y, ox, oy)
     : worldPos(state.map.width / 2, state.map.height / 2, ox, oy);
+
+  // Nudge anyone stranded on water/rock back onto land (except quarry work on rock)
+  for (const c of citizens) {
+    const g = worldToGrid(c.x, c.y, ox, oy);
+    if (isWalkable(state, g.x, g.y)) continue;
+    const workingRock =
+      (c.job.kind === "gather" && c.job.tile.gx === g.x && c.job.tile.gy === g.y) ||
+      (c.job.kind === "walk" &&
+        c.job.tile &&
+        c.job.tile.gx === g.x &&
+        c.job.tile.gy === g.y);
+    if (workingRock) continue;
+    const safe = nearestWalkable(state, g);
+    if (safe) {
+      const p = worldPos(safe.x, safe.y, ox, oy);
+      c.x = p.x;
+      c.y = p.y;
+    }
+  }
 
   while (citizens.length < targetCount) {
     const id = citizens.length ? Math.max(...citizens.map((c) => c.id)) + 1 : 0;
@@ -436,10 +521,30 @@ export function syncCitizens(
 
   for (const c of citizens) {
     if (c.job.kind === "idle" && c.carryAmount <= 0 && Math.random() < 0.008) {
+      const anchor = home
+        ? { x: home.x, y: home.y }
+        : worldToGrid(homePos.x, homePos.y, ox, oy);
+      let destTile: GridPos | null = null;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const gx = anchor.x + Math.floor((Math.random() - 0.5) * 6);
+        const gy = anchor.y + Math.floor((Math.random() - 0.5) * 6);
+        const spot = nearestWalkable(state, { x: gx, y: gy }, 3);
+        if (spot) {
+          destTile = spot;
+          break;
+        }
+      }
+      if (!destTile) continue;
+      const pos = worldPos(destTile.x, destTile.y, ox, oy);
+      const dest = {
+        x: pos.x + (Math.random() - 0.5) * 10,
+        y: pos.y + (Math.random() - 0.5) * 6,
+      };
+      const routed = routeWalk(c, state, ox, oy, dest, destTile);
+      if (!routed) continue;
       c.job = {
         kind: "walk",
-        tx: homePos.x + (Math.random() - 0.5) * 80,
-        ty: homePos.y + (Math.random() - 0.5) * 40,
+        ...routed,
         buildingId: home?.id ?? "home",
         work: "idle",
         phase: "wander",
@@ -458,13 +563,18 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
     c.bobPhase += dt * (c.job.kind === "walk" ? 0.013 : 0.0045);
 
     if (c.job.kind === "walk") {
-      const dx = c.job.tx - c.x;
-      const dy = c.job.ty - c.y;
+      const hop = c.job.path[0] ?? { x: c.job.tx, y: c.job.ty };
+      const dx = hop.x - c.x;
+      const dy = hop.y - c.y;
       const dist = Math.hypot(dx, dy);
       if (dist >= 3.5) {
         c.x += (dx / dist) * Math.min(speed, dist);
         c.y += (dy / dist) * Math.min(speed * 0.7, dist);
         continue;
+      }
+      if (c.job.path.length > 0) {
+        c.job.path.shift();
+        if (c.job.path.length > 0) continue;
       }
 
       if (c.job.phase === "wander" || c.job.work === "idle") {
