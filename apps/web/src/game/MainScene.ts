@@ -665,11 +665,23 @@ export class MainScene extends Phaser.Scene {
         color = SEASON_GRASS[season].top;
         side = SEASON_GRASS[season].side;
         if (state.age !== "stone") color = shadeColor(color, 1.08);
+        // Low-frequency drift merges neighboring grass instead of a checker grid
+        const drift =
+          0.98 +
+          0.035 * Math.sin(tile.x * 0.4 + tile.y * 0.28) +
+          0.025 * Math.cos(tile.x * 0.18 - tile.y * 0.33);
+        color = shadeColor(color, drift);
+        side = shadeColor(side, drift);
       } else if (tile.terrain === "fertile") {
         // Rich green when full → dull straw as forage is stripped
         const lush = season === "winter" ? 0x7a8a5a : 0x6aaa42;
         const spent = season === "winter" ? 0x8a8470 : 0x9a8a4a;
         color = lerpColor(lush, spent, 1 - remain);
+        const drift =
+          0.985 +
+          0.03 * Math.sin(tile.x * 0.38 + tile.y * 0.3) +
+          0.02 * Math.cos(tile.x * 0.22 - tile.y * 0.4);
+        color = shadeColor(color, drift);
         side = shadeColor(color, 0.72);
       } else if (tile.terrain === "forest") {
         const lush = season === "autumn" ? 0x6a5a28 : season === "winter" ? 0x4a5a48 : 0x2f5a28;
@@ -677,7 +689,12 @@ export class MainScene extends Phaser.Scene {
         color = lerpColor(lush, spent, 1 - remain);
         side = shadeColor(color, 0.7);
       } else if (tile.terrain === "water") {
-        color = shadeColor(0x2f6a9e, 0.92 + shimmer * 0.12);
+        // Soft positional drift so open water isn't a flat stamp
+        const drift =
+          0.97 +
+          0.04 * Math.sin(tile.x * 0.55 + tile.y * 0.35) +
+          0.03 * Math.cos(tile.x * 0.2 - tile.y * 0.45);
+        color = shadeColor(0x2f6a9e, (0.94 + shimmer * 0.08) * drift);
         side = 0x1e4a78;
       } else if (tile.terrain === "sand") {
         color = season === "winter" ? 0xb8b0a0 : 0xc4b07a;
@@ -692,15 +709,31 @@ export class MainScene extends Phaser.Scene {
         }
       }
 
-      // Checker warmth for depth
-      if ((tile.x + tile.y) % 2 === 0 && tile.terrain !== "water") {
-        color = shadeColor(color, 1.04);
+      // Soft checker only on hard terrain (rock/sand) — grass uses drift above
+      if (
+        (tile.x + tile.y) % 2 === 0 &&
+        (tile.terrain === "rock" || tile.terrain === "sand")
+      ) {
+        color = shadeColor(color, 1.02);
       }
 
-      this.drawIsoTile(this.tileGraphics, ox + sx, oy + sy, color, side, elev, 1, tile.terrain);
+      const salt = tile.x * 31 + tile.y * 17;
+      const waterShore =
+        tile.terrain === "water"
+          ? {
+              // Iso diamond edges → grid neighbors
+              ne: !this.isWaterAt(state, tile.x, tile.y - 1),
+              se: !this.isWaterAt(state, tile.x + 1, tile.y),
+              sw: !this.isWaterAt(state, tile.x, tile.y + 1),
+              nw: !this.isWaterAt(state, tile.x - 1, tile.y),
+            }
+          : undefined;
+      this.drawIsoTile(this.tileGraphics, ox + sx, oy + sy, color, side, elev, 1, tile.terrain, {
+        salt,
+        waterShore,
+      });
 
       const topY = oy + sy - elev;
-      const salt = tile.x * 31 + tile.y * 17;
       if (tile.terrain === "forest" || tile.deposit === "wood") {
         this.drawForestStand(
           this.tileGraphics,
@@ -1005,6 +1038,11 @@ export class MainScene extends Phaser.Scene {
     this.ghostBuilding.setPosition(ox + sx, oy + sy - elev);
   }
 
+  private isWaterAt(state: GameState, x: number, y: number): boolean {
+    if (x < 0 || y < 0 || x >= state.map.width || y >= state.map.height) return false;
+    return state.map.tiles[y * state.map.width + x]?.terrain === "water";
+  }
+
   private drawIsoTile(
     g: Phaser.GameObjects.Graphics,
     cx: number,
@@ -1014,6 +1052,10 @@ export class MainScene extends Phaser.Scene {
     elev: number,
     alpha = 1,
     terrain?: TerrainId,
+    opts?: {
+      salt?: number;
+      waterShore?: { ne: boolean; se: boolean; sw: boolean; nw: boolean };
+    },
   ) {
     const hw = TILE_WIDTH / 2;
     const hh = TILE_HEIGHT / 2;
@@ -1063,31 +1105,52 @@ export class MainScene extends Phaser.Scene {
     g.closePath();
     g.fillPath();
 
-    // Water highlight stripe + shore foam
     if (terrain === "water") {
-      g.fillStyle(0xa8d4f0, 0.14 * alpha);
+      const salt = opts?.salt ?? 0;
+      const shore = opts?.waterShore;
+      // Soft depth / glint patches — organic, not diamond-aligned
+      g.fillStyle(0x1a4a78, 0.16 * alpha);
+      g.fillEllipse(
+        cx + ((salt % 7) - 3) * 1.8,
+        topY + ((salt % 5) - 2) * 1.2,
+        14 + (salt % 4),
+        6 + (salt % 3),
+      );
+      g.fillStyle(0xa8d4f0, 0.07 * alpha);
+      g.fillEllipse(
+        cx - 3 + (salt % 5),
+        topY - 2 + ((salt * 3) % 4),
+        9 + (salt % 3),
+        4,
+      );
+      if (salt % 3 === 0) {
+        g.fillStyle(0xffffff, 0.05 * alpha);
+        g.fillEllipse(cx + 5, topY + 1, 5, 2.5);
+      }
+      // Gentle ripple arcs that break tile regularity
+      g.lineStyle(1, 0x8ec4e8, 0.1 * alpha);
+      const rx = cx - 6 + (salt % 4);
+      const ry = topY + ((salt % 3) - 1);
       g.beginPath();
-      g.moveTo(N.x, N.y + 4);
-      g.lineTo(E.x - 6, E.y);
-      g.lineTo(W.x + 6, W.y);
-      g.closePath();
-      g.fillPath();
-      g.fillStyle(0xffffff, 0.08 * alpha);
-      g.beginPath();
-      g.moveTo(W.x + 8, W.y + 2);
-      g.lineTo(S.x, S.y - 2);
-      g.lineTo(E.x - 10, E.y + 1);
-      g.closePath();
-      g.fillPath();
-      // Soft foam rim
-      g.lineStyle(1.5, 0xd8eef8, 0.28 * alpha);
-      g.beginPath();
-      g.moveTo(N.x, N.y);
-      g.lineTo(E.x, E.y);
-      g.lineTo(S.x, S.y);
-      g.lineTo(W.x, W.y);
-      g.closePath();
+      g.moveTo(rx, ry);
+      g.lineTo(rx + 5, ry - 2);
+      g.lineTo(rx + 11, ry);
       g.strokePath();
+
+      // Foam only on shores (land-facing edges) — open water stays seamless
+      if (shore && (shore.ne || shore.se || shore.sw || shore.nw)) {
+        g.lineStyle(1.5, 0xd8eef8, 0.22 * alpha);
+        if (shore.ne) g.lineBetween(N.x, N.y, E.x, E.y);
+        if (shore.se) g.lineBetween(E.x, E.y, S.x, S.y);
+        if (shore.sw) g.lineBetween(S.x, S.y, W.x, W.y);
+        if (shore.nw) g.lineBetween(W.x, W.y, N.x, N.y);
+        // Soft wash just inside the shore
+        g.fillStyle(0xffffff, 0.06 * alpha);
+        if (shore.ne) g.fillTriangle(N.x, N.y, E.x, E.y, cx, topY);
+        if (shore.se) g.fillTriangle(E.x, E.y, S.x, S.y, cx, topY);
+        if (shore.sw) g.fillTriangle(S.x, S.y, W.x, W.y, cx, topY);
+        if (shore.nw) g.fillTriangle(W.x, W.y, N.x, N.y, cx, topY);
+      }
     } else {
       g.fillStyle(0xffffff, 0.07 * alpha);
       g.beginPath();
@@ -1180,20 +1243,23 @@ export class MainScene extends Phaser.Scene {
 
     // Soft rim light on NE edge (strategy-map depth cue)
     if (terrain !== "water") {
-      g.lineStyle(1.25, shadeColor(fill, 1.35), 0.22 * alpha);
+      g.lineStyle(1, shadeColor(fill, 1.2), 0.12 * alpha);
       g.beginPath();
       g.moveTo(N.x, N.y);
       g.lineTo(E.x, E.y);
       g.strokePath();
     }
 
-    g.lineStyle(1, terrain === "water" ? 0x1a3a58 : 0x1b2618, alpha * 0.5);
-    g.beginPath();
-    g.moveTo(N.x, N.y);
-    g.lineTo(E.x, E.y);
-    g.lineTo(S.x, S.y);
-    g.lineTo(W.x, W.y);
-    g.closePath();
-    g.strokePath();
+    // Land tiles keep a faint seam; open water has none so bodies read continuous
+    if (terrain !== "water") {
+      g.lineStyle(1, shadeColor(fill, 0.72), alpha * 0.16);
+      g.beginPath();
+      g.moveTo(N.x, N.y);
+      g.lineTo(E.x, E.y);
+      g.lineTo(S.x, S.y);
+      g.lineTo(W.x, W.y);
+      g.closePath();
+      g.strokePath();
+    }
   }
 }
