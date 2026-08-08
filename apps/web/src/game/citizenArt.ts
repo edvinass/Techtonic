@@ -5,12 +5,16 @@ import type { Citizen, WorkKind } from "./citizens";
 import { mapTextResolution } from "./textRes";
 
 /** Bump when CitizenParts shape changes so MainScene can rebuild stale sprites (HMR-safe). */
-export const CITIZEN_ART_VERSION = 2;
+export const CITIZEN_ART_VERSION = 3;
 
 const SKIN = [0xf0c8a0, 0xe8b890, 0xd4a574, 0xc68642, 0x8d5524] as const;
 const HAIR = [0x2a1c10, 0x4a3020, 0x6b4423, 0xc4a060, 0x1a120c] as const;
 const TUNIC = [0x6b8f4e, 0x8a6238, 0x4a5a7a, 0xc4a574, 0x5a7a8a, 0xa67c52] as const;
 const BELT = [0x3a2818, 0x5a3d22, 0x4a3020] as const;
+
+/** Cool white scholar robes + knowledge-blue sash. */
+const RESEARCH_ROBE = 0xeef2f6;
+const RESEARCH_SASH = 0x5a8ab8;
 
 function shade(color: number, factor: number): number {
   const r = Math.min(255, Math.max(0, Math.round(((color >> 16) & 0xff) * factor)));
@@ -48,6 +52,9 @@ export interface CitizenParts {
   label: Phaser.GameObjects.Text;
   baseScale: number;
   skin: number;
+  baseTunic: number;
+  baseBelt: number;
+  wearingResearch: boolean;
 }
 
 export type CitizenNode = Phaser.GameObjects.Container & { parts: CitizenParts };
@@ -310,9 +317,44 @@ export function createCitizenArt(scene: Phaser.Scene, c: Citizen): CitizenNode {
     label,
     baseScale,
     skin,
+    baseTunic: tunic,
+    baseBelt: belt,
+    wearingResearch: false,
   };
   node.setScale(baseScale);
   return node;
+}
+
+/** Recolor tunic / sleeves / leg wraps for scholar robes vs everyday clothes. */
+function applyOutfit(parts: CitizenParts, research: boolean): void {
+  if (parts.wearingResearch === research) return;
+  parts.wearingResearch = research;
+
+  const tunic = research ? RESEARCH_ROBE : parts.baseTunic;
+  const belt = research ? RESEARCH_SASH : parts.baseBelt;
+  const sleeve = shade(tunic, research ? 0.98 : 0.92);
+
+  // body: [hem, torso, shoulders, sash, fold]
+  const hem = parts.body.getAt(0) as Phaser.GameObjects.Rectangle;
+  const torso = parts.body.getAt(1) as Phaser.GameObjects.Rectangle;
+  const shoulders = parts.body.getAt(2) as Phaser.GameObjects.Rectangle;
+  const sash = parts.body.getAt(3) as Phaser.GameObjects.Rectangle;
+  const fold = parts.body.getAt(4) as Phaser.GameObjects.Rectangle;
+  hem.setFillStyle(shade(tunic, 0.88));
+  torso.setFillStyle(tunic);
+  torso.setStrokeStyle(1, shade(tunic, research ? 0.72 : 0.55), research ? 0.55 : 0.4);
+  shoulders.setFillStyle(shade(tunic, 1.05));
+  sash.setFillStyle(belt);
+  fold.setFillStyle(shade(tunic, 0.78), 0.55);
+
+  for (const arm of [parts.armL, parts.armR]) {
+    const upper = arm.getAt(0) as Phaser.GameObjects.Rectangle;
+    upper.setFillStyle(sleeve);
+  }
+  for (const leg of [parts.legL, parts.legR]) {
+    const wrap = leg.getAt(0) as Phaser.GameObjects.Rectangle;
+    wrap.setFillStyle(shade(tunic, 0.75));
+  }
 }
 
 function workFromCitizen(c: Citizen): WorkKind | null {
@@ -377,6 +419,8 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
     work === "research" || resource === "knowledge" || c.carrying === "knowledge";
   const channeling = onResearch && working;
   const phase = c.bobPhase;
+
+  applyOutfit(node.parts, onResearch);
 
   const walkSwing = walking ? Math.sin(phase * 0.9) : 0;
   const workSwing = working && !onResearch ? Math.sin(phase * 0.35) : 0;
