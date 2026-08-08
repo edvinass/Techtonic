@@ -62,6 +62,35 @@ describe("gather rules", () => {
     }
   });
 
+  it("sends wild food foragers only to fertile land", () => {
+    const state = createNewGame(11);
+    const home = state.buildings.find((b) => b.type === "house")!;
+    // Guarantee fertile + grass in forage range so the matcher has a choice
+    const fertile = state.map.tiles.find(
+      (t) =>
+        t.terrain === "fertile" &&
+        !t.deposit &&
+        Math.abs(t.x - home.x) + Math.abs(t.y - home.y) >= 2 &&
+        Math.abs(t.x - home.x) + Math.abs(t.y - home.y) <= 7,
+    );
+    expect(fertile).toBeTruthy();
+    const grassNear = state.map.tiles.find(
+      (t) =>
+        t.terrain === "grass" &&
+        !t.deposit &&
+        Math.abs(t.x - home.x) + Math.abs(t.y - home.y) >= 2 &&
+        Math.abs(t.x - home.x) + Math.abs(t.y - home.y) <= 7,
+    );
+    expect(grassNear).toBeTruthy();
+
+    for (let i = 0; i < 20; i++) {
+      const tile = findResourceTile(state, home, "food");
+      expect(tile).toBeTruthy();
+      const found = state.map.tiles.find((t) => t.x === tile!.gx && t.y === tile!.gy);
+      expect(found?.terrain).toBe("fertile");
+    }
+  });
+
   it("multiplies gather speed by building produces rates", () => {
     const state = createNewGame(11);
     const camp = {

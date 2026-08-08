@@ -207,19 +207,20 @@ export function generateMap(width: number, height: number, seed: number): Tile[]
       if (onBorder || elev < 0.18 + (1 - moist) * 0.06) {
         terrain = "water";
         elevLevel = 0;
-      } else if (elev > 0.72 && moist < 0.55) {
+      } else if (elev > 0.76 && moist < 0.5) {
         terrain = "rock";
         elevLevel = Math.max(2, elevLevel);
-        if (rng() < 0.45) {
+        if (rng() < 0.28) {
           deposit = "stone";
           stock = DEPOSIT_STOCK.stone;
-        } else if (rng() < 0.22) {
+        } else if (rng() < 0.12) {
           deposit = "metal";
           stock = DEPOSIT_STOCK.metal;
         }
-      } else if (moist > 0.58 && elev < 0.62) {
-        const forestN = fbm(nx * 6, ny * 6, forestSeed);
-        if (forestN > 0.42) {
+      } else if (moist > 0.62 && elev < 0.58) {
+        // Higher frequency + stricter threshold → smaller, sparser wood patches
+        const forestN = fbm(nx * 9, ny * 9, forestSeed);
+        if (forestN > 0.55) {
           terrain = "forest";
           deposit = "wood";
           stock = DEPOSIT_STOCK.wood + Math.floor(rng() * 20);
@@ -238,10 +239,11 @@ export function generateMap(width: number, height: number, seed: number): Tile[]
     }
   }
 
-  // Pass 2: inland lake
+  // Pass 2: inland lake (radius scales gently with map size)
   const lakeCx = Math.floor(width * (0.25 + rng() * 0.2));
   const lakeCy = Math.floor(height * (0.2 + rng() * 0.25));
-  paintBlob(tiles, width, height, lakeCx, lakeCy, 2.2 + rng() * 1.4, "water", null, 0);
+  const lakeR = (Math.min(width, height) / 36) * (2.2 + rng() * 1.4);
+  paintBlob(tiles, width, height, lakeCx, lakeCy, lakeR, "water", null, 0);
 
   // Pass 3: river from high ground toward a border
   let bestX = Math.floor(width / 2);
@@ -288,13 +290,16 @@ export function generateMap(width: number, height: number, seed: number): Tile[]
     }
   }
 
-  // Pass 5: forest clumps + rock veins for readable biomes
-  for (let i = 0; i < 5; i++) {
+  // Pass 5: forest clumps + rock veins — count scales with side length (not area)
+  // so a 2× map stays sparser rather than 4× denser.
+  const forestClumps = Math.max(5, Math.round(5 * (Math.min(width, height) / 36) * 0.75));
+  const rockVeins = Math.max(4, Math.round(4 * (Math.min(width, height) / 36) * 0.75));
+  for (let i = 0; i < forestClumps; i++) {
     const fx = 3 + Math.floor(rng() * (width - 6));
     const fy = 3 + Math.floor(rng() * (height - 6));
-    paintBlob(tiles, width, height, fx, fy, 2 + rng() * 2.2, "forest", "wood", 1);
+    paintBlob(tiles, width, height, fx, fy, 1.6 + rng() * 1.8, "forest", "wood", 1);
   }
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < rockVeins; i++) {
     const rx = 4 + Math.floor(rng() * (width - 8));
     const ry = 4 + Math.floor(rng() * (height - 8));
     const metal = rng() < 0.55;
@@ -304,7 +309,7 @@ export function generateMap(width: number, height: number, seed: number): Tile[]
       height,
       rx,
       ry,
-      1.4 + rng(),
+      1.1 + rng() * 0.8,
       "rock",
       metal ? "metal" : "stone",
       3,
@@ -333,20 +338,22 @@ export function generateMap(width: number, height: number, seed: number): Tile[]
     }
   }
 
-  ensureDepositNear(tiles, width, height, cx, cy, 4, 0, "wood", "forest");
-  ensureDepositNear(tiles, width, height, cx, cy, 3, -2, "wood", "forest");
-  ensureDepositNear(tiles, width, height, cx, cy, 0, 4, "stone", "rock");
-  ensureDepositNear(tiles, width, height, cx, cy, -4, 1, "metal", "rock");
+  // Starter deposits pushed farther out so early gathering needs short trips
+  ensureDepositNear(tiles, width, height, cx, cy, 7, 0, "wood", "forest");
+  ensureDepositNear(tiles, width, height, cx, cy, 5, -4, "wood", "forest");
+  ensureDepositNear(tiles, width, height, cx, cy, 0, 7, "stone", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, -7, 2, "metal", "rock");
   // Extra ore rings — Ascent burns through metal across a long campaign
-  ensureDepositNear(tiles, width, height, cx, cy, 7, -5, "metal", "rock");
-  ensureDepositNear(tiles, width, height, cx, cy, -6, 6, "metal", "rock");
-  ensureDepositNear(tiles, width, height, cx, cy, 8, 4, "metal", "rock");
-  ensureDepositNear(tiles, width, height, cx, cy, -7, -3, "metal", "rock");
-  ensureDepositNear(tiles, width, height, cx, cy, 9, -8, "metal", "rock");
-  ensureDepositNear(tiles, width, height, cx, cy, -9, 2, "metal", "rock");
-  ensureDepositNear(tiles, width, height, cx, cy, 5, 7, "stone", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, 12, -9, "metal", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, -11, 11, "metal", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, 14, 7, "metal", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, -13, -6, "metal", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, 16, -14, "metal", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, -16, 4, "metal", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, 9, 12, "stone", "rock");
   // Second wood clump a bit farther — forces expansion
-  ensureDepositNear(tiles, width, height, cx, cy, 6, 3, "wood", "forest");
+  ensureDepositNear(tiles, width, height, cx, cy, 11, 5, "wood", "forest");
+
 
   // Fertile ring for early farms near spawn
   for (const [dx, dy] of [

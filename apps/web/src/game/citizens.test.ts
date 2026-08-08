@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createNewGame, placeBuilding, tick } from "../sim/engine";
-import { syncCitizens, type Citizen } from "./citizens";
-import { worldPos } from "./gather";
+import {
+  findNearestDropoff,
+  stepCitizens,
+  syncCitizens,
+  type Citizen,
+} from "./citizens";
+import { CARRY_CAPACITY, worldPos } from "./gather";
 
 describe("citizen wood gathering", () => {
   it("sends workers toward forest tiles when a lumber camp exists", () => {
@@ -165,5 +170,70 @@ describe("citizen wood gathering", () => {
     );
     expect(woodBound.length).toBeGreaterThan(0);
     expect(stoneBound.length).toBeGreaterThan(0);
+  });
+
+  it("delivers gathered wood to the nearest stockpile, not the lumber camp", () => {
+    let state = createNewGame(24);
+    state.resources.wood = 200;
+    state.population.count = 3;
+    state.priorities = {
+      food: 0,
+      wood: 3,
+      stone: 0,
+      metal: 0,
+      construction: 0,
+      research: 0,
+      defence: 0,
+    };
+    const woodTile = state.map.tiles.find((t) => t.deposit === "wood")!;
+    state = placeBuilding(state, "lumber_camp", woodTile.x, woodTile.y);
+    const camp = state.buildings.find((b) => b.type === "lumber_camp")!;
+    camp.progress = 1;
+
+    // Extra stockpile next to the wood tile — should beat the starter near the house
+    state = placeBuilding(state, "stockpile", woodTile.x + 1, woodTile.y);
+    const nearPile = state.buildings.find(
+      (b) => b.type === "stockpile" && b.x === woodTile.x + 1 && b.y === woodTile.y,
+    );
+    if (nearPile) nearPile.progress = 1;
+    // If placement failed (water/occupied), skip asserting the near pile specifically
+    const dropoff = findNearestDropoff(state, woodTile.x, woodTile.y);
+    expect(dropoff?.type).toBe("stockpile");
+    expect(dropoff?.id).not.toBe(camp.id);
+
+    const ox = 400;
+    const oy = 80;
+    const citizen: Citizen = {
+      id: 0,
+      x: worldPos(woodTile.x, woodTile.y, ox, oy).x,
+      y: worldPos(woodTile.x, woodTile.y, ox, oy).y,
+      job: {
+        kind: "gather",
+        buildingId: camp.id,
+        work: "gather",
+        resource: "wood",
+        tile: { gx: woodTile.x, gy: woodTile.y },
+      },
+      bobPhase: 0,
+      carrying: "wood",
+      carryAmount: CARRY_CAPACITY.wood - 0.01,
+    };
+
+    stepCitizens([citizen], 1000, {
+      state,
+      ox,
+      oy,
+      onDeposit: () => {},
+      onHarvest: () => 1,
+    });
+
+    expect(citizen.job.kind).toBe("walk");
+    if (citizen.job.kind !== "walk") throw new Error("expected dropoff walk");
+    expect(citizen.job.phase).toBe("toDropoff");
+    const pilePos = worldPos(dropoff!.x, dropoff!.y, ox, oy);
+    const campPos = worldPos(camp.x, camp.y, ox, oy);
+    const distPile = Math.hypot(citizen.job.tx - pilePos.x, citizen.job.ty - pilePos.y);
+    const distCamp = Math.hypot(citizen.job.tx - campPos.x, citizen.job.ty - campPos.y);
+    expect(distPile).toBeLessThan(distCamp);
   });
 });

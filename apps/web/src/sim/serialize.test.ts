@@ -34,6 +34,17 @@ describe("serialize", () => {
     expect(restored.map.tiles.some((t) => t.deposit && (t.stock ?? 0) > 0)).toBe(true);
   });
 
+  it("adds a starter stockpile when loading a save without one", () => {
+    const state = createNewGame(12);
+    const payload = serialize(state);
+    payload.buildings = payload.buildings.filter((b) => b.type !== "stockpile");
+    expect(payload.buildings.some((b) => b.type === "stockpile")).toBe(false);
+    const restored = deserialize(payload);
+    expect(restored.buildings.some((b) => b.type === "stockpile" && b.progress >= 1)).toBe(
+      true,
+    );
+  });
+
   it("migrates legacy Gather (production) priority into wood", () => {
     const state = createNewGame(12);
     const payload = serialize(state);

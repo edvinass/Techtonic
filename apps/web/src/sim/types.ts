@@ -17,6 +17,7 @@ export type DepositId = "wood" | "stone" | "metal";
 
 export type BuildingId =
   | "house"
+  | "stockpile"
   | "lumber_camp"
   | "quarry"
   | "research_hut"
@@ -163,6 +164,8 @@ export interface BuildingDef {
   defenceBonus?: number;
   /** Reduces food spoilage / winter drain when complete */
   foodStorageBonus?: number;
+  /** Gatherers deliver carried resources here (not at the work camp) */
+  acceptsDropoff?: boolean;
   color: number;
 }
 

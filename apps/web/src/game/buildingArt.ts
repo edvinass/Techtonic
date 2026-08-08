@@ -175,6 +175,9 @@ export function drawBuildingArt(
     case "house":
       drawHouse(g, alpha, evolved);
       break;
+    case "stockpile":
+      drawStockpile(g, alpha);
+      break;
     case "lumber_camp":
       drawLumberCamp(g, alpha);
       break;
@@ -296,6 +299,29 @@ function drawHouse(g: GameObjects.Graphics, a: number, evolved: boolean) {
   );
 
   isoGableRoof(g, top, 10, roof, a);
+}
+
+function drawStockpile(g: GameObjects.Graphics, a: number) {
+  // Open yard pad
+  const pad = diamond(0, 2, HW - 6, HH - 3);
+  fillPoly(g, [pad.N, pad.E, pad.S, pad.W], 0x6a5a40, 0.55 * a);
+  strokePoly(g, [pad.N, pad.E, pad.S, pad.W], 0x4a3d28, 0.45 * a);
+
+  // Resource crates / piles — wood, stone, mixed goods
+  isoBox(g, -8, 2, 7, 3.5, 6, 0x7a5230, a, { top: 0x9a6a3a, stroke: true });
+  isoBox(g, 5, 3, 7, 3.5, 5, 0x8a8f98, a, { top: 0xa8adb6, stroke: true });
+  isoBox(g, -1, 6, 6, 3, 4, 0xc4a574, a, { top: 0xd4b584, stroke: true });
+
+  // Corner posts + rope line
+  for (const p of [pad.N, pad.E, pad.S, pad.W]) {
+    g.lineStyle(2, 0x5a3d22, a);
+    g.lineBetween(p.x, p.y, p.x, p.y - 8);
+    g.fillStyle(shade(0x5a3d22, 1.15), a);
+    g.fillCircle(p.x, p.y - 8, 1.4);
+  }
+  g.lineStyle(1.2, 0x8a7040, 0.65 * a);
+  g.lineBetween(pad.N.x, pad.N.y - 7, pad.E.x, pad.E.y - 7);
+  g.lineBetween(pad.E.x, pad.E.y - 7, pad.S.x, pad.S.y - 7);
 }
 
 function drawLumberCamp(g: GameObjects.Graphics, a: number) {

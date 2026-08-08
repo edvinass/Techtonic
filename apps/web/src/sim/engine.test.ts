@@ -16,11 +16,11 @@ function runTicks(state: ReturnType<typeof createNewGame>, n: number) {
 }
 
 describe("sim engine", () => {
-  it("creates a stone-age game with starting house and resources", () => {
+  it("creates a stone-age game with starting house, stockpile, and resources", () => {
     const state = createNewGame(42);
     expect(state.age).toBe("stone");
-    expect(state.buildings.length).toBe(1);
-    expect(state.buildings[0].type).toBe("house");
+    expect(state.buildings.some((b) => b.type === "house" && b.progress >= 1)).toBe(true);
+    expect(state.buildings.some((b) => b.type === "stockpile" && b.progress >= 1)).toBe(true);
     expect(state.resources.wood).toBeGreaterThan(0);
     expect(state.population.count).toBe(5);
   });

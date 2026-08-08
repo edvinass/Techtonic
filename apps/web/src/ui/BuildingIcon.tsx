@@ -32,6 +32,18 @@ export function BuildingIcon({ id, size = 36, className }: Props) {
           <rect x="15.5" y="20" width="5" height="6" rx="0.5" fill="#3a2818" />
         </svg>
       );
+    case "stockpile":
+      return (
+        <svg {...common}>
+          {ground}
+          <ellipse cx="18" cy="26" rx="11" ry="4" fill="#6a5a40" />
+          <rect x="9" y="18" width="7" height="6" rx="1" fill="#7a5230" />
+          <rect x="18" y="17" width="7" height="7" rx="1" fill="#8a8f98" />
+          <rect x="13" y="22" width="6" height="4" rx="1" fill={hex} />
+          <rect x="10" y="14" width="1.5" height="8" fill="#5a3d22" />
+          <rect x="24" y="14" width="1.5" height="8" fill="#5a3d22" />
+        </svg>
+      );
     case "lumber_camp":
       return (
         <svg {...common}>

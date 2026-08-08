@@ -130,13 +130,12 @@ export function findResourceTile(
         }
       }
     } else {
-      // Wild foraging: grass / fertile / sand edge — forests are for woodcutters
+      // Wild foraging: fertile land only (grass is barren for food)
       for (const t of state.map.tiles) {
-        if ((t.terrain !== "grass" && t.terrain !== "fertile") || t.deposit) continue;
+        if (t.terrain !== "fertile" || t.deposit) continue;
         const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
         if (dist < 2 || dist > 7) continue;
         let score = dist + Math.random();
-        if (t.terrain === "fertile") score -= 0.8;
         candidates.push({ gx: t.x, gy: t.y, score });
       }
     }
@@ -153,7 +152,12 @@ export function findResourceTile(
 
   if (!candidates.length) {
     // Global fallback: any matching resource on the map nearest the building
-    if (resource === "wood" || resource === "stone" || resource === "metal") {
+    if (
+      resource === "wood" ||
+      resource === "stone" ||
+      resource === "metal" ||
+      (resource === "food" && building.type !== "farm")
+    ) {
       let best: { gx: number; gy: number; score: number } | null = null;
       for (const t of state.map.tiles) {
         const match =
@@ -161,13 +165,17 @@ export function findResourceTile(
             ? t.deposit === "metal" && hasStock(t)
             : resource === "wood"
               ? (t.deposit === "wood" && hasStock(t)) || t.terrain === "forest"
-              : t.deposit === "stone" && hasStock(t);
+              : resource === "food"
+                ? t.terrain === "fertile" && !t.deposit
+                : t.deposit === "stone" && hasStock(t);
         if (!match) continue;
         const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
         if (t.x === building.x && t.y === building.y) continue;
         if (!best || dist < best.score) best = { gx: t.x, gy: t.y, score: dist };
       }
       if (best) return { gx: best.gx, gy: best.gy };
+      // Wild food: no fertile land anywhere — don't fake-gather on grass
+      if (resource === "food") return null;
     }
     return { gx: building.x, gy: building.y };
   }

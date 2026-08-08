@@ -19,6 +19,19 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     ages: ALL_AGES,
     color: 0xc4a574,
   },
+  stockpile: {
+    id: "stockpile",
+    name: "Stockpile",
+    description:
+      "Drop-off for gathered resources. Goods only count once delivered — place near forests and quarries to shorten hauls.",
+    cost: { wood: 18 },
+    buildTicks: 12,
+    workerSlots: 0,
+    priority: "construction",
+    acceptsDropoff: true,
+    ages: ALL_AGES,
+    color: 0xa08050,
+  },
   lumber_camp: {
     id: "lumber_camp",
     name: "Lumber Camp",
@@ -101,7 +114,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   farm: {
     id: "farm",
     name: "Farm",
-    description: "Grows food on grass or fertile soil — much faster than wild foraging.",
+    description: "Grows food on grass or fertile soil — much faster than foraging fertile land.",
     cost: { wood: 32, stone: 18 },
     buildTicks: 20,
     workerSlots: 4,

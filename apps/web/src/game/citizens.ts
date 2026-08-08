@@ -60,6 +60,64 @@ function buildingById(state: GameState, id: string): BuildingInstance | undefine
   return state.buildings.find((b) => b.id === id);
 }
 
+/** Nearest completed stockpile (or house fallback) to a map tile. */
+export function findNearestDropoff(
+  state: GameState,
+  gx: number,
+  gy: number,
+): BuildingInstance | null {
+  let best: BuildingInstance | null = null;
+  let bestDist = Infinity;
+  for (const b of state.buildings) {
+    if (b.progress < 1 || !BUILDINGS[b.type]?.acceptsDropoff) continue;
+    const dist = Math.abs(b.x - gx) + Math.abs(b.y - gy);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = b;
+    }
+  }
+  if (best) return best;
+  return (
+    state.buildings.find((b) => b.type === "house" && b.progress >= 1) ??
+    state.buildings.find((b) => b.progress >= 1) ??
+    null
+  );
+}
+
+function startDropoffTrip(
+  c: Citizen,
+  state: GameState,
+  ox: number,
+  oy: number,
+  workBuildingId: string,
+  work: WorkKind,
+  resource: ResourceId,
+  tile?: { gx: number; gy: number },
+): void {
+  const from =
+    tile ??
+    (() => {
+      const workSite = buildingById(state, workBuildingId);
+      return workSite ? { gx: workSite.x, gy: workSite.y } : { gx: 0, gy: 0 };
+    })();
+  const dropoff = findNearestDropoff(state, from.gx, from.gy);
+  if (!dropoff) {
+    c.job = { kind: "idle" };
+    return;
+  }
+  const drop = worldPos(dropoff.x, dropoff.y, ox, oy);
+  c.job = {
+    kind: "walk",
+    tx: drop.x + (Math.random() - 0.5) * 8,
+    ty: drop.y + (Math.random() - 0.5) * 6,
+    buildingId: workBuildingId,
+    work,
+    phase: "toDropoff",
+    resource,
+    tile,
+  };
+}
+
 interface Assignment {
   buildingId: string;
   work: WorkKind;
@@ -154,7 +212,7 @@ function desiredAssignments(state: GameState): Assignment[] {
     }
   }
 
-  // Wild food foragers (grass only)
+  // Wild food foragers (fertile land only)
   const forageWanted = Math.min(Math.max(0, foodBudget), remaining);
   for (let i = 0; i < forageWanted && home; i++) {
     list.push({ buildingId: home.id, work: "forage", resource: "food" });
@@ -469,21 +527,17 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
           // Deposit exhausted — abandon and find another
           c.carryAmount = Math.max(0, c.carryAmount);
           if (c.carryAmount > 0.5) {
-            const building = buildingById(state, c.job.buildingId);
-            if (building) {
-              const drop = worldPos(building.x, building.y, ox, oy);
-              c.job = {
-                kind: "walk",
-                tx: drop.x,
-                ty: drop.y,
-                buildingId: building.id,
-                work: c.job.work,
-                phase: "toDropoff",
-                resource: c.job.resource,
-                tile: c.job.tile,
-              };
-              continue;
-            }
+            startDropoffTrip(
+              c,
+              state,
+              ox,
+              oy,
+              c.job.buildingId,
+              c.job.work,
+              c.job.resource,
+              c.job.tile,
+            );
+            continue;
           }
           startGatherTrip(c, state, ox, oy, c.job.buildingId, c.job.work, c.job.resource);
           continue;
@@ -499,22 +553,16 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
 
       if (c.carryAmount >= cap - 0.001) {
         c.carryAmount = cap;
-        const building = buildingById(state, c.job.buildingId);
-        if (!building) {
-          c.job = { kind: "idle" };
-          continue;
-        }
-        const drop = worldPos(building.x, building.y, ox, oy);
-        c.job = {
-          kind: "walk",
-          tx: drop.x + (Math.random() - 0.5) * 8,
-          ty: drop.y + (Math.random() - 0.5) * 6,
-          buildingId: building.id,
-          work: c.job.work,
-          phase: "toDropoff",
-          resource: c.job.resource,
-          tile: c.job.tile,
-        };
+        startDropoffTrip(
+          c,
+          state,
+          ox,
+          oy,
+          c.job.buildingId,
+          c.job.work,
+          c.job.resource,
+          c.job.tile,
+        );
       }
       continue;
     }

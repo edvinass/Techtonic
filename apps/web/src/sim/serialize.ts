@@ -2,7 +2,7 @@ import { DEPOSIT_STOCK } from "./mapgen";
 import { defaultPressure } from "./pressure";
 import { normalizePriorities } from "./priorities";
 import type { GameState, Priorities, PressureState, RunStats, Tile } from "./types";
-import { syncBuildingSeq } from "./engine";
+import { ensureStarterStockpile, syncBuildingSeq } from "./engine";
 
 /** Pre-v5 Work tab used a single Gather (`production`) quota. */
 type LegacyPriorities = Partial<Priorities> & { production?: number };
@@ -103,6 +103,8 @@ export function deserialize(payload: SavedGamePayload): GameState {
     },
     strain: payload.strain ?? 0,
   };
+  syncBuildingSeq(state);
+  ensureStarterStockpile(state);
   syncBuildingSeq(state);
   return state;
 }

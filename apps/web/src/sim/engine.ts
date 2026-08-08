@@ -31,7 +31,7 @@ import type {
   Tile,
 } from "./types";
 
-const MAP_SIZE = 36;
+const MAP_SIZE = 72;
 let nextBuildingSeq = 1;
 
 /** Starting headcounts for a village of 5. */
@@ -92,6 +92,33 @@ export function foodStorageMultiplier(state: GameState): number {
   return Math.max(0.72, 1 - bonus);
 }
 
+/** First free non-water tile next to (cx, cy), or null. */
+export function findAdjacentBuildSpot(
+  state: GameState,
+  cx: number,
+  cy: number,
+): { x: number; y: number } | null {
+  const offsets = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+    [1, 1],
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+  ];
+  for (const [dx, dy] of offsets) {
+    const x = cx + dx;
+    const y = cy + dy;
+    const t = tileAt(state, x, y);
+    if (!t || t.terrain === "water") continue;
+    if (occupied(state, x, y)) continue;
+    return { x, y };
+  }
+  return null;
+}
+
 export function createNewGame(seed = Date.now() % 1_000_000): GameState {
   nextBuildingSeq = 1;
   const tiles = generateMap(MAP_SIZE, MAP_SIZE, seed);
@@ -125,8 +152,38 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
     stats: { peakPop: 5, raidsSurvived: 0, raidsFailed: 0, woodHarvested: 0 },
     strain: 0,
   };
+
+  const pileSpot = findAdjacentBuildSpot(state, cx, cy) ?? { x: cx + 1, y: cy };
+  state.buildings.push({
+    id: `b${nextBuildingSeq++}`,
+    type: "stockpile",
+    x: pileSpot.x,
+    y: pileSpot.y,
+    progress: 1,
+    workers: 0,
+  });
+
   state.population.housingCap = recalcHousing(state);
   return state;
+}
+
+/** Ensure at least one completed dropoff exists (legacy saves). */
+export function ensureStarterStockpile(state: GameState): void {
+  if (state.buildings.some((b) => BUILDINGS[b.type]?.acceptsDropoff && b.progress >= 1)) {
+    return;
+  }
+  const home = state.buildings.find((b) => b.type === "house") ?? state.buildings[0];
+  if (!home) return;
+  const spot = findAdjacentBuildSpot(state, home.x, home.y);
+  if (!spot) return;
+  state.buildings.push({
+    id: `b${nextBuildingSeq++}`,
+    type: "stockpile",
+    x: spot.x,
+    y: spot.y,
+    progress: 1,
+    workers: 0,
+  });
 }
 
 export function isBuildingUnlocked(state: GameState, type: BuildingId): boolean {
