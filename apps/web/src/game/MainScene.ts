@@ -747,8 +747,11 @@ export class MainScene extends Phaser.Scene {
         drawResourceMark(this.tileGraphics, ox + sx, topY, "stone", 0.72 + 0.38 * remain, salt);
       } else if (tile.deposit === "metal") {
         drawResourceMark(this.tileGraphics, ox + sx, topY, "metal", 0.7 + 0.4 * remain, salt);
-      } else if (tile.terrain === "grass" && (tile.x + tile.y) % 3 === 0) {
-        this.drawGrassTufts(this.tileGraphics, ox + sx, topY, season);
+      } else if (tile.terrain === "grass") {
+        // Most tiles get some cover; skip a few for natural clearings
+        if (salt % 5 !== 4) {
+          this.drawGrassTufts(this.tileGraphics, ox + sx, topY, season, salt);
+        }
       } else if (tile.terrain === "fertile" && !state.buildings.some((b) => b.x === tile.x && b.y === tile.y)) {
         this.drawFertileTufts(this.tileGraphics, ox + sx, topY, remain, salt);
       }
@@ -892,22 +895,115 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Varied grass “assets”: clusters, sparse blades, low mats, weeds, seasonal dots.
+   * Layout / density / tint keyed by salt so neighboring tiles don’t stamp alike.
+   */
   private drawGrassTufts(
     g: Phaser.GameObjects.Graphics,
     x: number,
     y: number,
     season: SeasonId,
+    salt = 0,
   ) {
-    const tip =
-      season === "autumn" ? 0xa09040 : season === "winter" ? 0x8a9a88 : 0x7aaf55;
-    g.fillStyle(tip, 0.75);
-    for (const [dx, dy] of [
-      [-5, 1],
-      [3, -2],
-      [6, 2],
-      [-1, -3],
-    ] as const) {
-      g.fillTriangle(x + dx, y + dy - 3.5, x + dx - 1.4, y + dy, x + dx + 1.4, y + dy);
+    const baseTip =
+      season === "autumn"
+        ? 0xa09040
+        : season === "winter"
+          ? 0x8a9a88
+          : season === "spring"
+            ? 0x7ab858
+            : 0x6aaf4a;
+    const dryTip =
+      season === "autumn" ? 0xb8a050 : season === "winter" ? 0x9aa898 : 0x9aaf60;
+    const tip = shadeColor(baseTip, 0.92 + (salt % 6) * 0.03);
+    const tipB = shadeColor(dryTip, 0.9 + ((salt * 3) % 5) * 0.035);
+
+    // [dx, dy, height, halfWidth]
+    const layouts: ReadonlyArray<ReadonlyArray<readonly [number, number, number, number]>> = [
+      // Tight clump
+      [
+        [-3, 1, 3.2, 1.1],
+        [-1, 0, 4.0, 1.3],
+        [1, 1, 3.5, 1.2],
+        [3, 0, 2.8, 1.0],
+      ],
+      // Sparse scatter
+      [
+        [-7, 2, 2.6, 1.0],
+        [2, -3, 3.8, 1.2],
+        [8, 1, 2.4, 0.9],
+        [-2, 3, 3.0, 1.1],
+      ],
+      // Tall weeds + short
+      [
+        [-4, 0, 5.2, 1.0],
+        [0, -1, 2.2, 1.3],
+        [5, 2, 4.6, 1.1],
+        [2, 3, 2.0, 1.0],
+        [-6, 3, 3.4, 1.0],
+      ],
+      // Low mat / mossy
+      [
+        [-5, 1, 1.8, 1.5],
+        [-1, -1, 2.0, 1.4],
+        [3, 0, 1.6, 1.6],
+        [6, 2, 1.9, 1.3],
+        [1, 2, 1.5, 1.4],
+      ],
+      // Arc along iso grain
+      [
+        [-8, 0, 3.0, 1.1],
+        [-4, -2, 3.6, 1.2],
+        [0, -3, 4.0, 1.2],
+        [4, -1, 3.4, 1.1],
+        [7, 1, 2.8, 1.0],
+      ],
+      // Twin patches
+      [
+        [-6, -1, 3.5, 1.2],
+        [-4, 1, 2.8, 1.0],
+        [5, -2, 3.8, 1.2],
+        [7, 0, 2.6, 1.0],
+      ],
+    ];
+
+    const layout = layouts[salt % layouts.length];
+    const lean = ((salt % 5) - 2) * 0.35;
+
+    for (let i = 0; i < layout.length; i++) {
+      const [dx, dy, h, hw] = layout[i];
+      const color = i % 2 === 0 ? tip : tipB;
+      const alpha = 0.55 + ((salt + i * 3) % 4) * 0.08;
+      g.fillStyle(color, alpha);
+      const px = x + dx + lean;
+      const py = y + dy;
+      const tipX = px + lean * 0.8 + ((salt + i) % 3) * 0.3 - 0.3;
+      g.fillTriangle(tipX, py - h, px - hw, py, px + hw, py);
+    }
+
+    // Occasional ground flecks (clover / dry thatch / winter frost)
+    const fleckKind = (salt * 5) % 7;
+    if (fleckKind === 0 || fleckKind === 3) {
+      if (season === "spring" || season === "summer") {
+        g.fillStyle(fleckKind === 0 ? 0xd4e070 : 0xf0d878, 0.55);
+        g.fillCircle(x + ((salt % 9) - 4), y + ((salt % 5) - 2), 1.2);
+        if (salt % 2 === 0) {
+          g.fillCircle(x + 4 - (salt % 3), y + 1, 1.0);
+        }
+      } else if (season === "autumn") {
+        g.fillStyle(0xc4a050, 0.45);
+        g.fillEllipse(x + ((salt % 7) - 3), y + 1, 3.5, 1.8);
+      } else {
+        g.fillStyle(0xe8f0e8, 0.35);
+        g.fillEllipse(x + ((salt % 6) - 3), y, 4, 2);
+      }
+    }
+
+    // Rare taller reed-like blade for silhouette breaks
+    if (salt % 11 === 2 && season !== "winter") {
+      g.fillStyle(shadeColor(tip, 0.85), 0.65);
+      g.fillTriangle(x + 1, y - 6.5, x, y, x + 2.2, y);
     }
   }
 
@@ -1165,31 +1261,29 @@ export class MainScene extends Phaser.Scene {
     // Terrain micro-detail so the map reads less like flat diamonds
     if (terrain === "grass" || terrain === "fertile") {
       const salt = opts?.salt ?? Math.abs(Math.round(cx * 7 + cy * 13));
-      // Soft overlapping patches that ignore the diamond silhouette
-      g.fillStyle(shadeColor(fill, 0.9), 0.14 * alpha);
-      g.fillEllipse(
-        cx + ((salt % 7) - 3) * 1.6,
-        topY + ((salt % 5) - 2),
-        12 + (salt % 5),
-        5 + (salt % 3),
-      );
-      g.fillStyle(shadeColor(fill, terrain === "fertile" ? 1.12 : 1.08), 0.1 * alpha);
-      g.fillEllipse(
-        cx - 2 + ((salt * 3) % 5),
-        topY - 1 + (salt % 3),
-        8 + (salt % 4),
-        4,
-      );
-      if (salt % 2 === 0) {
-        g.fillStyle(shadeColor(fill, 0.82), 0.12 * alpha);
-        g.fillEllipse(cx + 4, topY + 2, 7, 3.5);
+      // Soft overlapping patches — vary count/placement per tile
+      const patchN = 2 + (salt % 3);
+      for (let i = 0; i < patchN; i++) {
+        const darker = i % 2 === 0;
+        g.fillStyle(
+          shadeColor(fill, darker ? 0.88 : terrain === "fertile" ? 1.1 : 1.06),
+          (darker ? 0.12 : 0.09) * alpha,
+        );
+        g.fillEllipse(
+          cx + ((salt * (i + 2)) % 11) - 5,
+          topY + ((salt * (i + 1)) % 7) - 3,
+          7 + ((salt + i * 5) % 6),
+          3 + ((salt + i) % 3),
+        );
       }
-      // Sparse blades — fewer, softer, less tile-stamped
-      if (salt % 3 !== 1) {
-        g.fillStyle(shadeColor(fill, terrain === "fertile" ? 1.18 : 0.85), 0.35 * alpha);
-        const px = cx + ((salt % 5) - 2) * 2.2;
-        const py = topY + ((salt % 3) - 1) * 1.5;
-        g.fillTriangle(px, py - 3, px - 1.2, py + 0.4, px + 1.2, py + 0.4);
+      // Tiny blade nubs baked into the tile face
+      const bladeN = terrain === "grass" ? 1 + (salt % 3) : salt % 2;
+      g.fillStyle(shadeColor(fill, terrain === "fertile" ? 1.16 : 0.86), 0.28 * alpha);
+      for (let i = 0; i < bladeN; i++) {
+        const px = cx + ((salt * (i + 3)) % 13) - 6;
+        const py = topY + ((salt * (i + 2)) % 7) - 2;
+        const h = 2.2 + ((salt + i) % 3) * 0.6;
+        g.fillTriangle(px, py - h, px - 1.0, py + 0.3, px + 1.0, py + 0.3);
       }
     } else if (terrain === "rock" || terrain === "sand") {
       if (terrain === "rock") {
