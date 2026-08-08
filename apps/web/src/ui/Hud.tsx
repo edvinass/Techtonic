@@ -19,6 +19,7 @@ import type { PriorityId, ResourceId, Resources } from "../sim/types";
 import { useGameStore } from "../store/gameStore";
 import { putSave } from "../api/client";
 import { BuildingIcon } from "./BuildingIcon";
+import { PRIORITY_ACCENT, PriorityIcon } from "./PriorityIcon";
 import { ResourceIcon } from "./ResourceIcon";
 
 const PRIORITY_LABELS: Record<PriorityId, string> = {
@@ -30,8 +31,6 @@ const PRIORITY_LABELS: Record<PriorityId, string> = {
   research: "Research",
   defence: "Defence",
 };
-
-const RESOURCE_PRIORITIES = new Set<PriorityId>(["food", "wood", "stone", "metal"]);
 
 type SideTab = "build" | "priorities" | "tech" | "age";
 
@@ -449,54 +448,108 @@ export function Hud() {
         )}
 
         {!sideCollapsed && sideTab === "priorities" && (
-          <section className="chrome-panel">
+          <section className="chrome-panel workers-panel">
             <h3>Workers</h3>
-            <p className="muted panel-hint">
-              Defence ready <strong>{defencePct}%</strong> · home coverage{" "}
-              <strong>{coverPct}%</strong> — place towers/palisades near houses.
-            </p>
-            {PRIORITY_IDS.map((p) => (
-              <div key={p} className="priority worker-row">
-                <span className="worker-label">
-                  {RESOURCE_PRIORITIES.has(p) && (
-                    <ResourceIcon id={p as ResourceId} size={14} />
-                  )}
-                  {PRIORITY_LABELS[p]}
+
+            <div className="worker-force" aria-label="Workforce assignment">
+              <div className="worker-force-meta">
+                <span>
+                  Assigned <strong>{workAssigned}</strong>
                 </span>
-                <div className="worker-stepper">
-                  <button
-                    type="button"
-                    aria-label={`Fewer ${PRIORITY_LABELS[p]} workers`}
-                    disabled={workTargets[p] <= 0}
-                    onClick={() =>
-                      updatePriorities(
-                        applyWorkerCount(state.priorities, pop, p, workTargets[p] - 1),
-                      )
-                    }
-                  >
-                    −
-                  </button>
-                  <em>{workTargets[p]}</em>
-                  <button
-                    type="button"
-                    aria-label={`More ${PRIORITY_LABELS[p]} workers`}
-                    disabled={workAssigned >= pop}
-                    onClick={() =>
-                      updatePriorities(
-                        applyWorkerCount(state.priorities, pop, p, workTargets[p] + 1),
-                      )
-                    }
-                  >
-                    +
-                  </button>
-                </div>
+                <span className={workUnassigned > 0 ? "worker-idle" : undefined}>
+                  Idle <strong>{workUnassigned}</strong>
+                  <span className="pop-sep"> / </span>
+                  {pop}
+                </span>
               </div>
-            ))}
-            <p className="worker-unassigned muted">
-              Unassigned <strong>{workUnassigned}</strong>
-              <span className="pop-sep"> / </span>
-              {pop}
-            </p>
+              <div className="worker-force-track">
+                <div
+                  className="worker-force-fill"
+                  style={{ width: `${pop > 0 ? (workAssigned / pop) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="worker-readiness">
+              <div className="worker-meter" title="Defence readiness from towers and walls">
+                <span className="worker-meter-label">Defence</span>
+                <div className="worker-meter-track">
+                  <div className="worker-meter-fill defence" style={{ width: `${defencePct}%` }} />
+                </div>
+                <em>{defencePct}%</em>
+              </div>
+              <div
+                className="worker-meter"
+                title="Share of houses covered by nearby towers or palisades"
+              >
+                <span className="worker-meter-label">Homes</span>
+                <div className="worker-meter-track">
+                  <div className="worker-meter-fill cover" style={{ width: `${coverPct}%` }} />
+                </div>
+                <em>{coverPct}%</em>
+              </div>
+            </div>
+
+            <div className="worker-list">
+              {PRIORITY_IDS.map((p, i) => {
+                const count = workTargets[p];
+                const share = pop > 0 ? (count / pop) * 100 : 0;
+                const accent = PRIORITY_ACCENT[p];
+                return (
+                  <div
+                    key={p}
+                    className={`worker-card${count > 0 ? " active" : ""}`}
+                    style={
+                      {
+                        "--worker-accent": accent,
+                        "--worker-i": i,
+                      } as CSSProperties
+                    }
+                  >
+                    <span className="worker-thumb">
+                      <PriorityIcon id={p} size={22} />
+                    </span>
+                    <div className="worker-body">
+                      <div className="worker-row-top">
+                        <span className="worker-label">{PRIORITY_LABELS[p]}</span>
+                        <div className="worker-stepper">
+                          <button
+                            type="button"
+                            aria-label={`Fewer ${PRIORITY_LABELS[p]} workers`}
+                            disabled={count <= 0}
+                            onClick={() =>
+                              updatePriorities(
+                                applyWorkerCount(state.priorities, pop, p, count - 1),
+                              )
+                            }
+                          >
+                            −
+                          </button>
+                          <em key={count} className="worker-count">
+                            {count}
+                          </em>
+                          <button
+                            type="button"
+                            aria-label={`More ${PRIORITY_LABELS[p]} workers`}
+                            disabled={workAssigned >= pop}
+                            onClick={() =>
+                              updatePriorities(
+                                applyWorkerCount(state.priorities, pop, p, count + 1),
+                              )
+                            }
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      <div className="worker-alloc-track" aria-hidden>
+                        <div className="worker-alloc-fill" style={{ width: `${share}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </section>
         )}
 

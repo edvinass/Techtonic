@@ -978,67 +978,271 @@ button.primary.harmony {
   font-size: 0.8rem;
 }
 
-.priority {
+.workers-panel {
   display: grid;
-  grid-template-columns: 1fr auto;
+  gap: 0.65rem;
+  align-content: start;
+}
+
+.workers-panel > h3 {
+  margin-bottom: 0;
+}
+
+.worker-force {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.5rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid rgba(201, 162, 39, 0.22);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.worker-force-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.worker-force-meta strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.worker-force-meta .worker-idle strong {
+  color: var(--accent);
+}
+
+.worker-force-track,
+.worker-meter-track,
+.worker-alloc-track {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.worker-force-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6fa85a, #c9a227);
+  box-shadow: 0 0 10px rgba(201, 162, 39, 0.25);
+  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.worker-readiness {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.worker-meter {
+  display: grid;
+  grid-template-columns: 3.4rem 1fr 2.1rem;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.worker-meter-label {
+  letter-spacing: 0.02em;
+}
+
+.worker-meter em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ink);
+}
+
+.worker-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.worker-meter-fill.defence {
+  background: linear-gradient(90deg, #4a8f5a, #8fd07a);
+}
+
+.worker-meter-fill.cover {
+  background: linear-gradient(90deg, #7a9ab8, #b8d4e8);
+}
+
+.worker-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.worker-card {
+  --worker-accent: var(--accent);
+  --worker-i: 0;
+  display: grid;
+  grid-template-columns: 40px 1fr;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.45rem;
-  font-size: 0.85rem;
+  padding: 0.4rem 0.45rem;
+  border-radius: 10px;
+  border: 1px solid rgba(201, 162, 39, 0.16);
+  background: rgba(0, 0, 0, 0.28);
+  animation: worker-card-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--worker-i) * 35ms);
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.worker-card:hover {
+  border-color: color-mix(in srgb, var(--worker-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--worker-accent) 10%, rgba(0, 0, 0, 0.28));
+  transform: translateX(-2px);
+}
+
+.worker-card.active {
+  border-color: color-mix(in srgb, var(--worker-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--worker-accent) 12%, rgba(0, 0, 0, 0.28));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--worker-accent) 18%, transparent);
+}
+
+@keyframes worker-card-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.worker-thumb {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 40% 30%, color-mix(in srgb, var(--worker-accent) 28%, transparent), transparent 55%),
+    linear-gradient(160deg, #2a3a28, #121a14);
+  border: 1px solid color-mix(in srgb, var(--worker-accent) 40%, transparent);
+}
+
+.worker-body {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.worker-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
 }
 
 .worker-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.worker-alloc-track {
+  height: 0.28rem;
+}
+
+.worker-alloc-fill {
+  height: 100%;
+  border-radius: inherit;
+  width: 0;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--worker-accent) 70%, #1a2018),
+    var(--worker-accent)
+  );
+  box-shadow: 0 0 8px color-mix(in srgb, var(--worker-accent) 35%, transparent);
+  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .worker-stepper {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.2rem;
 }
 
 .worker-stepper button {
-  width: 1.7rem;
-  height: 1.7rem;
+  width: 1.65rem;
+  height: 1.65rem;
   padding: 0;
-  border-radius: 6px;
+  border-radius: 7px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.06);
   color: var(--text);
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.12s ease,
+    color 0.15s ease;
 }
 
 .worker-stepper button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.22);
+  background: color-mix(in srgb, var(--worker-accent) 22%, rgba(255, 255, 255, 0.06));
+  border-color: color-mix(in srgb, var(--worker-accent) 55%, transparent);
+  color: var(--ink);
+  transform: scale(1.06);
+}
+
+.worker-stepper button:active:not(:disabled) {
+  transform: scale(0.94);
 }
 
 .worker-stepper button:disabled {
-  opacity: 0.35;
+  opacity: 0.32;
   cursor: default;
 }
 
-.priority em,
-.worker-stepper em {
+.worker-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.45rem;
   font-style: normal;
   font-variant-numeric: tabular-nums;
-  color: var(--text);
-  text-align: center;
-  min-width: 1.4rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--ink);
+  animation: worker-count-pop 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.worker-unassigned {
-  margin: 0.65rem 0 0;
-  font-size: 0.8rem;
+@keyframes worker-count-pop {
+  from {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-.worker-unassigned strong {
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
+@media (prefers-reduced-motion: reduce) {
+  .worker-card,
+  .worker-count,
+  .worker-force-fill,
+  .worker-meter-fill,
+  .worker-alloc-fill {
+    animation: none;
+    transition: none;
+  }
+
+  .worker-card:hover,
+  .worker-stepper button:hover:not(:disabled),
+  .worker-stepper button:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 .research-progress {
