@@ -185,6 +185,8 @@ export interface TechDef {
   costKnowledge: number;
   researchTicks: number;
   requires: TechId[];
+  /** Earliest age in which this tech can be researched */
+  minAge: AgeId;
   unlocksBuildings?: BuildingId[];
   /** Mutually exclusive sibling techs — picking one locks the others out */
   exclusiveWith?: TechId[];

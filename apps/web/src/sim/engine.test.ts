@@ -6,6 +6,7 @@ import {
   cancelConstruction,
   createNewGame,
   harvestDeposit,
+  isTechAvailable,
   placeBuilding,
   startResearch,
   tick,
@@ -75,6 +76,50 @@ describe("sim engine", () => {
     state = runTicks(state, 120);
     expect(state.research.unlocked).toContain("fire");
     expect(state.research.active).toBeNull();
+  });
+
+  it("blocks researching future-age techs until the age is reached", () => {
+    let state = createNewGame(11);
+    state.resources.knowledge = 9999;
+
+    // Stone Age: Farming (age-up key) is open; Metallurgy / Rocketry are not
+    state.research.unlocked = ["fire", "primitive_tools"];
+    expect(isTechAvailable(state, "farming")).toBe(true);
+    expect(isTechAvailable(state, "metallurgy")).toBe(false);
+    expect(isTechAvailable(state, "rocketry")).toBe(false);
+    expect(startResearch(state, "metallurgy").research.active).toBeNull();
+
+    // Even with full prereqs, Rocketry stays locked until Atomic Age
+    state.research.unlocked = [
+      "fire",
+      "primitive_tools",
+      "farming",
+      "metallurgy",
+      "steam_power",
+      "electricity",
+      "atomic_theory",
+    ];
+    expect(isTechAvailable(state, "rocketry")).toBe(false);
+
+    state.age = "farming";
+    state.research.unlocked = ["fire", "primitive_tools", "farming"];
+    expect(isTechAvailable(state, "metallurgy")).toBe(true);
+    state = startResearch(state, "metallurgy");
+    expect(state.research.active?.techId).toBe("metallurgy");
+
+    state.age = "atomic";
+    state.research.active = null;
+    state.resources.knowledge = 9999;
+    state.research.unlocked = [
+      "fire",
+      "primitive_tools",
+      "farming",
+      "metallurgy",
+      "steam_power",
+      "electricity",
+      "atomic_theory",
+    ];
+    expect(isTechAvailable(state, "rocketry")).toBe(true);
   });
 
   it("does not auto-progress construction when Build workers are 0", () => {

@@ -1019,6 +1019,10 @@ input[type="text"] {
   text-decoration: line-through;
 }
 
+.tech-list button.age-locked {
+  opacity: 0.42;
+}
+
 button.primary.harmony {
   background: linear-gradient(180deg, #4a8f5a, #2f6a3c);
   border-color: rgba(111, 168, 90, 0.55);

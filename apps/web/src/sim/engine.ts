@@ -282,6 +282,7 @@ export function isTechAvailable(state: GameState, techId: TechId): boolean {
   if (!tech) return false;
   if (state.research.unlocked.includes(techId)) return false;
   if (isTechExcluded(state, techId)) return false;
+  if (!ageReached(state.age, tech.minAge)) return false;
   return tech.requires.every((r) => state.research.unlocked.includes(r));
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { isMuted, play, toggleMute } from "../audio/sfx";
-import { AGES } from "../data/ages";
+import { AGES, ageReached } from "../data/ages";
 import { BUILDINGS } from "../data/buildings";
 import { currentMonthName, SEASON_INFO } from "../data/events";
 import { RESOURCE_ORDER, RESOURCES } from "../data/resources";
@@ -757,14 +757,17 @@ export function Hud() {
               </div>
             )}
             <p className="muted panel-hint">
-              Doctrines can lock each other out — Selective Cuts vs Clearcutting is a real fork.
+              Techs unlock with your age. Doctrines can lock each other out — Selective Cuts vs
+              Clearcutting is a real fork.
             </p>
             <div className="tech-list">
               {TECH_LIST.map((tech) => {
                 const unlocked = state.research.unlocked.includes(tech.id);
                 const excluded = isTechExcluded(state, tech.id);
+                const ageLocked = !ageReached(state.age, tech.minAge);
                 const available = isTechAvailable(state, tech.id);
                 const affordable = state.resources.knowledge >= tech.costKnowledge;
+                const minAgeName = AGES[tech.minAge]?.name ?? tech.minAge;
                 return (
                   <button
                     key={tech.id}
@@ -773,12 +776,14 @@ export function Hud() {
                       unlocked || excluded || !available || !!state.research.active || !affordable
                     }
                     className={`${unlocked ? "unlocked" : ""}${excluded ? " excluded" : ""}${
-                      tech.exclusiveWith?.length ? " doctrine" : ""
-                    }`}
+                      ageLocked && !unlocked && !excluded ? " age-locked" : ""
+                    }${tech.exclusiveWith?.length ? " doctrine" : ""}`}
                     title={
                       excluded
                         ? `Locked by opposing doctrine (${tech.exclusiveWith?.join(", ")})`
-                        : tech.description
+                        : ageLocked
+                          ? `Requires ${minAgeName}`
+                          : tech.description
                     }
                     onClick={() => research(tech.id)}
                   >
@@ -789,7 +794,7 @@ export function Hud() {
                       {tech.exclusiveWith?.length && !unlocked && !excluded ? " ⇄" : ""}
                     </strong>
                     <span className="cost-row">
-                      {!unlocked && !excluded && (
+                      {!unlocked && !excluded && !ageLocked && (
                         <span
                           className={`cost-item${!affordable ? " short" : ""}`}
                           title="Knowledge"
@@ -799,7 +804,11 @@ export function Hud() {
                         </span>
                       )}
                       <span className="tech-desc">
-                        {excluded ? "Locked by opposing doctrine." : tech.description}
+                        {excluded
+                          ? "Locked by opposing doctrine."
+                          : ageLocked
+                            ? `Requires ${minAgeName}.`
+                            : tech.description}
                       </span>
                     </span>
                   </button>

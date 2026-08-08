@@ -952,7 +952,7 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
         c.job.resource === "food" && c.job.work === "farm"
           ? (() => {
               const t = state.map.tiles[c.job.tile.gy * state.map.width + c.job.tile.gx];
-              return t?.terrain === "fertile" ? 1.35 : 1;
+              return t?.terrain === "fertile" ? 1.15 : 1;
             })()
           : 1;
       // Forage jobs are anchored to a house — don't use house produce rates

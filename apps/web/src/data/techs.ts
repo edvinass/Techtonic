@@ -8,6 +8,7 @@ export const TECHS: Record<string, TechDef> = {
     costKnowledge: 18,
     researchTicks: 36,
     requires: [],
+    minAge: "stone",
     unlocksBuildings: ["research_hut"],
   },
   primitive_tools: {
@@ -17,6 +18,7 @@ export const TECHS: Record<string, TechDef> = {
     costKnowledge: 30,
     researchTicks: 48,
     requires: ["fire"],
+    minAge: "stone",
     unlocksBuildings: ["quarry"],
   },
   selective_cuts: {
@@ -27,6 +29,7 @@ export const TECHS: Record<string, TechDef> = {
     costKnowledge: 34,
     researchTicks: 52,
     requires: ["fire"],
+    minAge: "stone",
     exclusiveWith: ["clearcutting"],
     modifiers: { strainGainMult: 0.45, woodGatherMult: 0.85, regrowthMult: 1.75 },
   },
@@ -38,6 +41,7 @@ export const TECHS: Record<string, TechDef> = {
     costKnowledge: 34,
     researchTicks: 52,
     requires: ["fire"],
+    minAge: "stone",
     exclusiveWith: ["selective_cuts"],
     modifiers: { strainGainMult: 1.55, woodGatherMult: 1.4, regrowthMult: 0.55 },
   },
@@ -48,6 +52,7 @@ export const TECHS: Record<string, TechDef> = {
     costKnowledge: 75,
     researchTicks: 120,
     requires: ["fire"],
+    minAge: "stone",
     unlocksBuildings: ["farm", "granary", "storehouse"],
   },
   fortifications: {
@@ -57,6 +62,7 @@ export const TECHS: Record<string, TechDef> = {
     costKnowledge: 40,
     researchTicks: 56,
     requires: ["primitive_tools"],
+    minAge: "stone",
     unlocksBuildings: ["watchtower", "palisade"],
   },
   stewardship: {
@@ -67,6 +73,7 @@ export const TECHS: Record<string, TechDef> = {
     costKnowledge: 80,
     researchTicks: 100,
     requires: ["selective_cuts", "farming"],
+    minAge: "farming",
     unlocksBuildings: ["grove_sanctuary"],
     modifiers: { strainGainMult: 0.75, regrowthMult: 1.35 },
   },
@@ -77,6 +84,7 @@ export const TECHS: Record<string, TechDef> = {
     costKnowledge: 120,
     researchTicks: 150,
     requires: ["farming", "primitive_tools"],
+    minAge: "farming",
     unlocksBuildings: ["mine", "forge"],
   },
   steam_power: {
@@ -86,6 +94,7 @@ export const TECHS: Record<string, TechDef> = {
     costKnowledge: 170,
     researchTicks: 180,
     requires: ["metallurgy"],
+    minAge: "metal",
     unlocksBuildings: ["workshop", "factory"],
   },
   electricity: {
@@ -95,6 +104,7 @@ export const TECHS: Record<string, TechDef> = {
     costKnowledge: 220,
     researchTicks: 220,
     requires: ["steam_power"],
+    minAge: "industrial",
     unlocksBuildings: ["laboratory"],
   },
   atomic_theory: {
@@ -104,6 +114,7 @@ export const TECHS: Record<string, TechDef> = {
     costKnowledge: 300,
     researchTicks: 280,
     requires: ["electricity"],
+    minAge: "industrial",
     unlocksBuildings: ["reactor"],
   },
   rocketry: {
@@ -113,6 +124,7 @@ export const TECHS: Record<string, TechDef> = {
     costKnowledge: 420,
     researchTicks: 340,
     requires: ["atomic_theory"],
+    minAge: "atomic",
     unlocksBuildings: ["observatory", "launch_pad"],
   },
 };
