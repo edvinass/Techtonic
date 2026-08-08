@@ -1391,6 +1391,7 @@ button.primary.harmony {
   background: rgba(8, 12, 10, 0.72);
   backdrop-filter: blur(6px);
   padding: 1.5rem;
+  pointer-events: auto;
 }
 
 .outcome-card {
