@@ -348,6 +348,8 @@ export class MainScene extends Phaser.Scene {
             });
           },
           onHarvest: (gx, gy, amount) => useGameStore.getState().harvestDeposit(gx, gy, amount),
+          onBuild: (buildingId, amount) =>
+            useGameStore.getState().applyBuildProgress(buildingId, amount),
         });
       }
     }

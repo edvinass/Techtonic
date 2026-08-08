@@ -3,6 +3,7 @@ import { play } from "../audio/sfx";
 import { AGES } from "../data/ages";
 import {
   advanceAge,
+  applyConstructionProgress,
   claimHarmonyVictory,
   createNewGame,
   harvestDeposit,
@@ -50,6 +51,8 @@ interface GameStore {
   depositResources: (resource: ResourceId, amount: number) => void;
   /** Deplete a map deposit; returns amount actually taken. */
   harvestDeposit: (gx: number, gy: number, amount: number) => number;
+  /** Builder on-site work advances a scaffold. */
+  applyBuildProgress: (buildingId: string, amount: number) => void;
   resolveEvent: (choiceIndex: 0 | 1) => void;
 }
 
@@ -251,6 +254,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Mutate live map stock (Phaser reads getState each frame; tick() clones later)
     const taken = harvestDeposit(state, gx, gy, amount);
     return taken;
+  },
+
+  applyBuildProgress: (buildingId, amount) => {
+    const { state } = get();
+    if (!state || amount <= 0) return;
+    // Mutate live progress (citizens build every frame; tick() clones later)
+    applyConstructionProgress(state, buildingId, amount);
   },
 
   resolveEvent: (choiceIndex) => {

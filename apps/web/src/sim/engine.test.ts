@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   advanceAge,
   ageUpRequirements,
+  applyConstructionProgress,
   createNewGame,
   harvestDeposit,
   placeBuilding,
@@ -74,7 +75,7 @@ describe("sim engine", () => {
     expect(state.research.active).toBeNull();
   });
 
-  it("progresses construction sites even when construction priority is low", () => {
+  it("does not auto-progress construction when Build workers are 0", () => {
     let state = createNewGame(5);
     state.resources.wood = 100;
     state.buildings.push({
@@ -98,7 +99,23 @@ describe("sim engine", () => {
     const before = state.buildings.find((b) => b.id === "b50")!.progress;
     state = runTicks(state, 5);
     const after = state.buildings.find((b) => b.id === "b50")!.progress;
-    expect(after).toBeGreaterThan(before);
+    expect(after).toBe(before);
+  });
+
+  it("applyConstructionProgress advances a scaffold toward completion", () => {
+    const state = createNewGame(5);
+    state.buildings.push({
+      id: "b51",
+      type: "lumber_camp",
+      x: 8,
+      y: 8,
+      progress: 0.2,
+      workers: 0,
+    });
+    applyConstructionProgress(state, "b51", 0.3);
+    expect(state.buildings.find((b) => b.id === "b51")!.progress).toBeCloseTo(0.5);
+    applyConstructionProgress(state, "b51", 1);
+    expect(state.buildings.find((b) => b.id === "b51")!.progress).toBe(1);
   });
 
   it("advances to farming age when gates are met", () => {

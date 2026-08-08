@@ -389,6 +389,18 @@ export function harvestDeposit(state: GameState, gx: number, gy: number, amount:
   return taken;
 }
 
+/** Advance a scaffold while a builder is working on-site. Mutates live state. */
+export function applyConstructionProgress(
+  state: GameState,
+  buildingId: string,
+  amount: number,
+): void {
+  if (amount <= 0) return;
+  const building = state.buildings.find((b) => b.id === buildingId);
+  if (!building || building.progress >= 1) return;
+  building.progress = Math.min(1, building.progress + amount);
+}
+
 function assignWorkers(state: GameState): {
   constructionWorkers: number;
   foragers: number;
@@ -402,11 +414,12 @@ function assignWorkers(state: GameState): {
   const sites = state.buildings.filter((b) => b.progress < 1);
   const complete = state.buildings.filter((b) => b.progress >= 1);
 
-  // Reserve builders first so scaffolds actually complete (citizens already walk to sites)
+  // Reserve Work-tab Build workers so they aren't staffed on other jobs.
+  // Progress itself is applied by citizens on-site (see game/citizens).
   let constructionWorkers = 0;
   if (sites.length > 0) {
     constructionWorkers = Math.min(
-      Math.max(sites.length, quota("construction")),
+      quota("construction"),
       remaining,
       sites.length * 2,
     );
@@ -485,10 +498,11 @@ export function tick(state: GameState): GameState {
   if (state.paused || state.outcome !== "playing") return state;
   const next = cloneState(state);
   next.tick += 1;
-  const { constructionWorkers } = assignWorkers(next);
+  assignWorkers(next);
 
   // Wood / stone / food / knowledge from gather buildings are delivered by
   // workers walking to resource tiles and depositing carry loads (see game/citizens).
+  // Construction progress is applied only while builders work on-site (citizens).
   // Keep a tiny knowledge trickle so Fire can be started before a research hut.
   next.resources.knowledge += knowledgeTrickle(next.population.count);
 
@@ -516,17 +530,6 @@ export function tick(state: GameState): GameState {
     }
   } else {
     next.starvationTicks = 0;
-  }
-
-  if (constructionWorkers > 0) {
-    const sites = next.buildings.filter((b) => b.progress < 1);
-    if (sites.length > 0) {
-      const per = constructionWorkers / sites.length;
-      for (const b of sites) {
-        const def = BUILDINGS[b.type];
-        b.progress = Math.min(1, b.progress + per / def.buildTicks);
-      }
-    }
   }
 
   if (next.research.active) {

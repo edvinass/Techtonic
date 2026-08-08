@@ -117,6 +117,14 @@ export function Hud() {
     return () => document.removeEventListener("mousedown", onPointer);
   }, [saveOpen]);
 
+  useEffect(() => {
+    if (!state || !selectedBuilding) return;
+    const def = BUILDINGS[selectedBuilding];
+    if (!canPay(state.resources, def.cost)) {
+      selectBuilding(null);
+    }
+  }, [state, selectedBuilding, selectBuilding]);
+
   if (!state) return null;
 
   const age = AGES[state.age];
@@ -420,7 +428,8 @@ export function Hud() {
                     key={id}
                     type="button"
                     className={`build-card ${selectedBuilding === id ? "active" : ""}${affordable ? "" : " unaffordable"}`}
-                    title={def.description}
+                    title={affordable ? def.description : "Not enough resources"}
+                    disabled={!affordable}
                     onClick={() => selectBuilding(selectedBuilding === id ? null : id)}
                   >
                     <span className="build-thumb">

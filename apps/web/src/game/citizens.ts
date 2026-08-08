@@ -54,6 +54,8 @@ export interface CitizenStepContext {
   onDeposit: (resource: ResourceId, amount: number, wx: number, wy: number) => void;
   /** Called as gatherers pull finite deposits from the map */
   onHarvest?: (gx: number, gy: number, amount: number) => number;
+  /** Builder on-site hammering — advances scaffold progress */
+  onBuild?: (buildingId: string, amount: number) => void;
 }
 
 function buildingById(state: GameState, id: string): BuildingInstance | undefined {
@@ -136,10 +138,10 @@ function desiredAssignments(state: GameState): Assignment[] {
   const list: Assignment[] = [];
   let remaining = state.population.count;
 
-  // Construction sites first — always at least one builder per unfinished building
+  // Construction only when Work → Build assigns workers (no auto floor).
   const sites = state.buildings.filter((b) => b.progress < 1);
   let buildSlots = Math.min(
-    Math.max(sites.length, quota(state, "construction")),
+    quota(state, "construction"),
     remaining,
     sites.length * 2,
   );
@@ -448,7 +450,7 @@ export function syncCitizens(
 
 export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepContext): void {
   const speed = 0.07 * dt;
-  const { state, ox, oy, onDeposit, onHarvest } = ctx;
+  const { state, ox, oy, onDeposit, onHarvest, onBuild } = ctx;
   const hasTools = state.research.unlocked.includes("primitive_tools");
 
   for (const c of citizens) {
@@ -506,7 +508,7 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
           kind: "work",
           buildingId: c.job.buildingId,
           work: "build",
-          timer: 900 + Math.random() * 900,
+          timer: 2800 + Math.random() * 2200,
         };
       }
       continue;
@@ -585,12 +587,21 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
     }
 
     if (c.job.kind === "work") {
+      const building = buildingById(state, c.job.buildingId);
+      if (!building || building.progress >= 1 || c.job.work !== "build") {
+        c.job = { kind: "idle" };
+        continue;
+      }
+      const def = BUILDINGS[building.type];
+      // One on-site builder fills the scaffold in buildTicks seconds of work time
+      if (onBuild && def) {
+        onBuild(building.id, (dt / 1000) / def.buildTicks);
+      }
       c.job.timer -= dt;
       c.x += Math.sin(c.bobPhase * 0.28) * 0.015;
       c.y += Math.cos(c.bobPhase * 0.28) * 0.008;
       if (c.job.timer <= 0) {
-        const building = buildingById(state, c.job.buildingId);
-        if (building && building.progress < 1) {
+        if (building.progress < 1) {
           startBuildTrip(c, state, ox, oy, building.id);
         } else {
           c.job = { kind: "idle" };

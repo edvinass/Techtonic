@@ -244,6 +244,89 @@ describe("citizen wood gathering", () => {
     expect(scholars.length).toBeGreaterThan(0);
   });
 
+  it("does not send builders when Build workers are 0", () => {
+    let state = createNewGame(31);
+    state.resources.wood = 100;
+    state.population.count = 5;
+    state.priorities = {
+      food: 0,
+      wood: 0,
+      stone: 0,
+      metal: 0,
+      construction: 0,
+      research: 0,
+      defence: 0,
+    };
+    state.buildings.push({
+      id: "b_scaffold",
+      type: "stockpile",
+      x: 10,
+      y: 10,
+      progress: 0,
+      workers: 0,
+    });
+
+    const ox = 400;
+    const oy = 80;
+    const citizens: Citizen[] = [];
+    syncCitizens(citizens, state, ox, oy);
+    for (const c of citizens) {
+      if (c.job.kind === "walk" && c.job.phase === "wander") c.job = { kind: "idle" };
+    }
+    syncCitizens(citizens, state, ox, oy);
+
+    const builders = citizens.filter(
+      (c) =>
+        (c.job.kind === "walk" && c.job.work === "build") ||
+        (c.job.kind === "work" && c.job.work === "build"),
+    );
+    expect(builders.length).toBe(0);
+  });
+
+  it("advances scaffold progress only while a builder works on-site", () => {
+    const state = createNewGame(32);
+    state.buildings.push({
+      id: "b_scaffold",
+      type: "stockpile",
+      x: 10,
+      y: 10,
+      progress: 0,
+      workers: 0,
+    });
+    const ox = 400;
+    const oy = 80;
+    const site = worldPos(10, 10, ox, oy);
+    const citizen: Citizen = {
+      id: 0,
+      x: site.x,
+      y: site.y,
+      job: {
+        kind: "work",
+        buildingId: "b_scaffold",
+        work: "build",
+        timer: 5000,
+      },
+      bobPhase: 0,
+      carrying: null,
+      carryAmount: 0,
+    };
+
+    let built = 0;
+    stepCitizens([citizen], 1000, {
+      state,
+      ox,
+      oy,
+      onDeposit: () => {},
+      onBuild: (id, amount) => {
+        expect(id).toBe("b_scaffold");
+        built += amount;
+        state.buildings.find((b) => b.id === id)!.progress += amount;
+      },
+    });
+    expect(built).toBeGreaterThan(0);
+    expect(state.buildings.find((b) => b.id === "b_scaffold")!.progress).toBeGreaterThan(0);
+  });
+
   it("delivers gathered wood to the nearest stockpile, not the lumber camp", () => {
     let state = createNewGame(24);
     state.resources.wood = 200;
