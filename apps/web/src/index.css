@@ -1,0 +1,375 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap");
+
+:root {
+  --bg0: #142017;
+  --bg1: #1e2e22;
+  --panel: rgba(20, 28, 22, 0.92);
+  --ink: #f2ebe0;
+  --muted: #b7c0b0;
+  --accent: #c9a227;
+  --accent-2: #6fa85a;
+  --danger: #d16a6a;
+  --line: rgba(242, 235, 224, 0.12);
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  font-family: "DM Sans", system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--bg0);
+  line-height: 1.4;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(201, 162, 39, 0.14), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 90% 80%, rgba(111, 168, 90, 0.12), transparent 50%),
+    linear-gradient(160deg, #101812 0%, #1a281c 45%, #243224 100%);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 0.55rem 0.85rem;
+}
+
+button:hover:not(:disabled) {
+  border-color: rgba(201, 162, 39, 0.45);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: linear-gradient(180deg, #d4b44a, #a8841f);
+  color: #1a1608;
+  border: none;
+  font-weight: 700;
+}
+
+button.active {
+  border-color: var(--accent);
+  background: rgba(201, 162, 39, 0.16);
+}
+
+.panel-screen {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+}
+
+.panel {
+  width: min(520px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+.menu-panel {
+  width: min(720px, 100%);
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.75rem;
+  color: var(--accent);
+  margin: 0 0 0.4rem;
+}
+
+h1,
+h2,
+h3 {
+  font-family: Fraunces, Georgia, serif;
+  font-weight: 700;
+  margin: 0 0 0.6rem;
+}
+
+.lede,
+.muted {
+  color: var(--muted);
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1.25rem 0;
+}
+
+form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.92rem;
+}
+
+input[type="email"],
+input[type="password"],
+input[type="text"] {
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
+}
+
+.error {
+  color: var(--danger);
+  margin: 0;
+}
+
+.menu-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.save-grid {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.save-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.game-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.phaser-host {
+  position: absolute;
+  inset: 0;
+}
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.hud * {
+  pointer-events: auto;
+}
+
+.hud-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(180deg, rgba(12, 18, 14, 0.9), rgba(12, 18, 14, 0.35));
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.35rem;
+  margin-right: 0.65rem;
+}
+
+.age-pill {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(111, 168, 90, 0.2);
+  border: 1px solid rgba(111, 168, 90, 0.35);
+  font-size: 0.8rem;
+}
+
+.resources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.92rem;
+}
+
+.hud-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.slot-row {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.slot-row button {
+  min-width: 2rem;
+  padding-inline: 0.45rem;
+}
+
+.hud-side {
+  position: absolute;
+  top: 4.5rem;
+  right: 0.75rem;
+  width: min(320px, calc(100vw - 1.5rem));
+  max-height: calc(100% - 5.5rem);
+  overflow: auto;
+  display: grid;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+}
+
+.hud-side section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 0.85rem;
+  box-shadow: var(--shadow);
+}
+
+.build-list,
+.tech-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.build-list button,
+.tech-list button {
+  display: grid;
+  gap: 0.15rem;
+  text-align: left;
+}
+
+.build-list span,
+.tech-list span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.priority {
+  display: grid;
+  grid-template-columns: 7rem 1fr 2rem;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.age-up ul {
+  padding-left: 1.1rem;
+  margin: 0.4rem 0 0.8rem;
+  color: var(--muted);
+}
+
+.age-up li.ok {
+  color: var(--accent-2);
+}
+
+.age-up.done p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.status-toast {
+  position: absolute;
+  left: 50%;
+  top: 4.6rem;
+  transform: translateX(-50%);
+  background: rgba(12, 18, 14, 0.92);
+  border: 1px solid var(--line);
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.88rem;
+}
+
+.autosave-hint {
+  position: absolute;
+  left: 0.85rem;
+  bottom: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.tutorial {
+  position: absolute;
+  left: 0.85rem;
+  top: 4.6rem;
+  width: min(340px, calc(100vw - 2rem));
+  background: rgba(20, 28, 22, 0.95);
+  border: 1px solid rgba(201, 162, 39, 0.35);
+  border-radius: 16px;
+  padding: 0.9rem;
+  box-shadow: var(--shadow);
+}
+
+.tutorial p {
+  margin: 0 0 0.7rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 900px) {
+  .hud-side {
+    position: absolute;
+    top: auto;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    width: 100%;
+    max-height: 42%;
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.5rem;
+    background: linear-gradient(0deg, rgba(12, 18, 14, 0.95), transparent);
+  }
+
+  .hud-side section {
+    min-width: 260px;
+  }
+}

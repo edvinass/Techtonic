@@ -1,0 +1,11 @@
+{
+  "name": "techtonic",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev:web": "npm --prefix apps/web run dev",
+    "dev:api": "cd apps/api && ./.venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+    "test": "npm --prefix apps/web test",
+    "build": "npm --prefix apps/web run build"
+  }
+}
