@@ -1,5 +1,6 @@
 import type { BuildingInstance, GameState, PriorityId, ResourceId } from "../sim/types";
 import { BUILDINGS } from "../data/buildings";
+import { workerQuota } from "../sim/priorities";
 import {
   carryCapacityFor,
   findResourceTile,
@@ -75,11 +76,7 @@ interface Assignment {
 }
 
 function quota(state: GameState, p: PriorityId): number {
-  const weights = state.priorities;
-  if (weights[p] <= 0) return 0;
-  const total = Math.max(1, Object.values(weights).reduce((a, b) => a + b, 0));
-  // Round so small populations still get workers (floor made construction=0 at pop 5)
-  return Math.max(1, Math.round((state.population.count * weights[p]) / total));
+  return workerQuota(state.priorities, state.population.count, p);
 }
 
 /**

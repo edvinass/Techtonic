@@ -12,6 +12,7 @@ import { BUILDINGS } from "../data/buildings";
 import { TECHS } from "../data/techs";
 import { DEPOSIT_STOCK, generateMap } from "./mapgen";
 import { defaultPressure, seasonFoodMultiplier, tickPressure } from "./pressure";
+import { workerQuota } from "./priorities";
 import {
   applyStrainGain,
   easeStrain,
@@ -33,8 +34,9 @@ import type {
 const MAP_SIZE = 36;
 let nextBuildingSeq = 1;
 
+/** Starting headcounts for a village of 5. */
 function defaultPriorities(): Priorities {
-  return { food: 30, construction: 16, research: 12, production: 28, defence: 14 };
+  return { food: 2, construction: 1, research: 0, production: 2, defence: 0 };
 }
 
 function tileAt(state: GameState, x: number, y: number): Tile | undefined {
@@ -313,15 +315,8 @@ function assignWorkers(state: GameState): {
 } {
   for (const b of state.buildings) b.workers = 0;
 
-  const weights = state.priorities;
-  const totalWeight = Math.max(
-    1,
-    Object.values(weights).reduce((a, b) => a + b, 0),
-  );
   const pop = state.population.count;
-  // Round like citizen assignments so small pops still staff jobs
-  const quota = (p: PriorityId) =>
-    weights[p] <= 0 ? 0 : Math.max(1, Math.round((pop * weights[p]) / totalWeight));
+  const quota = (p: PriorityId) => workerQuota(state.priorities, pop, p);
 
   let remaining = pop;
   const sites = state.buildings.filter((b) => b.progress < 1);

@@ -63,7 +63,7 @@ npm test
 
 ## Core loop
 
-1. Gather wood/stone (and later metal) and forage food via priorities  
+1. Gather wood/stone (and later metal) and forage food via the Workers tab  
 2. Build houses and production camps on the isometric map  
 3. Accrue knowledge → research techs that unlock buildings and age gates  
 4. Meet each age’s checklist (key tech, landmark, population, resources)  

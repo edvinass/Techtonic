@@ -14,19 +14,12 @@ import {
   housingDefenceCoverage,
   isTechExcluded,
 } from "../sim/strategy";
+import { applyWorkerCount, PRIORITY_IDS, workerTargets } from "../sim/priorities";
 import type { PriorityId, ResourceId, Resources } from "../sim/types";
 import { useGameStore } from "../store/gameStore";
 import { putSave } from "../api/client";
 import { BuildingIcon } from "./BuildingIcon";
 import { ResourceIcon } from "./ResourceIcon";
-
-const PRIORITIES: PriorityId[] = [
-  "food",
-  "construction",
-  "research",
-  "production",
-  "defence",
-];
 
 const PRIORITY_LABELS: Record<PriorityId, string> = {
   food: "Food",
@@ -163,6 +156,10 @@ export function Hud() {
     ? (TECH_LIST.find((t) => t.id === age.keyTech)?.name ?? age.keyTech)
     : null;
   const landmarkName = age.landmark ? (BUILDINGS[age.landmark]?.name ?? age.landmark) : null;
+  const pop = state.population.count;
+  const workTargets = workerTargets(state.priorities, pop);
+  const workAssigned = PRIORITY_IDS.reduce((sum, id) => sum + workTargets[id], 0);
+  const workUnassigned = Math.max(0, pop - workAssigned);
 
   const tabs: { id: SideTab; label: string; badge?: string }[] = [
     { id: "build", label: "Build" },
@@ -449,29 +446,48 @@ export function Hud() {
 
         {!sideCollapsed && sideTab === "priorities" && (
           <section className="chrome-panel">
-            <h3>Work priorities</h3>
+            <h3>Workers</h3>
             <p className="muted panel-hint">
-              Defence <strong>{defencePct}%</strong> · home coverage{" "}
+              Defence ready <strong>{defencePct}%</strong> · home coverage{" "}
               <strong>{coverPct}%</strong> — place towers/palisades near houses.
             </p>
-            {PRIORITIES.map((p) => (
-              <label key={p} className="priority">
+            {PRIORITY_IDS.map((p) => (
+              <div key={p} className="priority worker-row">
                 <span>{PRIORITY_LABELS[p]}</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={state.priorities[p]}
-                  onChange={(e) =>
-                    updatePriorities({
-                      ...state.priorities,
-                      [p]: Number(e.target.value),
-                    })
-                  }
-                />
-                <em>{state.priorities[p]}</em>
-              </label>
+                <div className="worker-stepper">
+                  <button
+                    type="button"
+                    aria-label={`Fewer ${PRIORITY_LABELS[p]} workers`}
+                    disabled={workTargets[p] <= 0}
+                    onClick={() =>
+                      updatePriorities(
+                        applyWorkerCount(state.priorities, pop, p, workTargets[p] - 1),
+                      )
+                    }
+                  >
+                    −
+                  </button>
+                  <em>{workTargets[p]}</em>
+                  <button
+                    type="button"
+                    aria-label={`More ${PRIORITY_LABELS[p]} workers`}
+                    disabled={workAssigned >= pop}
+                    onClick={() =>
+                      updatePriorities(
+                        applyWorkerCount(state.priorities, pop, p, workTargets[p] + 1),
+                      )
+                    }
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
             ))}
+            <p className="worker-unassigned muted">
+              Unassigned <strong>{workUnassigned}</strong>
+              <span className="pop-sep"> / </span>
+              {pop}
+            </p>
           </section>
         )}
 
