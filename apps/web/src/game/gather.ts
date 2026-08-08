@@ -87,8 +87,9 @@ export function findResourceTile(
         }
       }
     } else {
+      // Wild foraging: grass only — forests are for woodcutters
       for (const t of state.map.tiles) {
-        if (t.terrain !== "grass" && t.terrain !== "forest") continue;
+        if (t.terrain !== "grass" || t.deposit) continue;
         const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
         if (dist < 2 || dist > 7) continue;
         candidates.push({ gx: t.x, gy: t.y, score: dist + Math.random() });

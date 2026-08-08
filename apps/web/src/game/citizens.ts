@@ -74,8 +74,10 @@ interface Assignment {
 
 function quota(state: GameState, p: PriorityId): number {
   const weights = state.priorities;
+  if (weights[p] <= 0) return 0;
   const total = Math.max(1, Object.values(weights).reduce((a, b) => a + b, 0));
-  return Math.floor((state.population.count * weights[p]) / total);
+  // Round so small populations still get workers (floor made construction=0 at pop 5)
+  return Math.max(1, Math.round((state.population.count * weights[p]) / total));
 }
 
 /**
@@ -86,9 +88,13 @@ function desiredAssignments(state: GameState): Assignment[] {
   const list: Assignment[] = [];
   let remaining = state.population.count;
 
-  // Construction sites first
+  // Construction sites first — always at least one builder per unfinished building
   const sites = state.buildings.filter((b) => b.progress < 1);
-  let buildSlots = Math.min(quota(state, "construction"), remaining, sites.length * 2);
+  let buildSlots = Math.min(
+    Math.max(sites.length, quota(state, "construction")),
+    remaining,
+    sites.length * 2,
+  );
   for (const site of sites) {
     if (buildSlots <= 0 || remaining <= 0) break;
     const take = Math.min(2, buildSlots, remaining);
@@ -119,6 +125,14 @@ function desiredAssignments(state: GameState): Assignment[] {
   let foodBudget = quota(state, "food");
   let productionBudget = quota(state, "production");
 
+  // Production (wood/stone) before food foraging so camps actually get woodcutters
+  for (const b of state.buildings) {
+    if (BUILDINGS[b.type].priority === "production") {
+      const res = resourceForBuilding(b);
+      if (!res) continue;
+      productionBudget -= staffBuilding(b, productionBudget, "gather", res);
+    }
+  }
   for (const b of state.buildings) {
     if (BUILDINGS[b.type].priority === "research") {
       researchBudget -= staffBuilding(b, researchBudget, "research", "knowledge");
@@ -129,18 +143,29 @@ function desiredAssignments(state: GameState): Assignment[] {
       foodBudget -= staffBuilding(b, foodBudget, "farm", "food");
     }
   }
-  for (const b of state.buildings) {
-    if (BUILDINGS[b.type].priority === "production") {
-      const res = resourceForBuilding(b);
-      if (!res) continue;
-      productionBudget -= staffBuilding(b, productionBudget, "gather", res);
-    }
+
+  // Wild foragers only from remaining food budget (grass berries — not trees)
+  const home = state.buildings.find((b) => b.type === "house") ?? state.buildings[0];
+  const forageWanted = Math.min(Math.max(0, foodBudget), remaining);
+  for (let i = 0; i < forageWanted && home; i++) {
+    list.push({ buildingId: home.id, work: "forage", resource: "food" });
+    remaining -= 1;
   }
 
-  // Fill leftover population into any open production/food/research slots
-  for (const b of state.buildings) {
+  // Leftover people: prefer open production slots, then research, then farms — not more foraging
+  const fillOrder = state.buildings.filter((b) => b.progress >= 1);
+  fillOrder.sort((a, b) => {
+    const rank = (x: BuildingInstance) => {
+      const p = BUILDINGS[x.type].priority;
+      if (p === "production") return 0;
+      if (p === "research") return 1;
+      if (x.type === "farm") return 2;
+      return 3;
+    };
+    return rank(a) - rank(b);
+  });
+  for (const b of fillOrder) {
     if (remaining <= 0) break;
-    if (b.progress < 1) continue;
     const def = BUILDINGS[b.type];
     if (def.workerSlots <= 0) continue;
     const already = list.filter((a) => a.buildingId === b.id).length;
@@ -148,20 +173,12 @@ function desiredAssignments(state: GameState): Assignment[] {
     if (room <= 0) continue;
     const work = workKindFor(b);
     const resource = resourceForBuilding(b);
-    if (!resource && work !== "build") continue;
+    if (!resource) continue;
     const take = Math.min(room, remaining);
     for (let i = 0; i < take; i++) {
       list.push({ buildingId: b.id, work, resource });
     }
     remaining -= take;
-  }
-
-  // Foragers for leftover food budget (wild food near home)
-  const home = state.buildings.find((b) => b.type === "house") ?? state.buildings[0];
-  const forageWanted = Math.min(foodBudget, remaining);
-  for (let i = 0; i < forageWanted && home; i++) {
-    list.push({ buildingId: home.id, work: "forage", resource: "food" });
-    remaining -= 1;
   }
 
   return list;
