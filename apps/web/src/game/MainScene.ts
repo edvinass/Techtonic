@@ -1151,7 +1151,8 @@ export class MainScene extends Phaser.Scene {
         if (shore.sw) g.fillTriangle(S.x, S.y, W.x, W.y, cx, topY);
         if (shore.nw) g.fillTriangle(W.x, W.y, N.x, N.y, cx, topY);
       }
-    } else {
+    } else if (terrain !== "grass" && terrain !== "fertile") {
+      // Diamond highlight on structured terrain only — grass skips it to avoid a grid
       g.fillStyle(0xffffff, 0.07 * alpha);
       g.beginPath();
       g.moveTo(N.x, N.y);
@@ -1163,17 +1164,33 @@ export class MainScene extends Phaser.Scene {
 
     // Terrain micro-detail so the map reads less like flat diamonds
     if (terrain === "grass" || terrain === "fertile") {
-      const seed = Math.abs(Math.round(cx * 7 + cy * 13)) % 5;
-      g.fillStyle(shadeColor(fill, terrain === "fertile" ? 1.22 : 0.78), 0.55 * alpha);
-      for (let i = 0; i < 4; i++) {
-        const t = (seed + i * 1.7) / 5;
-        const px = cx + Math.cos(t * 6.2) * (hw * 0.32);
-        const py = topY + Math.sin(t * 5.1) * (hh * 0.38);
-        g.fillTriangle(px, py - 4, px - 1.8, py + 0.6, px + 1.8, py + 0.6);
+      const salt = opts?.salt ?? Math.abs(Math.round(cx * 7 + cy * 13));
+      // Soft overlapping patches that ignore the diamond silhouette
+      g.fillStyle(shadeColor(fill, 0.9), 0.14 * alpha);
+      g.fillEllipse(
+        cx + ((salt % 7) - 3) * 1.6,
+        topY + ((salt % 5) - 2),
+        12 + (salt % 5),
+        5 + (salt % 3),
+      );
+      g.fillStyle(shadeColor(fill, terrain === "fertile" ? 1.12 : 1.08), 0.1 * alpha);
+      g.fillEllipse(
+        cx - 2 + ((salt * 3) % 5),
+        topY - 1 + (salt % 3),
+        8 + (salt % 4),
+        4,
+      );
+      if (salt % 2 === 0) {
+        g.fillStyle(shadeColor(fill, 0.82), 0.12 * alpha);
+        g.fillEllipse(cx + 4, topY + 2, 7, 3.5);
       }
-      // Subtle mottling band
-      g.fillStyle(shadeColor(fill, 0.9), 0.18 * alpha);
-      g.fillEllipse(cx + 4, topY + 2, 10, 5);
+      // Sparse blades — fewer, softer, less tile-stamped
+      if (salt % 3 !== 1) {
+        g.fillStyle(shadeColor(fill, terrain === "fertile" ? 1.18 : 0.85), 0.35 * alpha);
+        const px = cx + ((salt % 5) - 2) * 2.2;
+        const py = topY + ((salt % 3) - 1) * 1.5;
+        g.fillTriangle(px, py - 3, px - 1.2, py + 0.4, px + 1.2, py + 0.4);
+      }
     } else if (terrain === "rock" || terrain === "sand") {
       if (terrain === "rock") {
         const seed = Math.abs(Math.round(cx * 11 + cy * 19)) % 7;
@@ -1241,17 +1258,16 @@ export class MainScene extends Phaser.Scene {
       g.fillEllipse(cx - 5, topY, 8, 4);
     }
 
-    // Soft rim light on NE edge (strategy-map depth cue)
-    if (terrain !== "water") {
+    // Soft rim / seam on structured land only — grass & water stay continuous
+    const structured =
+      terrain != null && terrain !== "water" && terrain !== "grass" && terrain !== "fertile";
+    if (structured) {
       g.lineStyle(1, shadeColor(fill, 1.2), 0.12 * alpha);
       g.beginPath();
       g.moveTo(N.x, N.y);
       g.lineTo(E.x, E.y);
       g.strokePath();
-    }
 
-    // Land tiles keep a faint seam; open water has none so bodies read continuous
-    if (terrain !== "water") {
       g.lineStyle(1, shadeColor(fill, 0.72), alpha * 0.16);
       g.beginPath();
       g.moveTo(N.x, N.y);
