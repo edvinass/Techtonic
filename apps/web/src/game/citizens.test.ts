@@ -406,6 +406,85 @@ describe("citizen wood gathering", () => {
     expect(Math.hypot(builder.x - ax, builder.y - ay)).toBeLessThan(2);
   });
 
+  it("routes mine workers to walkable ground beside a metal rock clump", () => {
+    const state = createNewGame(34);
+    state.resources.wood = 100;
+    state.population.count = 4;
+    state.priorities = {
+      food: 0,
+      wood: 0,
+      stone: 0,
+      metal: 80,
+      construction: 0,
+      research: 0,
+      defence: 0,
+    };
+
+    const bx = 20;
+    const by = 20;
+    for (let y = by; y <= by + 2; y++) {
+      for (let x = bx; x <= bx + 2; x++) {
+        const t = state.map.tiles[y * state.map.width + x];
+        t.terrain = "rock";
+        t.deposit = "metal";
+        t.stock = 40;
+      }
+    }
+    for (let x = bx - 4; x < bx; x++) {
+      const t = state.map.tiles[by * state.map.width + x];
+      t.terrain = "grass";
+      t.deposit = null;
+    }
+
+    state.buildings.push({
+      id: "b_mine",
+      type: "mine",
+      x: bx,
+      y: by,
+      progress: 1,
+      workers: 0,
+    });
+
+    const ox = 400;
+    const oy = 80;
+    const citizens: Citizen[] = [];
+    syncCitizens(citizens, state, ox, oy);
+    for (const c of citizens) {
+      if (c.job.kind === "walk" && c.job.phase === "wander") c.job = { kind: "idle" };
+    }
+    syncCitizens(citizens, state, ox, oy);
+
+    const miners = citizens.filter(
+      (c) =>
+        (c.job.kind === "walk" && c.job.resource === "metal") ||
+        (c.job.kind === "gather" && c.job.resource === "metal"),
+    );
+    expect(miners.length).toBeGreaterThan(0);
+
+    for (const m of miners) {
+      if (m.job.kind !== "walk") continue;
+      const spots = [...m.job.path, { x: m.job.tx, y: m.job.ty }];
+      for (const p of spots) {
+        const g = worldToGrid(p.x, p.y, ox, oy);
+        expect(isWalkable(state, g.x, g.y)).toBe(true);
+      }
+      // Harvest target stays on the metal deposit
+      expect(m.job.tile).toBeTruthy();
+      const deposit = state.map.tiles[m.job.tile!.gy * state.map.width + m.job.tile!.gx];
+      expect(deposit.deposit).toBe("metal");
+    }
+
+    const miner = miners[0];
+    if (miner.job.kind !== "walk") throw new Error("expected walk");
+    miner.x = miner.job.tx;
+    miner.y = miner.job.ty;
+    miner.job.path = [];
+    const ax = miner.x;
+    const ay = miner.y;
+    for (let i = 0; i < 5; i++) syncCitizens(citizens, state, ox, oy);
+    expect(Math.hypot(miner.x - ax, miner.y - ay)).toBeLessThan(2);
+  });
+
   it("advances scaffold progress only while a builder works on-site", () => {
     const state = createNewGame(32);
     state.buildings.push({

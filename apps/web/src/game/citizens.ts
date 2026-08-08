@@ -326,12 +326,15 @@ function routeWalk(
     path.push(p);
   }
   // Final hop uses the exact world dest only when that cell is standable
-  // (or the allowed rock goal). Prevents ring offsets from dragging onto rock
-  // and fighting the stranded-citizen nudge every frame.
+  // (or the path actually ends on the rock goal). Prevents ring offsets — and
+  // unreachable-rock fallbacks — from dragging onto rock and fighting the
+  // stranded-citizen nudge every frame.
   const last = cells[cells.length - 1];
   const lastWorld = worldPos(last.x, last.y, ox, oy);
   const destGrid = worldToGrid(dest.x, dest.y, ox, oy);
-  const end = isWalkable(state, destGrid.x, destGrid.y, rawGoal)
+  const allowRock =
+    last.x === rawGoal.x && last.y === rawGoal.y ? rawGoal : null;
+  const end = isWalkable(state, destGrid.x, destGrid.y, allowRock)
     ? dest
     : lastWorld;
   if (path.length) {
@@ -549,15 +552,22 @@ function startGatherTrip(
     c.job = { kind: "idle" };
     return;
   }
-  const pos = worldPos(tile.gx, tile.gy, ox, oy);
+  // Metal/stone sit on impassable rock — stand beside the deposit (harvest still
+  // uses job.tile). Standing on rock fights syncCitizens' stranded nudge.
+  const deposit = { x: tile.gx, y: tile.gy };
+  const standTile = isWalkable(state, deposit.x, deposit.y)
+    ? deposit
+    : (nearestWalkable(state, deposit) ?? deposit);
+  const pos = worldPos(standTile.x, standTile.y, ox, oy);
   // Spread workers so they don't stack; step off the building footprint when gathering on-site
   const onSite = tile.gx === building.x && tile.gy === building.y;
   const spread = onSite ? 22 : 12;
-  const dest = {
+  const preferred = {
     x: pos.x + (Math.random() - 0.5) * spread + (onSite ? (c.id % 3) * 6 - 6 : 0),
     y: pos.y + (Math.random() - 0.5) * (spread * 0.55) + (onSite ? (c.id % 2) * 4 - 2 : 0),
   };
-  const routed = routeWalk(c, state, ox, oy, dest, { x: tile.gx, y: tile.gy });
+  const stand = walkableStandPoint(state, ox, oy, standTile, preferred);
+  const routed = routeWalk(c, state, ox, oy, stand, stand.tile);
   c.carrying = null;
   c.carryAmount = 0;
   if (!routed) {
