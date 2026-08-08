@@ -518,6 +518,8 @@ describe("citizen wood gathering", () => {
 
 describe("citizen save/load positions", () => {
   it("round-trips world positions and jobs through snapshot/hydrate", () => {
+    const ox = 640;
+    const oy = 96;
     const citizens: Citizen[] = [
       {
         id: 3,
@@ -557,46 +559,60 @@ describe("citizen save/load positions", () => {
       },
     ];
 
-    const restored = hydrateCitizens(snapshotCitizens(citizens));
+    const snap = snapshotCitizens(citizens, ox, oy);
+    expect(snap[0].lx).toBeCloseTo(412.5 - ox);
+    expect(snap[0].ly).toBeCloseTo(188.25 - oy);
+
+    // Restore under a different viewport origin — map-local coords keep tiles stable
+    const ox2 = 800;
+    const oy2 = 120;
+    const restored = hydrateCitizens(snap, ox2, oy2);
     expect(restored).toHaveLength(2);
-    expect(restored[0].x).toBe(412.5);
-    expect(restored[0].y).toBe(188.25);
+    expect(restored[0].x).toBeCloseTo(412.5 - ox + ox2);
+    expect(restored[0].y).toBeCloseTo(188.25 - oy + oy2);
     expect(restored[0].carrying).toBe("wood");
     expect(restored[0].carryAmount).toBe(4);
-    expect(restored[0].job).toEqual(citizens[0].job);
-    expect(restored[1].x).toBe(300);
-    expect(restored[1].y).toBe(140);
+    expect(restored[0].job.kind).toBe("walk");
+    if (restored[0].job.kind === "walk") {
+      expect(restored[0].job.tx).toBeCloseTo(500 - ox + ox2);
+      expect(restored[0].job.ty).toBeCloseTo(200 - oy + oy2);
+      expect(restored[0].job.path[0].x).toBeCloseTo(450 - ox + ox2);
+    }
     expect(restored[1].job).toEqual(citizens[1].job);
   });
 
   it("keeps restored positions when syncCitizens reassigns work", () => {
-    let state = createNewGame(21);
+    const state = createNewGame(21);
     state.population.count = 2;
     const ox = 400;
     const oy = 80;
     const home = state.buildings.find((b) => b.type === "house")!;
     const homePos = worldPos(home.x, home.y, ox, oy);
 
-    const saved = hydrateCitizens([
-      {
-        id: 0,
-        x: homePos.x + 80,
-        y: homePos.y - 40,
-        bobPhase: 0,
-        carrying: null,
-        carryAmount: 0,
-        job: { kind: "idle" },
-      },
-      {
-        id: 1,
-        x: homePos.x - 60,
-        y: homePos.y + 30,
-        bobPhase: 0,
-        carrying: null,
-        carryAmount: 0,
-        job: { kind: "idle" },
-      },
-    ]);
+    const saved = hydrateCitizens(
+      [
+        {
+          id: 0,
+          lx: homePos.x + 80 - ox,
+          ly: homePos.y - 40 - oy,
+          bobPhase: 0,
+          carrying: null,
+          carryAmount: 0,
+          job: { kind: "idle" },
+        },
+        {
+          id: 1,
+          lx: homePos.x - 60 - ox,
+          ly: homePos.y + 30 - oy,
+          bobPhase: 0,
+          carrying: null,
+          carryAmount: 0,
+          job: { kind: "idle" },
+        },
+      ],
+      ox,
+      oy,
+    );
 
     const before = saved.map((c) => ({ x: c.x, y: c.y }));
     syncCitizens(saved, state, ox, oy);

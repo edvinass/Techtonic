@@ -14,11 +14,19 @@ import { ensureStarterStockpile, syncBuildingSeq } from "./engine";
 /** Pre-v5 Work tab used a single Gather (`production`) quota. */
 type LegacyPriorities = Partial<Priorities> & { production?: number };
 
-/** Phaser citizen runtime snapshot (schema v6+). Jobs are opaque JSON. */
+/**
+ * Phaser citizen runtime snapshot (schema v6+).
+ * Positions are map-local (relative to map origin) so viewport size changes
+ * don't shift workers. Legacy absolute `x`/`y` are still accepted on load.
+ */
 export interface SavedCitizen {
   id: number;
-  x: number;
-  y: number;
+  /** Position relative to map origin (preferred). */
+  lx?: number;
+  ly?: number;
+  /** Legacy absolute world coords from the first v6 patch. */
+  x?: number;
+  y?: number;
   bobPhase: number;
   carrying: ResourceId | null;
   carryAmount: number;

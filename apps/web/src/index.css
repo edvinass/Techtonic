@@ -436,11 +436,14 @@ input[type="text"] {
 .hud-side,
 .status-toast,
 .tutorial,
-.placement-banner {
+.placement-banner,
+.building-inspect {
   pointer-events: auto;
 }
 
 .hud-top {
+  position: relative;
+  z-index: 4;
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr);
   align-items: center;
@@ -776,7 +779,7 @@ input[type="text"] {
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: var(--shadow);
-  z-index: 5;
+  z-index: 10;
 }
 
 .save-dropdown button {
@@ -788,6 +791,7 @@ input[type="text"] {
 
 .hud-side {
   position: absolute;
+  z-index: 1;
   top: 4.15rem;
   right: 0.65rem;
   width: min(300px, calc(100vw - 1.3rem));
@@ -1407,6 +1411,87 @@ button.primary.harmony {
 .placement-banner button {
   padding: 0.3rem 0.65rem;
   font-size: 0.78rem;
+}
+
+.building-inspect {
+  position: absolute;
+  left: 0.85rem;
+  top: 4.25rem;
+  width: min(320px, calc(100vw - 2rem));
+  padding: 0.95rem 1rem 0.85rem;
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+  z-index: 3;
+}
+
+.building-inspect-head {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  align-items: start;
+  gap: 0.65rem;
+  margin-bottom: 0.55rem;
+}
+
+.building-inspect-eyebrow {
+  margin: 0 0 0.15rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+
+.building-inspect-head h3 {
+  margin: 0;
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.2rem;
+  line-height: 1.15;
+  color: #f0e2b0;
+}
+
+.building-inspect-close {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  min-width: 0;
+}
+
+.building-inspect-desc {
+  margin: 0 0 0.7rem;
+  color: var(--text);
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+
+.building-inspect-stats {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 0.65rem;
+}
+
+.building-inspect-stat {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 0.4rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(201, 162, 39, 0.14);
+  font-size: 0.8rem;
+}
+
+.building-inspect-stat dt {
+  margin: 0;
+  color: var(--muted);
+}
+
+.building-inspect-stat dd {
+  margin: 0;
+  color: #e8dcc0;
+}
+
+.building-inspect-hint {
+  margin: 0;
+  font-size: 0.72rem;
 }
 
 .autosave-hint {

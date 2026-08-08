@@ -283,31 +283,35 @@ export function generateMap(width: number, height: number, seed: number): Tile[]
   }
   carveRiver(tiles, width, height, bestX, bestY, rng);
 
-  // Pass 4: beaches + fertile banks beside water
+  // Pass 4: beaches + fertile banks within 2 tiles of water (~2× prior fertile area)
   for (const t of tiles) {
     if (t.terrain === "water") continue;
-    let nearWater = false;
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
+    let waterDist = Infinity;
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
         if (!dx && !dy) continue;
         const nx = t.x + dx;
         const ny = t.y + dy;
         if (!inBounds(nx, ny, width, height)) continue;
-        if (tiles[idx(nx, ny, width)].terrain === "water") nearWater = true;
+        if (tiles[idx(nx, ny, width)].terrain === "water") {
+          const d = Math.max(Math.abs(dx), Math.abs(dy));
+          if (d < waterDist) waterDist = d;
+        }
       }
     }
-    if (!nearWater) continue;
+    if (waterDist > 2) continue;
     if (t.terrain === "rock") continue;
     if (t.terrain === "forest") {
       // Keep some riverside woods
       continue;
     }
-    if (rng() < 0.55) {
+    // Immediate banks: some sand, mostly fertile. Outer ring: fertile only (no beach).
+    if (waterDist === 1 && rng() < 0.2) {
       t.terrain = "sand";
       t.deposit = null;
       t.stock = undefined;
       t.elev = 0;
-    } else if (rng() < 0.7) {
+    } else if (rng() < (waterDist === 1 ? 0.9 : 0.7)) {
       setFertile(t, Math.min(1, t.elev ?? 1));
     }
   }

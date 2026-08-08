@@ -10,8 +10,8 @@ export function defaultPressure(seed: number): GameState["pressure"] {
   return {
     season: "spring",
     seasonTick: 0,
-    // First raid waits until the opening settlement has real footing (~1 season+)
-    nextRaidAt: 240 + (seed % 80),
+    // First raid waits until the opening settlement has real footing (~2 seasons+)
+    nextRaidAt: 480 + (seed % 160),
     raidWarningTicks: 0,
     pendingEventId: null,
     eventCooldown: 55,
@@ -190,11 +190,11 @@ export function tickPressure(state: GameState): void {
     if (p.raidWarningTicks === 0) {
       resolveRaid(state);
       const rng = createRng(state.rngSeed + state.tick * 17);
-      const ageScale = 120 - ageIndex(state.age) * 14;
+      const ageScale = 240 - ageIndex(state.age) * 28;
       const earlyBonus =
-        ageIndex(state.age) === 0 ? 55 : ageIndex(state.age) === 1 ? 25 : 0;
+        ageIndex(state.age) === 0 ? 110 : ageIndex(state.age) === 1 ? 50 : 0;
       p.nextRaidAt =
-        state.tick + Math.max(28, ageScale + earlyBonus) + Math.floor(rng() * 45);
+        state.tick + Math.max(56, ageScale + earlyBonus) + Math.floor(rng() * 90);
     }
   } else if (state.tick >= p.nextRaidAt) {
     p.raidWarningTicks = 10;

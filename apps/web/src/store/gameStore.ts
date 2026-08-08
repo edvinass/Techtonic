@@ -31,6 +31,8 @@ interface GameStore {
   email: string | null;
   state: GameState | null;
   selectedBuilding: BuildingId | null;
+  /** Instance id of a map building being inspected in the HUD */
+  inspectedBuildingId: string | null;
   saveSlot: number | null;
   lastSavedAt: number | null;
   statusMessage: string | null;
@@ -46,6 +48,7 @@ interface GameStore {
   newGame: () => void;
   loadGame: (payload: SavedGamePayload, slot: number) => void;
   selectBuilding: (id: BuildingId | null) => void;
+  inspectBuilding: (id: string | null) => void;
   placeAt: (x: number, y: number) => string | null;
   updatePriorities: (p: Priorities) => void;
   research: (techId: TechId) => void;
@@ -57,7 +60,10 @@ interface GameStore {
   setStatus: (msg: string | null) => void;
   dismissTutorial: () => void;
   setCitizenSnapshotGetter: (getter: (() => SavedCitizen[]) | null) => void;
-  consumePendingCitizens: () => SavedCitizen[] | null;
+  /** Read loaded/stashed citizens without clearing (Strict Mode safe). */
+  peekPendingCitizens: () => SavedCitizen[] | null;
+  /** Keep a snapshot across Phaser destroy/remount (dev Strict Mode). */
+  stashPendingCitizens: (citizens: SavedCitizen[] | null) => void;
   getSavePayload: () => SavedGamePayload | null;
   /** Worker drop-off after a gather trip (carry-limited). */
   depositResources: (resource: ResourceId, amount: number) => void;
@@ -92,6 +98,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   email: stored.email,
   state: null,
   selectedBuilding: null,
+  inspectedBuildingId: null,
   saveSlot: null,
   lastSavedAt: null,
   statusMessage: null,
@@ -117,6 +124,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       state: null,
       saveSlot: null,
       selectedBuilding: null,
+      inspectedBuildingId: null,
       pendingCitizens: null,
       citizenSnapshotGetter: null,
     });
@@ -128,6 +136,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       state: createNewGame(),
       screen: "game",
       selectedBuilding: null,
+      inspectedBuildingId: null,
       saveSlot: null,
       lastSavedAt: null,
       tutorialDismissed: false,
@@ -144,6 +153,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       screen: "game",
       saveSlot: slot,
       selectedBuilding: null,
+      inspectedBuildingId: null,
       lastSavedAt: Date.now(),
       pendingCitizens: payload.citizens?.length ? payload.citizens : null,
       statusMessage: `Loaded slot ${slot}`,
@@ -152,7 +162,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   selectBuilding: (id) => {
     if (id) play("ui");
-    set({ selectedBuilding: id });
+    set({ selectedBuilding: id, inspectedBuildingId: id ? null : get().inspectedBuildingId });
+  },
+
+  inspectBuilding: (id) => {
+    if (id) play("ui");
+    set({
+      inspectedBuildingId: id,
+      selectedBuilding: id ? null : get().selectedBuilding,
+    });
   },
 
   placeAt: (x, y) => {
@@ -256,17 +274,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setCitizenSnapshotGetter: (getter) => set({ citizenSnapshotGetter: getter }),
 
-  consumePendingCitizens: () => {
-    const pending = get().pendingCitizens;
-    if (pending) set({ pendingCitizens: null });
-    return pending;
-  },
+  peekPendingCitizens: () => get().pendingCitizens,
+
+  stashPendingCitizens: (citizens) => set({ pendingCitizens: citizens }),
 
   getSavePayload: () => {
-    const { state, citizenSnapshotGetter } = get();
+    const { state, citizenSnapshotGetter, pendingCitizens } = get();
     if (!state) return null;
     const payload = serialize(state);
-    const citizens = citizenSnapshotGetter?.();
+    const citizens = citizenSnapshotGetter?.() ?? pendingCitizens ?? undefined;
     if (citizens?.length) payload.citizens = citizens;
     return payload;
   },
@@ -306,6 +322,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       state: next,
       statusMessage: `Cancelled ${name} — resources refunded`,
+      inspectedBuildingId:
+        get().inspectedBuildingId === buildingId ? null : get().inspectedBuildingId,
     });
     return true;
   },

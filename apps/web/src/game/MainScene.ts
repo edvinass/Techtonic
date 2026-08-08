@@ -114,6 +114,8 @@ export class MainScene extends Phaser.Scene {
   private centeredOnce = false;
   private citizens: Citizen[] = [];
   private citizenGfx = new Map<number, CitizenNode>();
+  /** Saved roster waiting for a stable map origin before hydrate */
+  private pendingCitizenHydrate: ReturnType<typeof snapshotCitizens> | null = null;
   private waterPulse = 0;
   private lastMapSig = "";
 
@@ -269,10 +271,20 @@ export class MainScene extends Phaser.Scene {
         return;
       }
 
-      // Click an unfinished scaffold to cancel and refund
-      const scaffold = state.buildings.find((b) => b.x === x && b.y === y && b.progress < 1);
-      if (scaffold) {
-        useGameStore.getState().cancelBuild(scaffold.id);
+      const building = state.buildings.find((b) => b.x === x && b.y === y);
+      if (building) {
+        // Unfinished scaffold: cancel and refund
+        if (building.progress < 1) {
+          useGameStore.getState().cancelBuild(building.id);
+          return;
+        }
+        useGameStore.getState().inspectBuilding(building.id);
+        return;
+      }
+
+      // Empty tile clears the inspect panel
+      if (useGameStore.getState().inspectedBuildingId) {
+        useGameStore.getState().inspectBuilding(null);
       }
     });
 
@@ -298,14 +310,27 @@ export class MainScene extends Phaser.Scene {
     });
 
     const store = useGameStore.getState();
-    const pending = store.consumePendingCitizens();
-    if (pending?.length) {
-      this.citizens = hydrateCitizens(pending);
-    }
-    const snapshotGetter = () => snapshotCitizens(this.citizens);
+    // Peek (don't clear): React Strict Mode remounts Phaser and would otherwise
+    // lose the hydrated roster on the second create(). Hydrate on first update
+    // once scale/map origin are stable.
+    const pending = store.peekPendingCitizens();
+    this.pendingCitizenHydrate = pending?.length ? pending : null;
+    const snapshotGetter = () => {
+      const origin = this.mapOrigin();
+      return snapshotCitizens(this.citizens, origin.ox, origin.oy);
+    };
     store.setCitizenSnapshotGetter(snapshotGetter);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       const current = useGameStore.getState();
+      // Stash live positions so a remount (Strict Mode) can restore them
+      if (this.citizens.length) {
+        const origin = this.mapOrigin();
+        current.stashPendingCitizens(
+          snapshotCitizens(this.citizens, origin.ox, origin.oy),
+        );
+      } else if (this.pendingCitizenHydrate?.length) {
+        current.stashPendingCitizens(this.pendingCitizenHydrate);
+      }
       if (current.citizenSnapshotGetter === snapshotGetter) {
         current.setCitizenSnapshotGetter(null);
       }
@@ -336,6 +361,11 @@ export class MainScene extends Phaser.Scene {
     this.waterPulse += delta;
 
     const { ox, oy } = this.mapOrigin();
+    if (this.pendingCitizenHydrate?.length && this.scale.width > 32) {
+      this.citizens = hydrateCitizens(this.pendingCitizenHydrate, ox, oy);
+      this.pendingCitizenHydrate = null;
+    }
+
     let forestN = 0;
     let stockBuckets = 0;
     for (const t of state.map.tiles) {
@@ -414,7 +444,7 @@ export class MainScene extends Phaser.Scene {
       const label =
         building.progress < 1
           ? `${name} (building… · click to cancel)`
-          : name;
+          : `${name} · click for details`;
       return { key: `b:${building.id}`, label };
     }
 

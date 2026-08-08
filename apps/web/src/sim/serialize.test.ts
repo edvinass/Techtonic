@@ -64,8 +64,8 @@ describe("serialize", () => {
     payload.citizens = [
       {
         id: 0,
-        x: 120,
-        y: 80,
+        lx: 120,
+        ly: 80,
         bobPhase: 0.5,
         carrying: null,
         carryAmount: 0,
@@ -75,8 +75,8 @@ describe("serialize", () => {
     // deserialize only restores GameState; citizens stay on the payload for the scene
     const restored = deserialize(payload);
     expect(restored.population.count).toBe(state.population.count);
-    expect(payload.citizens?.[0].x).toBe(120);
-    expect(payload.citizens?.[0].y).toBe(80);
+    expect(payload.citizens?.[0].lx).toBe(120);
+    expect(payload.citizens?.[0].ly).toBe(80);
   });
 
   it("migrates legacy Gather (production) priority into wood", () => {

@@ -6,6 +6,7 @@ import { currentMonthName, SEASON_INFO } from "../data/events";
 import { RESOURCE_ORDER, RESOURCES } from "../data/resources";
 import { TECH_LIST } from "../data/techs";
 import { ageUpRequirements, getBuildableTypes, isTechAvailable } from "../sim/engine";
+import { tileRemainingPct } from "../sim/mapgen";
 import { defenceReadiness } from "../sim/pressure";
 import {
   forestCoverRatio,
@@ -15,7 +16,7 @@ import {
   isTechExcluded,
 } from "../sim/strategy";
 import { applyWorkerCount, PRIORITY_IDS, workerTargets } from "../sim/priorities";
-import type { PriorityId, ResourceId, Resources } from "../sim/types";
+import type { BuildingDef, PriorityId, ResourceId, Resources } from "../sim/types";
 import { useGameStore } from "../store/gameStore";
 import { putSave } from "../api/client";
 import { BuildingIcon } from "./BuildingIcon";
@@ -31,6 +32,60 @@ const PRIORITY_LABELS: Record<PriorityId, string> = {
   research: "Research",
   defence: "Defence",
 };
+
+function buildingDetailRows(
+  def: BuildingDef,
+  workers: number,
+  depositPct: number | null,
+): { label: string; value: string }[] {
+  const rows: { label: string; value: string }[] = [];
+  if (def.housing) rows.push({ label: "Housing", value: `+${def.housing}` });
+  if (def.workerSlots > 0) {
+    rows.push({
+      label: "Staffed",
+      value: `${workers} / ${def.workerSlots} (${PRIORITY_LABELS[def.priority]})`,
+    });
+  } else if (def.priority !== "construction") {
+    rows.push({ label: "Work type", value: PRIORITY_LABELS[def.priority] });
+  }
+  if (def.produces) {
+    for (const [res, rate] of Object.entries(def.produces) as [ResourceId, number][]) {
+      rows.push({
+        label: `Produces ${RESOURCES[res].label}`,
+        value: `${rate.toFixed(2)} / tick when staffed`,
+      });
+    }
+  }
+  if (def.requiresDeposit) {
+    const label = RESOURCES[def.requiresDeposit].label;
+    rows.push({
+      label: "Deposit",
+      value:
+        depositPct != null
+          ? `${label} · ${depositPct}% remaining`
+          : `Must sit on a ${label.toLowerCase()} deposit`,
+    });
+  }
+  if (def.defenceBonus) {
+    rows.push({
+      label: "Defence",
+      value: `+${Math.round(def.defenceBonus * 100)}% readiness (coverage matters)`,
+    });
+  }
+  if (def.foodStorageBonus) {
+    rows.push({
+      label: "Food stores",
+      value: `−${Math.round(def.foodStorageBonus * 100)}% winter / event food drain`,
+    });
+  }
+  if (def.acceptsDropoff) {
+    rows.push({ label: "Drop-off", value: "Gatherers deliver resources here" });
+  }
+  if (def.isLandmark) {
+    rows.push({ label: "Landmark", value: "Required for age ascent or victory" });
+  }
+  return rows;
+}
 
 type SideTab = "build" | "priorities" | "tech" | "age";
 
@@ -48,6 +103,8 @@ export function Hud() {
   const state = useGameStore((s) => s.state);
   const selectedBuilding = useGameStore((s) => s.selectedBuilding);
   const selectBuilding = useGameStore((s) => s.selectBuilding);
+  const inspectedBuildingId = useGameStore((s) => s.inspectedBuildingId);
+  const inspectBuilding = useGameStore((s) => s.inspectBuilding);
   const cancelBuild = useGameStore((s) => s.cancelBuild);
   const updatePriorities = useGameStore((s) => s.updatePriorities);
   const research = useGameStore((s) => s.research);
@@ -90,10 +147,17 @@ export function Hud() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        const { selectedBuilding: sel, selectBuilding: clear } = useGameStore.getState();
+        const {
+          selectedBuilding: sel,
+          selectBuilding: clear,
+          inspectedBuildingId: inspected,
+          inspectBuilding: clearInspect,
+        } = useGameStore.getState();
         if (sel) {
           clear(null);
           useGameStore.getState().setStatus(null);
+        } else if (inspected) {
+          clearInspect(null);
         }
         setSaveOpen(false);
       }
@@ -126,6 +190,13 @@ export function Hud() {
     }
   }, [state, selectedBuilding, selectBuilding]);
 
+  useEffect(() => {
+    if (!inspectedBuildingId || !state) return;
+    if (!state.buildings.some((b) => b.id === inspectedBuildingId)) {
+      inspectBuilding(null);
+    }
+  }, [state, inspectedBuildingId, inspectBuilding]);
+
   if (!state) return null;
 
   const age = AGES[state.age];
@@ -140,6 +211,18 @@ export function Hud() {
   const popTight = state.population.count >= state.population.housingCap;
   const foodLow = state.resources.food < state.population.count * 2;
   const selectedDef = selectedBuilding ? BUILDINGS[selectedBuilding] : null;
+  const inspected = inspectedBuildingId
+    ? state.buildings.find((b) => b.id === inspectedBuildingId)
+    : null;
+  const inspectedDef = inspected ? BUILDINGS[inspected.type] : null;
+  const inspectedTile =
+    inspected &&
+    state.map.tiles[inspected.y * state.map.width + inspected.x];
+  const inspectedDepositPct = inspectedTile ? tileRemainingPct(inspectedTile) : null;
+  const inspectRows =
+    inspectedDef && inspected
+      ? buildingDetailRows(inspectedDef, inspected.workers, inspectedDepositPct)
+      : [];
   const scaffolds = state.buildings.filter((b) => b.progress < 1);
   const outcome = state.outcome;
   const victoryKind = state.stats.victoryKind;
@@ -362,6 +445,39 @@ export function Hud() {
             Cancel
           </button>
         </div>
+      )}
+      {inspected && inspectedDef && !selectedDef && (
+        <aside className="building-inspect chrome-panel" aria-label={`${inspectedDef.name} details`}>
+          <header className="building-inspect-head">
+            <span className="build-thumb">
+              <BuildingIcon id={inspected.type} size={44} />
+            </span>
+            <div>
+              <p className="building-inspect-eyebrow">Building</p>
+              <h3>{inspectedDef.name}</h3>
+            </div>
+            <button
+              type="button"
+              className="building-inspect-close"
+              title="Close (Esc)"
+              onClick={() => inspectBuilding(null)}
+            >
+              ✕
+            </button>
+          </header>
+          <p className="building-inspect-desc">{inspectedDef.description}</p>
+          {inspectRows.length > 0 && (
+            <dl className="building-inspect-stats">
+              {inspectRows.map((row) => (
+                <div key={row.label} className="building-inspect-stat">
+                  <dt>{row.label}</dt>
+                  <dd>{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          <p className="muted building-inspect-hint">Click empty ground or Esc to close</p>
+        </aside>
       )}
       {statusMessage && (
         <div className={`status-toast${selectedDef ? " below-placement" : ""}`}>{statusMessage}</div>

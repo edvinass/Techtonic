@@ -135,7 +135,7 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
     schemaVersion: 5,
     tick: 0,
     age: "stone",
-    resources: { food: 48, wood: 40, stone: 16, metal: 0, knowledge: 4 },
+    resources: { food: 96, wood: 80, stone: 32, metal: 0, knowledge: 8 },
     priorities: defaultPriorities(),
     map: { width: MAP_SIZE, height: MAP_SIZE, tiles },
     buildings: [

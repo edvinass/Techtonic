@@ -83,7 +83,26 @@ function isWorkKind(v: unknown): v is WorkKind {
   return typeof v === "string" && (WORK_KINDS as string[]).includes(v);
 }
 
-function parseJob(raw: unknown): CitizenJob {
+function shiftPoint(
+  p: { x: number; y: number },
+  dx: number,
+  dy: number,
+): { x: number; y: number } {
+  return { x: p.x + dx, y: p.y + dy };
+}
+
+/** Convert a live job to map-local coords for persistence. */
+function snapshotJob(job: CitizenJob, ox: number, oy: number): unknown {
+  if (job.kind !== "walk") return structuredClone(job);
+  return {
+    ...job,
+    tx: job.tx - ox,
+    ty: job.ty - oy,
+    path: job.path.map((p) => shiftPoint(p, -ox, -oy)),
+  };
+}
+
+function parseJob(raw: unknown, ox: number, oy: number): CitizenJob {
   if (!raw || typeof raw !== "object") return { kind: "idle" };
   const j = raw as Record<string, unknown>;
   if (j.kind === "idle") return { kind: "idle" };
@@ -135,7 +154,7 @@ function parseJob(raw: unknown): CitizenJob {
               typeof (p as { x: unknown }).x === "number" &&
               typeof (p as { y: unknown }).y === "number",
           )
-          .map((p) => ({ x: p.x, y: p.y }))
+          .map((p) => shiftPoint(p, ox, oy))
       : [];
     const tile = j.tile as { gx?: unknown; gy?: unknown } | undefined;
     const phase = j.phase;
@@ -149,11 +168,13 @@ function parseJob(raw: unknown): CitizenJob {
         phase === "toSite" ||
         phase === "wander")
     ) {
+      const tx = j.tx + ox;
+      const ty = j.ty + oy;
       const job: CitizenJob = {
         kind: "walk",
-        tx: j.tx,
-        ty: j.ty,
-        path: path.length ? path : [{ x: j.tx, y: j.ty }],
+        tx,
+        ty,
+        path: path.length ? path : [{ x: tx, y: ty }],
         buildingId: j.buildingId,
         work: j.work,
         phase,
@@ -170,21 +191,32 @@ function parseJob(raw: unknown): CitizenJob {
   return { kind: "idle" };
 }
 
-/** Snapshot live citizens for cloud saves. */
-export function snapshotCitizens(citizens: Citizen[]): SavedCitizen[] {
+/**
+ * Snapshot live citizens for cloud saves.
+ * Positions / walk targets are stored relative to the map origin.
+ */
+export function snapshotCitizens(
+  citizens: Citizen[],
+  ox: number,
+  oy: number,
+): SavedCitizen[] {
   return citizens.map((c) => ({
     id: c.id,
-    x: c.x,
-    y: c.y,
+    lx: c.x - ox,
+    ly: c.y - oy,
     bobPhase: c.bobPhase,
     carrying: c.carrying,
     carryAmount: c.carryAmount,
-    job: structuredClone(c.job),
+    job: snapshotJob(c.job, ox, oy),
   }));
 }
 
 /** Restore citizens from a save payload (positions + jobs). */
-export function hydrateCitizens(saved: SavedCitizen[]): Citizen[] {
+export function hydrateCitizens(
+  saved: SavedCitizen[],
+  ox: number,
+  oy: number,
+): Citizen[] {
   return saved.map((s, i) => {
     const carrying =
       s.carrying != null && isResourceId(s.carrying) ? s.carrying : null;
@@ -192,14 +224,22 @@ export function hydrateCitizens(saved: SavedCitizen[]): Citizen[] {
       typeof s.carryAmount === "number" && s.carryAmount > 0 && carrying
         ? s.carryAmount
         : 0;
+    // Prefer map-local coords; fall back to legacy absolute world x/y.
+    const hasLocal = typeof s.lx === "number" && typeof s.ly === "number";
+    const x = hasLocal ? s.lx! + ox : typeof s.x === "number" ? s.x : ox;
+    const y = hasLocal ? s.ly! + oy : typeof s.y === "number" ? s.y : oy;
+    // Legacy absolute jobs used world coords; local jobs need ox/oy added.
+    // Detect via presence of lx/ly on the citizen snapshot.
+    const jobOx = hasLocal ? ox : 0;
+    const jobOy = hasLocal ? oy : 0;
     return {
       id: typeof s.id === "number" ? s.id : i,
-      x: typeof s.x === "number" ? s.x : 0,
-      y: typeof s.y === "number" ? s.y : 0,
+      x,
+      y,
       bobPhase: typeof s.bobPhase === "number" ? s.bobPhase : Math.random() * Math.PI * 2,
       carrying: carryAmount > 0 ? carrying : null,
       carryAmount,
-      job: parseJob(s.job),
+      job: parseJob(s.job, jobOx, jobOy),
     };
   });
 }
