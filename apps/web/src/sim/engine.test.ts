@@ -3,12 +3,14 @@ import {
   advanceAge,
   ageUpRequirements,
   applyConstructionProgress,
+  cancelConstruction,
   createNewGame,
   harvestDeposit,
   placeBuilding,
   startResearch,
   tick,
 } from "./engine";
+import { BUILDINGS } from "../data/buildings";
 
 function runTicks(state: ReturnType<typeof createNewGame>, n: number) {
   let s = state;
@@ -116,6 +118,39 @@ describe("sim engine", () => {
     expect(state.buildings.find((b) => b.id === "b51")!.progress).toBeCloseTo(0.5);
     applyConstructionProgress(state, "b51", 1);
     expect(state.buildings.find((b) => b.id === "b51")!.progress).toBe(1);
+  });
+
+  it("cancelConstruction removes a scaffold and refunds its full cost", () => {
+    let state = createNewGame(11);
+    const before = { ...state.resources };
+    const cost = BUILDINGS.house.cost;
+    const free = state.map.tiles.find(
+      (t) =>
+        t.terrain !== "water" &&
+        !state.buildings.some((b) => b.x === t.x && b.y === t.y),
+    );
+    expect(free).toBeTruthy();
+    state = placeBuilding(state, "house", free!.x, free!.y);
+    const scaffold = state.buildings.find((b) => b.type === "house" && b.progress < 1);
+    expect(scaffold).toBeTruthy();
+    expect(state.resources.wood).toBe(before.wood - (cost.wood ?? 0));
+    expect(state.resources.stone).toBe(before.stone - (cost.stone ?? 0));
+
+    applyConstructionProgress(state, scaffold!.id, 0.4);
+    state = cancelConstruction(state, scaffold!.id);
+    expect(state.buildings.find((b) => b.id === scaffold!.id)).toBeUndefined();
+    expect(state.resources.wood).toBe(before.wood);
+    expect(state.resources.stone).toBe(before.stone);
+  });
+
+  it("cancelConstruction ignores finished buildings", () => {
+    const state = createNewGame(12);
+    const house = state.buildings.find((b) => b.type === "house" && b.progress >= 1);
+    expect(house).toBeTruthy();
+    const before = state.buildings.length;
+    const next = cancelConstruction(state, house!.id);
+    expect(next).toBe(state);
+    expect(next.buildings.length).toBe(before);
   });
 
   it("advances to farming age when gates are met", () => {

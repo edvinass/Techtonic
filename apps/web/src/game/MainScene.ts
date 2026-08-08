@@ -250,16 +250,24 @@ export class MainScene extends Phaser.Scene {
       if (pointer.rightButtonReleased() || pointer.middleButtonReleased()) return;
       if (this.spaceDown) return;
 
-      const selected = useGameStore.getState().selectedBuilding;
-      if (!selected) return;
-
       const state = useGameStore.getState().state;
       if (!state) return;
       const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
       const origin = this.mapOrigin();
       const { x, y } = screenToGrid(world.x - origin.ox, world.y - origin.oy);
-      const err = useGameStore.getState().placeAt(x, y);
-      if (err) useGameStore.getState().setStatus(err);
+
+      const selected = useGameStore.getState().selectedBuilding;
+      if (selected) {
+        const err = useGameStore.getState().placeAt(x, y);
+        if (err) useGameStore.getState().setStatus(err);
+        return;
+      }
+
+      // Click an unfinished scaffold to cancel and refund
+      const scaffold = state.buildings.find((b) => b.x === x && b.y === y && b.progress < 1);
+      if (scaffold) {
+        useGameStore.getState().cancelBuild(scaffold.id);
+      }
     });
 
     this.input.on("wheel", (_p: unknown, _dx: number, _dy: number, dz: number) => {
@@ -383,7 +391,10 @@ export class MainScene extends Phaser.Scene {
     const building = state.buildings.find((b) => b.x === gx && b.y === gy);
     if (building) {
       const name = BUILDINGS[building.type]?.name ?? building.type;
-      const label = building.progress < 1 ? `${name} (building…)` : name;
+      const label =
+        building.progress < 1
+          ? `${name} (building… · click to cancel)`
+          : name;
       return { key: `b:${building.id}`, label };
     }
 

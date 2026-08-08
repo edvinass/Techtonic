@@ -882,6 +882,62 @@ input[type="text"] {
   color: var(--ink);
 }
 
+.scaffold-list {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid rgba(201, 162, 39, 0.18);
+}
+
+.scaffold-heading {
+  margin: 0;
+}
+
+.scaffold-row {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.4rem;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(201, 162, 39, 0.18);
+}
+
+.scaffold-meta {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.scaffold-meta strong {
+  font-size: 0.88rem;
+}
+
+.scaffold-pct {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.scaffold-track {
+  height: 4px;
+}
+
+.scaffold-cancel {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 8px;
+  border-color: rgba(180, 90, 70, 0.45);
+  background: rgba(120, 40, 30, 0.35);
+  color: #f0c8b8;
+}
+
+.scaffold-cancel:hover {
+  border-color: rgba(220, 120, 90, 0.65);
+  background: rgba(140, 50, 35, 0.5);
+}
+
 .build-list,
 .tech-list {
   display: grid;

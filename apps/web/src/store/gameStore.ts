@@ -4,6 +4,7 @@ import { AGES } from "../data/ages";
 import {
   advanceAge,
   applyConstructionProgress,
+  cancelConstruction,
   claimHarmonyVictory,
   createNewGame,
   harvestDeposit,
@@ -53,6 +54,8 @@ interface GameStore {
   harvestDeposit: (gx: number, gy: number, amount: number) => number;
   /** Builder on-site work advances a scaffold. */
   applyBuildProgress: (buildingId: string, amount: number) => void;
+  /** Cancel an unfinished scaffold and refund its full cost. */
+  cancelBuild: (buildingId: string) => boolean;
   resolveEvent: (choiceIndex: 0 | 1) => void;
 }
 
@@ -261,6 +264,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!state || amount <= 0) return;
     // Mutate live progress (citizens build every frame; tick() clones later)
     applyConstructionProgress(state, buildingId, amount);
+  },
+
+  cancelBuild: (buildingId) => {
+    const { state } = get();
+    if (!state) return false;
+    const building = state.buildings.find((b) => b.id === buildingId);
+    if (!building || building.progress >= 1) return false;
+    const next = cancelConstruction(state, buildingId);
+    if (next === state) return false;
+    const name = building.type.replace(/_/g, " ");
+    play("place_fail");
+    set({
+      state: next,
+      statusMessage: `Cancelled ${name} — resources refunded`,
+    });
+    return true;
   },
 
   resolveEvent: (choiceIndex) => {

@@ -82,6 +82,12 @@ function spend(resources: Resources, cost: Partial<Resources>): void {
   }
 }
 
+function refund(resources: Resources, cost: Partial<Resources>): void {
+  for (const key of Object.keys(cost) as (keyof Resources)[]) {
+    resources[key] += cost[key] ?? 0;
+  }
+}
+
 export function foodStorageMultiplier(state: GameState): number {
   let bonus = 0;
   for (const b of state.buildings) {
@@ -243,6 +249,19 @@ export function placeBuilding(state: GameState, type: BuildingId, x: number, y: 
     progress: 0,
     workers: 0,
   });
+  return next;
+}
+
+/** Remove an unfinished scaffold and return its full placement cost. */
+export function cancelConstruction(state: GameState, buildingId: string): GameState {
+  if (state.outcome !== "playing") return state;
+  const building = state.buildings.find((b) => b.id === buildingId);
+  if (!building || building.progress >= 1) return state;
+  const def = BUILDINGS[building.type];
+  if (!def) return state;
+  const next = cloneState(state);
+  refund(next.resources, def.cost);
+  next.buildings = next.buildings.filter((b) => b.id !== buildingId);
   return next;
 }
 

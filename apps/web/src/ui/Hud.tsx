@@ -48,6 +48,7 @@ export function Hud() {
   const state = useGameStore((s) => s.state);
   const selectedBuilding = useGameStore((s) => s.selectedBuilding);
   const selectBuilding = useGameStore((s) => s.selectBuilding);
+  const cancelBuild = useGameStore((s) => s.cancelBuild);
   const updatePriorities = useGameStore((s) => s.updatePriorities);
   const research = useGameStore((s) => s.research);
   const tryAgeUp = useGameStore((s) => s.tryAgeUp);
@@ -139,6 +140,7 @@ export function Hud() {
   const popTight = state.population.count >= state.population.housingCap;
   const foodLow = state.resources.food < state.population.count * 2;
   const selectedDef = selectedBuilding ? BUILDINGS[selectedBuilding] : null;
+  const scaffolds = state.buildings.filter((b) => b.progress < 1);
   const outcome = state.outcome;
   const victoryKind = state.stats.victoryKind;
 
@@ -419,6 +421,40 @@ export function Hud() {
           <section className="chrome-panel">
             <h3>Build</h3>
             <p className="muted panel-hint">Select a building, then click the map.</p>
+            {scaffolds.length > 0 && (
+              <div className="scaffold-list">
+                <p className="muted panel-hint scaffold-heading">Under construction</p>
+                {scaffolds.map((b) => {
+                  const def = BUILDINGS[b.type];
+                  const pct = Math.floor(b.progress * 100);
+                  return (
+                    <div key={b.id} className="scaffold-row">
+                      <span className="build-thumb">
+                        <BuildingIcon id={b.type} size={36} />
+                      </span>
+                      <span className="scaffold-meta">
+                        <strong>{def?.name ?? b.type}</strong>
+                        <span className="scaffold-pct">{pct}%</span>
+                        <div className="progress-track scaffold-track">
+                          <div
+                            className="progress-fill"
+                            style={{ width: `${Math.min(100, pct)}%` }}
+                          />
+                        </div>
+                      </span>
+                      <button
+                        type="button"
+                        className="scaffold-cancel"
+                        title="Cancel and refund resources"
+                        onClick={() => cancelBuild(b.id)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <div className="build-list">
               {buildable.map((id) => {
                 const def = BUILDINGS[id];
