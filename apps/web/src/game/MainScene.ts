@@ -21,6 +21,13 @@ import {
   type Citizen,
 } from "./citizens";
 import { gridToScreen, screenToGrid, TILE_HEIGHT, TILE_WIDTH } from "./iso";
+import {
+  createRaiderArt,
+  isRaiderArtCurrent,
+  updateRaiderArt,
+  type RaiderNode,
+} from "./raiderArt";
+import { stepRaiderGang, type RaiderGang } from "./raiders";
 import { drawResourceMark } from "./resourceArt";
 import { mapTextResolution } from "./textRes";
 
@@ -106,6 +113,7 @@ export class MainScene extends Phaser.Scene {
   private tileGraphics!: Phaser.GameObjects.Graphics;
   private buildingLayer!: Phaser.GameObjects.Container;
   private citizenLayer!: Phaser.GameObjects.Container;
+  private raiderLayer!: Phaser.GameObjects.Container;
   private fxLayer!: Phaser.GameObjects.Container;
   private ghost!: Phaser.GameObjects.Graphics;
   private ghostBuilding!: Phaser.GameObjects.Graphics;
@@ -114,6 +122,9 @@ export class MainScene extends Phaser.Scene {
   private centeredOnce = false;
   private citizens: Citizen[] = [];
   private citizenGfx = new Map<number, CitizenNode>();
+  /** Visual-only raiding pack while `raidWarningTicks` is active. */
+  private raiderGang: RaiderGang | null = null;
+  private raiderGfx = new Map<number, RaiderNode>();
   /** Saved roster waiting for a stable map origin before hydrate */
   private pendingCitizenHydrate: ReturnType<typeof snapshotCitizens> | null = null;
   private waterPulse = 0;
@@ -176,6 +187,7 @@ export class MainScene extends Phaser.Scene {
     this.tileGraphics = this.add.graphics();
     this.buildingLayer = this.add.container(0, 0);
     this.citizenLayer = this.add.container(0, 0);
+    this.raiderLayer = this.add.container(0, 0);
     this.fxLayer = this.add.container(0, 0);
     this.ghost = this.add.graphics();
     this.ghost.setDepth(50_000);
@@ -411,7 +423,9 @@ export class MainScene extends Phaser.Scene {
         });
       }
     }
+    this.raiderGang = stepRaiderGang(this.raiderGang, state, delta, ox, oy);
     this.renderCitizens();
+    this.renderRaiders();
     this.updateFloaters(delta);
 
     // Clear stale placement ghosts when not building (pointermove alone can leave them)
@@ -1138,6 +1152,35 @@ export class MainScene extends Phaser.Scene {
       if (!live.has(id)) {
         node.destroy(true);
         this.citizenGfx.delete(id);
+      }
+    }
+  }
+
+  private renderRaiders() {
+    const live = new Set<number>();
+    const gang = this.raiderGang;
+    if (gang) {
+      for (const r of gang.raiders) {
+        live.add(r.id);
+        let node = this.raiderGfx.get(r.id);
+        if (node && !isRaiderArtCurrent(node)) {
+          node.destroy(true);
+          this.raiderGfx.delete(r.id);
+          node = undefined;
+        }
+        if (!node) {
+          node = createRaiderArt(this, r);
+          this.raiderGfx.set(r.id, node);
+          this.raiderLayer.add(node);
+        }
+        updateRaiderArt(node, r);
+      }
+    }
+
+    for (const [id, node] of this.raiderGfx) {
+      if (!live.has(id)) {
+        node.destroy(true);
+        this.raiderGfx.delete(id);
       }
     }
   }
