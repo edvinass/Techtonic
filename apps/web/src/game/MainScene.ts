@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { BUILDINGS } from "../data/buildings";
 import { RESOURCES } from "../data/resources";
 import { canPlaceBuilding } from "../sim/engine";
-import type { GameState, ResourceId, TerrainId } from "../sim/types";
+import type { GameState, ResourceId, SeasonId, TerrainId, Tile } from "../sim/types";
 import { useGameStore } from "../store/gameStore";
 import { drawBuildingArt } from "./buildingArt";
 import { createCitizenArt, updateCitizenArt, type CitizenNode } from "./citizenArt";
@@ -13,16 +13,27 @@ import { mapTextResolution } from "./textRes";
 
 const TERRAIN_COLORS: Record<TerrainId, number> = {
   grass: 0x5a8f4d,
-  forest: 0x3d6b36,
+  forest: 0x2f5a28,
   rock: 0x7a7f88,
-  water: 0x3a6ea5,
+  water: 0x2f6a9e,
+  sand: 0xc4b07a,
+  fertile: 0x6a9a48,
 };
 
 const TERRAIN_SIDE: Record<TerrainId, number> = {
   grass: 0x3f6a35,
-  forest: 0x2a4a24,
+  forest: 0x1e3e1a,
   rock: 0x555960,
-  water: 0x2a5080,
+  water: 0x1e4a78,
+  sand: 0x9a8a55,
+  fertile: 0x4a7a32,
+};
+
+const SEASON_GRASS: Record<SeasonId, { top: number; side: number }> = {
+  spring: { top: 0x6a9a55, side: 0x4a7a38 },
+  summer: { top: 0x5a8f4d, side: 0x3f6a35 },
+  autumn: { top: 0x8a8a3a, side: 0x6a6a28 },
+  winter: { top: 0x8a9a88, side: 0x6a7a68 },
 };
 
 function shadeColor(color: number, factor: number): number {
@@ -32,10 +43,10 @@ function shadeColor(color: number, factor: number): number {
   return (r << 16) | (g << 8) | b;
 }
 
-function tileElev(terrain: TerrainId): number {
-  if (terrain === "rock") return 5;
-  if (terrain === "water") return 0;
-  return 3;
+function tileElevPx(tile: Tile): number {
+  if (tile.terrain === "water") return 0;
+  const e = tile.elev ?? (tile.terrain === "rock" ? 3 : 1);
+  return 2 + e * 2.2;
 }
 
 interface Floater {
@@ -58,6 +69,8 @@ export class MainScene extends Phaser.Scene {
   private centeredOnce = false;
   private citizens: Citizen[] = [];
   private citizenGfx = new Map<number, CitizenNode>();
+  private waterPulse = 0;
+  private lastMapSig = "";
 
   private isPanning = false;
   private panMoved = false;
@@ -93,7 +106,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor("#1a2218");
+    this.cameras.main.setBackgroundColor("#121a16");
     // Keep sub-pixel positions so zoomed vectors stay smooth (not stair-stepped)
     this.cameras.main.setRoundPixels(false);
     this.applyZoom(this.userZoom);
@@ -212,17 +225,26 @@ export class MainScene extends Phaser.Scene {
 
     this.handleKeyboardPan(delta);
     this.handleEdgePan(delta);
+    this.waterPulse += delta;
 
     const { ox, oy } = this.mapOrigin();
-    const structureHash = `${state.age}:${state.buildings
+    let forestN = 0;
+    let stockBuckets = 0;
+    for (const t of state.map.tiles) {
+      if (t.terrain === "forest") forestN += 1;
+      if (t.deposit) stockBuckets += 1 + Math.floor((t.stock ?? 0) / 12);
+    }
+    const mapSig = `${forestN}:${stockBuckets}`;
+    const structureHash = `${state.age}:${state.pressure.season}:${state.buildings
       .map((b) => `${b.id}:${b.type}:${b.progress.toFixed(2)}:${b.x},${b.y}`)
-      .join("|")}:${this.scale.width}`;
-    if (structureHash !== this.lastStructureHash) {
+      .join("|")}:${this.scale.width}:${Math.floor(this.waterPulse / 480)}`;
+    if (structureHash !== this.lastStructureHash || mapSig !== this.lastMapSig) {
       this.redrawStructure(state);
       this.lastStructureHash = structureHash;
+      this.lastMapSig = mapSig;
     }
 
-    if (!state.paused) {
+    if (!state.paused && state.outcome === "playing") {
       syncCitizens(this.citizens, state, ox, oy);
       stepCitizens(this.citizens, delta, {
         state,
@@ -238,6 +260,7 @@ export class MainScene extends Phaser.Scene {
             life: 1200,
           });
         },
+        onHarvest: (gx, gy, amount) => useGameStore.getState().harvestDeposit(gx, gy, amount),
       });
     }
     this.renderCitizens();
@@ -312,27 +335,51 @@ export class MainScene extends Phaser.Scene {
     this.tileGraphics.clear();
     this.buildingLayer.removeAll(true);
 
-    // Later ages tint developed grassland slightly richer
-    const lushGrass = state.age !== "stone";
+    const season = state.pressure.season;
+    const shimmer = 0.5 + 0.5 * Math.sin(this.waterPulse * 0.004);
 
     // Draw back-to-front so south faces of nearer tiles occlude correctly
     const tiles = [...state.map.tiles].sort((a, b) => a.x + a.y - (b.x + b.y));
     for (const tile of tiles) {
       const { sx, sy } = gridToScreen(tile.x, tile.y);
-      let color = TERRAIN_COLORS[tile.terrain];
-      let side = TERRAIN_SIDE[tile.terrain];
-      if (lushGrass && tile.terrain === "grass") {
-        color = 0x6fa85a;
-        side = 0x4a7a3a;
+      const elev = tileElevPx(tile);
+      let color = TERRAIN_COLORS[tile.terrain] ?? TERRAIN_COLORS.grass;
+      let side = TERRAIN_SIDE[tile.terrain] ?? TERRAIN_SIDE.grass;
+
+      if (tile.terrain === "grass") {
+        color = SEASON_GRASS[season].top;
+        side = SEASON_GRASS[season].side;
+        if (state.age !== "stone") color = shadeColor(color, 1.08);
+      } else if (tile.terrain === "fertile") {
+        color = season === "winter" ? 0x7a8a5a : 0x6aaa42;
+        side = 0x4a7a30;
+      } else if (tile.terrain === "forest") {
+        color = season === "autumn" ? 0x6a5a28 : season === "winter" ? 0x4a5a48 : 0x2f5a28;
+        side = shadeColor(color, 0.7);
+      } else if (tile.terrain === "water") {
+        color = shadeColor(0x2f6a9e, 0.92 + shimmer * 0.12);
+        side = 0x1e4a78;
+      } else if (tile.terrain === "sand") {
+        color = season === "winter" ? 0xb8b0a0 : 0xc4b07a;
       }
-      const elev = tileElev(tile.terrain);
-      this.drawIsoTile(this.tileGraphics, ox + sx, oy + sy, color, side, elev);
-      if (tile.deposit === "wood") {
-        drawResourceMark(this.tileGraphics, ox + sx, oy + sy - elev, "wood", 1);
+
+      // Checker warmth for depth
+      if ((tile.x + tile.y) % 2 === 0 && tile.terrain !== "water") {
+        color = shadeColor(color, 1.04);
+      }
+
+      this.drawIsoTile(this.tileGraphics, ox + sx, oy + sy, color, side, elev, 1, tile.terrain);
+
+      const topY = oy + sy - elev;
+      if (tile.terrain === "forest" || tile.deposit === "wood") {
+        const stockScale = tile.stock !== undefined ? Math.max(0.35, Math.min(1, tile.stock / 55)) : 1;
+        this.drawForestCanopy(this.tileGraphics, ox + sx, topY, stockScale, season, tile.x + tile.y);
       } else if (tile.deposit === "stone") {
-        drawResourceMark(this.tileGraphics, ox + sx, oy + sy - elev, "stone", 1);
+        drawResourceMark(this.tileGraphics, ox + sx, topY, "stone", 0.95);
       } else if (tile.deposit === "metal") {
-        drawResourceMark(this.tileGraphics, ox + sx, oy + sy - elev, "metal", 1);
+        drawResourceMark(this.tileGraphics, ox + sx, topY, "metal", 1);
+      } else if (tile.terrain === "fertile" && !state.buildings.some((b) => b.x === tile.x && b.y === tile.y)) {
+        this.drawFertileTufts(this.tileGraphics, ox + sx, topY);
       }
     }
 
@@ -341,7 +388,7 @@ export class MainScene extends Phaser.Scene {
       const def = BUILDINGS[b.type];
       const { sx, sy } = gridToScreen(b.x, b.y);
       const tile = state.map.tiles[b.y * state.map.width + b.x];
-      const elev = tile ? tileElev(tile.terrain) : 3;
+      const elev = tile ? tileElevPx(tile) : 3;
       const g = this.add.graphics();
       drawBuildingArt(g, b.type, {
         alpha: b.progress < 1 ? 0.7 : 1,
@@ -356,6 +403,60 @@ export class MainScene extends Phaser.Scene {
       g.setPosition(ox + sx, oy + sy - elev);
       g.setDepth(b.x + b.y + 0.5);
       this.buildingLayer.add(g);
+    }
+  }
+
+  private drawForestCanopy(
+    g: Phaser.GameObjects.Graphics,
+    x: number,
+    y: number,
+    scale: number,
+    season: SeasonId,
+    salt: number,
+  ) {
+    const s = scale;
+    const canopy =
+      season === "autumn" ? 0x9a6a2a : season === "winter" ? 0x5a6a58 : 0x2f6a28;
+    const canopyLit = shadeColor(canopy, 1.15);
+    // Soft ground shadow
+    g.fillStyle(0x000000, 0.2 * s);
+    g.fillEllipse(x, y + 2, 22 * s, 10 * s);
+    // Trunk
+    g.fillStyle(0x5a3d22, 1);
+    g.fillRect(x - 1.8 * s, y - 6 * s, 3.6 * s, 10 * s);
+    // Layered canopy diamonds (seeded offset so stands feel organic)
+    const ox = ((salt * 17) % 5) - 2;
+    for (const [dy, hw, col] of [
+      [-22, 11, canopy],
+      [-15, 10, canopyLit],
+      [-9, 8, canopy],
+    ] as const) {
+      const d = {
+        N: { x: x + ox, y: y + dy * s - hw * 0.5 * s },
+        E: { x: x + ox + hw * s, y: y + dy * s },
+        S: { x: x + ox, y: y + dy * s + hw * 0.5 * s },
+        W: { x: x + ox - hw * s, y: y + dy * s },
+      };
+      g.fillStyle(col, 1);
+      g.beginPath();
+      g.moveTo(d.N.x, d.N.y);
+      g.lineTo(d.E.x, d.E.y);
+      g.lineTo(d.S.x, d.S.y);
+      g.lineTo(d.W.x, d.W.y);
+      g.closePath();
+      g.fillPath();
+    }
+  }
+
+  private drawFertileTufts(g: Phaser.GameObjects.Graphics, x: number, y: number) {
+    g.fillStyle(0x8fbf4a, 0.85);
+    for (const [dx, dy] of [
+      [-6, 0],
+      [4, -2],
+      [2, 3],
+      [-2, -3],
+    ] as const) {
+      g.fillTriangle(x + dx, y + dy - 4, x + dx - 2, y + dy, x + dx + 2, y + dy);
     }
   }
 
@@ -424,7 +525,8 @@ export class MainScene extends Phaser.Scene {
     const { sx, sy } = gridToScreen(x, y);
     const check = canPlaceBuilding(state, selected, x, y);
     const color = check.ok ? 0x8fd18a : 0xd16a6a;
-    const elev = 3;
+    const tile = state.map.tiles[y * state.map.width + x];
+    const elev = tile ? tileElevPx(tile) : 3;
     this.drawIsoTile(this.ghost, ox + sx, oy + sy, color, shadeColor(color, 0.7), elev, 0.4);
     drawBuildingArt(this.ghostBuilding, selected, {
       alpha: 0.55,
@@ -442,6 +544,7 @@ export class MainScene extends Phaser.Scene {
     side: number,
     elev: number,
     alpha = 1,
+    terrain?: TerrainId,
   ) {
     const hw = TILE_WIDTH / 2;
     const hh = TILE_HEIGHT / 2;
@@ -455,7 +558,6 @@ export class MainScene extends Phaser.Scene {
     const Wb = { x: cx - hw, y: cy };
 
     if (elev > 0) {
-      // Left & right vertical faces for depth
       g.fillStyle(shadeColor(side, 0.85), alpha);
       g.beginPath();
       g.moveTo(W.x, W.y);
@@ -484,16 +586,26 @@ export class MainScene extends Phaser.Scene {
     g.closePath();
     g.fillPath();
 
-    // Subtle top shading: lighter north tip, darker south
-    g.fillStyle(0xffffff, 0.06 * alpha);
-    g.beginPath();
-    g.moveTo(N.x, N.y);
-    g.lineTo(E.x, E.y);
-    g.lineTo(W.x, W.y);
-    g.closePath();
-    g.fillPath();
+    // Water highlight stripe
+    if (terrain === "water") {
+      g.fillStyle(0xa8d4f0, 0.12 * alpha);
+      g.beginPath();
+      g.moveTo(N.x, N.y + 4);
+      g.lineTo(E.x - 6, E.y);
+      g.lineTo(W.x + 6, W.y);
+      g.closePath();
+      g.fillPath();
+    } else {
+      g.fillStyle(0xffffff, 0.07 * alpha);
+      g.beginPath();
+      g.moveTo(N.x, N.y);
+      g.lineTo(E.x, E.y);
+      g.lineTo(W.x, W.y);
+      g.closePath();
+      g.fillPath();
+    }
 
-    g.lineStyle(1, 0x1b2618, alpha * 0.55);
+    g.lineStyle(1, terrain === "water" ? 0x1a3a58 : 0x1b2618, alpha * 0.5);
     g.beginPath();
     g.moveTo(N.x, N.y);
     g.lineTo(E.x, E.y);

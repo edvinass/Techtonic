@@ -56,7 +56,7 @@ describe("pressure systems", () => {
     state.resources.food = 40;
     state.resources.wood = 40;
     state.priorities = { food: 10, construction: 10, research: 10, production: 10, defence: 60 };
-    expect(defenceReadiness(state.priorities)).toBeGreaterThan(0.22);
+    expect(defenceReadiness(state)).toBeGreaterThan(0.28);
     state.pressure.nextRaidAt = state.tick + 999;
     state.pressure.raidWarningTicks = 1;
     state.pressure.eventCooldown = 999;

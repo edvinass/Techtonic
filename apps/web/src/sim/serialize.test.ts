@@ -26,8 +26,10 @@ describe("serialize", () => {
       pressure: undefined,
     };
     const restored = deserialize(v1);
-    expect(restored.schemaVersion).toBe(2);
+    expect(restored.schemaVersion).toBe(3);
     expect(restored.pressure.season).toBe("spring");
     expect(restored.pressure.nextRaidAt).toBeGreaterThan(0);
+    expect(restored.outcome).toBe("playing");
+    expect(restored.map.tiles.some((t) => t.deposit && (t.stock ?? 0) > 0)).toBe(true);
   });
 });

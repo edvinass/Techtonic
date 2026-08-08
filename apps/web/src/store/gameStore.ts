@@ -3,6 +3,7 @@ import { AGES } from "../data/ages";
 import {
   advanceAge,
   createNewGame,
+  harvestDeposit,
   placeBuilding,
   setPaused,
   setPriorities,
@@ -44,6 +45,8 @@ interface GameStore {
   getSavePayload: () => SavedGamePayload | null;
   /** Worker drop-off after a gather trip (carry-limited). */
   depositResources: (resource: ResourceId, amount: number) => void;
+  /** Deplete a map deposit; returns amount actually taken. */
+  harvestDeposit: (gx: number, gy: number, amount: number) => number;
   resolveEvent: (choiceIndex: 0 | 1) => void;
 }
 
@@ -103,7 +106,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       saveSlot: null,
       lastSavedAt: null,
       tutorialDismissed: false,
-      statusMessage: "Stone Age begins. Gather wood and grow your people.",
+      statusMessage:
+        "Stone Age begins. Forests run out. Winters bite. Fortify before the raids.",
     });
   },
 
@@ -167,13 +171,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   stepTick: () => {
     const { state } = get();
-    if (!state || state.pressure.pendingEventId) return;
+    if (!state || state.pressure.pendingEventId || state.outcome !== "playing") return;
     const next = tick(state);
     const banner = next.pressure.lastBanner;
     if (banner) next.pressure.lastBanner = null;
+    let status = banner;
+    if (next.outcome === "victory") status = "Victory — your people reach the stars!";
+    if (next.outcome === "defeat") status = "Defeat — the settlement has fallen.";
     set({
       state: next,
-      ...(banner ? { statusMessage: banner } : {}),
+      ...(status ? { statusMessage: status } : {}),
     });
   },
 
@@ -195,6 +202,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const next = structuredClone(state);
     next.resources[resource] += amount;
     set({ state: next });
+  },
+
+  harvestDeposit: (gx, gy, amount) => {
+    const { state } = get();
+    if (!state || amount <= 0) return 0;
+    // Mutate live map stock (Phaser reads getState each frame; tick() clones later)
+    const taken = harvestDeposit(state, gx, gy, amount);
+    return taken;
   },
 
   resolveEvent: (choiceIndex) => {

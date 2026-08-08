@@ -214,6 +214,15 @@ export function drawBuildingArt(
     case "launch_pad":
       drawLaunchPad(g, alpha);
       break;
+    case "watchtower":
+      drawWatchtower(g, alpha);
+      break;
+    case "palisade":
+      drawPalisade(g, alpha);
+      break;
+    case "storehouse":
+      drawStorehouse(g, alpha);
+      break;
   }
 
   if (progress < 1) {
@@ -597,4 +606,51 @@ function drawLaunchPad(g: GameObjects.Graphics, a: number) {
   g.fillTriangle(-5, -24, 5, -24, 0, -34);
   g.fillStyle(0xff8a3a, 0.65 * a);
   g.fillTriangle(-3, 2, 3, 2, 0, 10);
+}
+
+function drawWatchtower(g: GameObjects.Graphics, a: number) {
+  const { top } = isoBox(g, 0, 2, 10, 5, 28, 0x7a5230, a, { top: 0x8a6238 });
+  isoBox(g, 0, -26, 14, 7, 8, 0x6b4a2a, a, { top: 0x9a7a4a });
+  // Lookout posts
+  for (const p of [top.N, top.E, top.S, top.W]) {
+    g.lineStyle(2, 0x5a3d22, a);
+    g.lineBetween(p.x, p.y - 28, p.x, p.y - 36);
+  }
+  g.fillStyle(0xc94545, 0.85 * a);
+  g.fillCircle(0, -40, 3);
+}
+
+function drawPalisade(g: GameObjects.Graphics, a: number) {
+  const base = diamond(0, 2, HW - 8, HH - 4);
+  const posts = [
+    base.W,
+    { x: (base.W.x + base.N.x) / 2, y: (base.W.y + base.N.y) / 2 },
+    base.N,
+    { x: (base.N.x + base.E.x) / 2, y: (base.N.y + base.E.y) / 2 },
+    base.E,
+    { x: (base.E.x + base.S.x) / 2, y: (base.E.y + base.S.y) / 2 },
+    base.S,
+    { x: (base.S.x + base.W.x) / 2, y: (base.S.y + base.W.y) / 2 },
+  ];
+  for (const p of posts) {
+    g.lineStyle(3.5, 0x5a3d22, a);
+    g.lineBetween(p.x, p.y, p.x, p.y - 16);
+    g.fillStyle(0x8a6a3a, a);
+    g.fillCircle(p.x, p.y - 17, 2);
+  }
+  g.lineStyle(2.5, 0x6b4a2a, 0.85 * a);
+  g.lineBetween(base.W.x, base.W.y - 10, base.N.x, base.N.y - 10);
+  g.lineBetween(base.N.x, base.N.y - 10, base.E.x, base.E.y - 10);
+  g.lineBetween(base.E.x, base.E.y - 10, base.S.x, base.S.y - 10);
+  g.lineBetween(base.S.x, base.S.y - 10, base.W.x, base.W.y - 10);
+}
+
+function drawStorehouse(g: GameObjects.Graphics, a: number) {
+  const { top } = isoBox(g, 0, 0, HW - 7, HH - 3.5, 14, 0xc4a574, a, { top: 0xb8956a });
+  isoGableRoof(g, top, 8, 0x8f6a3a, a);
+  // Grain sacks
+  isoBox(g, -8, 4, 5, 2.5, 4, 0xd4c05a, a, { top: 0xe8d06a });
+  isoBox(g, 6, 5, 5, 2.5, 4, 0xc4b04a, a, { top: 0xd8c45a });
+  g.lineStyle(1.5, 0x5a3d22, 0.7 * a);
+  g.lineBetween(top.W.x + 4, top.W.y + 2, top.E.x - 4, top.E.y + 2);
 }

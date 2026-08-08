@@ -13,11 +13,11 @@ export const CARRY_CAPACITY: Record<ResourceId, number> = {
 
 /** Gather rate while standing on a resource tile (units per second). */
 export const GATHER_PER_SEC: Record<ResourceId, number> = {
-  food: 3.2,
-  wood: 2.6,
-  stone: 2.1,
-  metal: 1.8,
-  knowledge: 1.4,
+  food: 2.6,
+  wood: 2.1,
+  stone: 1.7,
+  metal: 1.45,
+  knowledge: 1.2,
 };
 
 export function resourceForBuilding(building: BuildingInstance): ResourceId | null {
@@ -50,25 +50,27 @@ export function findResourceTile(
   const maxDist =
     resource === "wood" || resource === "stone" || resource === "metal" ? 14 : 8;
 
+  const hasStock = (t: Tile) => t.stock === undefined || t.stock > 0;
+
   if (resource === "wood") {
     for (const t of state.map.tiles) {
       if (t.deposit !== "wood" && t.terrain !== "forest") continue;
+      if (t.deposit === "wood" && !hasStock(t)) continue;
       const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
       if (dist > maxDist) continue;
-      // Prefer nearby trees that are NOT the camp tile itself (so they walk out)
       let score = dist;
       if (t.deposit === "wood") score -= 0.5;
+      if ((t.stock ?? 99) < 15) score += 2; // prefer fuller stands
       if (t.x === building.x && t.y === building.y) score += 8;
       if (preferAwayFrom && dist >= 1) score -= 0.25;
-      // Slight randomness so workers spread across several trees
       score += Math.random() * 1.5;
       candidates.push({ gx: t.x, gy: t.y, score });
     }
   } else if (resource === "stone") {
     for (const t of state.map.tiles) {
-      // Prefer stone deposits; bare rock OK; skip metal ore veins
       if (t.deposit === "metal") continue;
       if (t.deposit !== "stone" && t.terrain !== "rock") continue;
+      if (t.deposit === "stone" && !hasStock(t)) continue;
       const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
       if (dist > maxDist) continue;
       let score = dist;
@@ -79,7 +81,7 @@ export function findResourceTile(
     }
   } else if (resource === "metal") {
     for (const t of state.map.tiles) {
-      if (t.deposit !== "metal") continue;
+      if (t.deposit !== "metal" || !hasStock(t)) continue;
       const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
       if (dist > maxDist) continue;
       let score = dist;
@@ -92,21 +94,21 @@ export function findResourceTile(
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           const t = tileAt(state, building.x + dx, building.y + dy);
-          if (!t || t.terrain === "water") continue;
-          candidates.push({
-            gx: t.x,
-            gy: t.y,
-            score: Math.abs(dx) + Math.abs(dy) + Math.random() * 0.5,
-          });
+          if (!t || t.terrain === "water" || t.terrain === "rock") continue;
+          let score = Math.abs(dx) + Math.abs(dy) + Math.random() * 0.5;
+          if (t.terrain === "fertile") score -= 1.2;
+          candidates.push({ gx: t.x, gy: t.y, score });
         }
       }
     } else {
-      // Wild foraging: grass only — forests are for woodcutters
+      // Wild foraging: grass / fertile / sand edge — forests are for woodcutters
       for (const t of state.map.tiles) {
-        if (t.terrain !== "grass" || t.deposit) continue;
+        if ((t.terrain !== "grass" && t.terrain !== "fertile") || t.deposit) continue;
         const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
         if (dist < 2 || dist > 7) continue;
-        candidates.push({ gx: t.x, gy: t.y, score: dist + Math.random() });
+        let score = dist + Math.random();
+        if (t.terrain === "fertile") score -= 0.8;
+        candidates.push({ gx: t.x, gy: t.y, score });
       }
     }
   } else if (resource === "knowledge") {
@@ -127,10 +129,12 @@ export function findResourceTile(
       for (const t of state.map.tiles) {
         const match =
           resource === "metal"
-            ? t.deposit === "metal"
+            ? t.deposit === "metal" && hasStock(t)
             : resource === "wood"
-              ? t.deposit === "wood" || t.terrain === "forest"
-              : (t.deposit === "stone" || t.terrain === "rock") && t.deposit !== "metal";
+              ? (t.deposit === "wood" && hasStock(t)) || t.terrain === "forest"
+              : (t.deposit === "stone" || t.terrain === "rock") &&
+                t.deposit !== "metal" &&
+                (t.deposit !== "stone" || hasStock(t));
         if (!match) continue;
         const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
         if (t.x === building.x && t.y === building.y) continue;

@@ -4,7 +4,7 @@ export type ResourceId = "food" | "wood" | "stone" | "metal" | "knowledge";
 
 export type PriorityId = "food" | "construction" | "research" | "production" | "defence";
 
-export type TerrainId = "grass" | "forest" | "rock" | "water";
+export type TerrainId = "grass" | "forest" | "rock" | "water" | "sand" | "fertile";
 
 export type DepositId = "wood" | "stone" | "metal";
 
@@ -22,12 +22,16 @@ export type BuildingId =
   | "laboratory"
   | "reactor"
   | "observatory"
-  | "launch_pad";
+  | "launch_pad"
+  | "watchtower"
+  | "palisade"
+  | "storehouse";
 
 export type TechId =
   | "fire"
   | "primitive_tools"
   | "farming"
+  | "fortifications"
   | "metallurgy"
   | "steam_power"
   | "electricity"
@@ -35,6 +39,8 @@ export type TechId =
   | "rocketry";
 
 export type SeasonId = "spring" | "summer" | "autumn" | "winter";
+
+export type OutcomeId = "playing" | "victory" | "defeat";
 
 export type Resources = Record<ResourceId, number>;
 export type Priorities = Record<PriorityId, number>;
@@ -59,6 +65,10 @@ export interface Tile {
   y: number;
   terrain: TerrainId;
   deposit?: DepositId | null;
+  /** Remaining gatherable units on this deposit */
+  stock?: number;
+  /** Terrain height for visuals / walk feel (0–4) */
+  elev?: number;
 }
 
 export interface BuildingInstance {
@@ -76,8 +86,15 @@ export interface ActiveResearch {
   progress: number;
 }
 
+export interface RunStats {
+  peakPop: number;
+  raidsSurvived: number;
+  raidsFailed: number;
+  woodHarvested: number;
+}
+
 export interface GameState {
-  schemaVersion: 2;
+  schemaVersion: 3;
   tick: number;
   age: AgeId;
   resources: Resources;
@@ -99,6 +116,10 @@ export interface GameState {
   pressure: PressureState;
   rngSeed: number;
   paused: boolean;
+  outcome: OutcomeId;
+  /** Consecutive ticks with empty food while population > 1 */
+  starvationTicks: number;
+  stats: RunStats;
 }
 
 export interface BuildingDef {
@@ -119,6 +140,10 @@ export interface BuildingDef {
   /** Tech required to unlock placement */
   requiresTech?: TechId;
   isLandmark?: boolean;
+  /** Adds to defence readiness when complete */
+  defenceBonus?: number;
+  /** Reduces food spoilage / winter drain when complete */
+  foodStorageBonus?: number;
   color: number;
 }
 

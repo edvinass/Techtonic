@@ -115,10 +115,11 @@ export function Hud() {
   const age = AGES[state.age];
   const buildable = getBuildableTypes(state);
   const ageReq = ageUpRequirements(state);
-  const defencePct = Math.round(defenceReadiness(state.priorities) * 100);
+  const defencePct = Math.round(defenceReadiness(state) * 100);
   const popTight = state.population.count >= state.population.housingCap;
   const foodLow = state.resources.food < state.population.count * 2;
   const selectedDef = selectedBuilding ? BUILDINGS[selectedBuilding] : null;
+  const outcome = state.outcome;
 
   async function saveToSlot(slot: number) {
     const current = useGameStore.getState().state;
@@ -129,7 +130,7 @@ export function Hud() {
       await putSave(token, slot, {
         name: `${AGES[current.age].name} settlement`,
         age: current.age,
-        schema_version: 2,
+        schema_version: 3,
         state: payload,
       });
       setSaveMeta(slot, Date.now());
@@ -159,6 +160,38 @@ export function Hud() {
 
   return (
     <div className={`hud${sideCollapsed ? " side-collapsed" : ""}`}>
+      {outcome !== "playing" && (
+        <div className={`outcome-overlay ${outcome}`}>
+          <div className="outcome-card">
+            <h2>{outcome === "victory" ? "Victory" : "Defeat"}</h2>
+            <p>
+              {outcome === "victory"
+                ? "The launch succeeds. Your people leave the cradle of earth behind."
+                : "Hunger and hardship empty the camp. The long climb ends here."}
+            </p>
+            <ul className="outcome-stats">
+              <li>
+                Peak population <strong>{state.stats.peakPop}</strong>
+              </li>
+              <li>
+                Raids survived <strong>{state.stats.raidsSurvived}</strong>
+              </li>
+              <li>
+                Raids failed <strong>{state.stats.raidsFailed}</strong>
+              </li>
+              <li>
+                Wood harvested <strong>{Math.floor(state.stats.woodHarvested)}</strong>
+              </li>
+              <li>
+                Survived <strong>{state.tick}</strong> ticks
+              </li>
+            </ul>
+            <button type="button" className="primary" onClick={() => setScreen("menu")}>
+              Return to menu
+            </button>
+          </div>
+        </div>
+      )}
       <header className="hud-top">
         <div className="hud-identity">
           <span className="brand">Techtonic</span>
@@ -271,11 +304,12 @@ export function Hud() {
         </div>
       )}
 
-      {!tutorialDismissed && (
+      {!tutorialDismissed && outcome === "playing" && (
         <div className="tutorial">
           <p>
-            Out of wood? Raise Gather under Work — citizens hand-chop trees until you can afford a
-            Lumber Camp. Pan with right-drag / WASD. Pause with P.
+            Forests and ore run out. Winters and raids punish thin Defence — research Fortifications
+            for towers and walls. Farms want fertile soil by the river. Pan with WASD / right-drag;
+            pause with P.
           </p>
           <button type="button" onClick={dismissTutorial}>
             Got it
@@ -358,7 +392,8 @@ export function Hud() {
           <section>
             <h3>Work priorities</h3>
             <p className="muted panel-hint">
-              Defence readiness <strong>{defencePct}%</strong> — blunts raids and wolves.
+              Defence readiness <strong>{defencePct}%</strong> — towers, palisades, and this slider
+              blunt raids.
             </p>
             {PRIORITIES.map((p) => (
               <label key={p} className="priority">

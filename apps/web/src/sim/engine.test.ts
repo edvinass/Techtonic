@@ -3,6 +3,7 @@ import {
   advanceAge,
   ageUpRequirements,
   createNewGame,
+  harvestDeposit,
   placeBuilding,
   startResearch,
   tick,
@@ -39,14 +40,17 @@ describe("sim engine", () => {
     expect(camp?.workers).toBeGreaterThan(0);
   });
 
-  it("halts population growth when food is empty", () => {
+  it("starvation prevents growth and eventually kills villagers", () => {
     let state = createNewGame(1);
     state.resources.food = 0;
     state.population.count = 5;
     state.population.housingCap = 20;
+    state.pressure.eventCooldown = 9999;
+    state.pressure.nextRaidAt = 9999;
     const before = state.population.count;
     state = runTicks(state, 40);
-    expect(state.population.count).toBe(before);
+    expect(state.population.count).toBeLessThan(before);
+    expect(state.population.count).toBeGreaterThanOrEqual(1);
   });
 
   it("progresses research after spending knowledge", () => {
@@ -83,7 +87,7 @@ describe("sim engine", () => {
   it("advances to farming age when gates are met", () => {
     let state = createNewGame(9);
     state.research.unlocked = ["fire", "farming"];
-    state.population.count = 12;
+    state.population.count = 14;
     state.resources = { food: 100, wood: 100, stone: 100, metal: 0, knowledge: 10 };
     state.buildings.push({
       id: "b99",
@@ -99,14 +103,24 @@ describe("sim engine", () => {
     expect(state.age).toBe("farming");
   });
 
+  it("depletes forest deposits when harvested", () => {
+    const state = createNewGame(42);
+    const wood = state.map.tiles.find((t) => t.deposit === "wood" && (t.stock ?? 0) > 0)!;
+    expect(wood).toBeTruthy();
+    const before = wood.stock!;
+    const taken = harvestDeposit(state, wood.x, wood.y, 10);
+    expect(taken).toBe(10);
+    expect(wood.stock).toBe(before - 10);
+  });
+
   it("places metal deposits near the spawn and advances through later ages", () => {
     let state = createNewGame(11);
     expect(state.map.tiles.some((t) => t.deposit === "metal")).toBe(true);
 
     state.age = "farming";
     state.research.unlocked = ["fire", "primitive_tools", "farming", "metallurgy"];
-    state.population.count = 20;
-    state.resources = { food: 100, wood: 100, stone: 100, metal: 100, knowledge: 40 };
+    state.population.count = 22;
+    state.resources = { food: 200, wood: 200, stone: 200, metal: 200, knowledge: 80 };
     state.buildings.push({
       id: "b100",
       type: "forge",
@@ -120,8 +134,8 @@ describe("sim engine", () => {
     expect(state.age).toBe("metal");
 
     state.research.unlocked.push("steam_power");
-    state.population.count = 28;
-    state.resources = { food: 100, wood: 100, stone: 100, metal: 100, knowledge: 40 };
+    state.population.count = 30;
+    state.resources = { food: 200, wood: 200, stone: 200, metal: 200, knowledge: 80 };
     state.buildings.push({
       id: "b101",
       type: "factory",
@@ -134,8 +148,8 @@ describe("sim engine", () => {
     expect(state.age).toBe("industrial");
 
     state.research.unlocked.push("electricity", "atomic_theory");
-    state.population.count = 36;
-    state.resources = { food: 100, wood: 100, stone: 100, metal: 100, knowledge: 40 };
+    state.population.count = 40;
+    state.resources = { food: 200, wood: 200, stone: 200, metal: 200, knowledge: 80 };
     state.buildings.push({
       id: "b102",
       type: "reactor",
@@ -148,8 +162,8 @@ describe("sim engine", () => {
     expect(state.age).toBe("atomic");
 
     state.research.unlocked.push("rocketry");
-    state.population.count = 45;
-    state.resources = { food: 100, wood: 100, stone: 100, metal: 120, knowledge: 80 };
+    state.population.count = 50;
+    state.resources = { food: 200, wood: 200, stone: 200, metal: 200, knowledge: 100 };
     state.buildings.push({
       id: "b103",
       type: "launch_pad",
@@ -160,6 +174,7 @@ describe("sim engine", () => {
     });
     state = advanceAge(state);
     expect(state.age).toBe("space");
+    expect(state.outcome).toBe("victory");
     expect(ageUpRequirements(state).nextAge).toBeNull();
   });
 });

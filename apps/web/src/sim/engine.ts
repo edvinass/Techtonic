@@ -1,7 +1,7 @@
 import { AGES, HOUSE_AGE_BONUS, ageReached } from "../data/ages";
 import { BUILDINGS } from "../data/buildings";
 import { TECHS } from "../data/techs";
-import { generateMap } from "./mapgen";
+import { DEPOSIT_STOCK, generateMap } from "./mapgen";
 import { defaultPressure, seasonFoodMultiplier, tickPressure } from "./pressure";
 import type {
   AgeId,
@@ -14,13 +14,14 @@ import type {
   Tile,
 } from "./types";
 
-const MAP_SIZE = 32;
-const FOOD_PER_CITIZEN = 0.15;
-const GROWTH_FOOD_BUFFER = 5;
+const MAP_SIZE = 36;
+const FOOD_PER_CITIZEN = 0.22;
+const GROWTH_FOOD_BUFFER = 8;
+const STARVE_DEATH_TICKS = 18;
 let nextBuildingSeq = 1;
 
 function defaultPriorities(): Priorities {
-  return { food: 25, construction: 18, research: 15, production: 30, defence: 12 };
+  return { food: 30, construction: 16, research: 12, production: 28, defence: 14 };
 }
 
 function tileAt(state: GameState, x: number, y: number): Tile | undefined {
@@ -58,6 +59,16 @@ function spend(resources: Resources, cost: Partial<Resources>): void {
   }
 }
 
+export function foodStorageMultiplier(state: GameState): number {
+  let bonus = 0;
+  for (const b of state.buildings) {
+    if (b.progress < 1) continue;
+    bonus += BUILDINGS[b.type]?.foodStorageBonus ?? 0;
+  }
+  // Each storehouse / granary softens winter & event drain
+  return Math.max(0.72, 1 - bonus);
+}
+
 export function createNewGame(seed = Date.now() % 1_000_000): GameState {
   nextBuildingSeq = 1;
   const tiles = generateMap(MAP_SIZE, MAP_SIZE, seed);
@@ -65,10 +76,10 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
   const cy = Math.floor(MAP_SIZE / 2);
 
   const state: GameState = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     tick: 0,
     age: "stone",
-    resources: { food: 40, wood: 50, stone: 20, metal: 0, knowledge: 8 },
+    resources: { food: 28, wood: 32, stone: 12, metal: 0, knowledge: 5 },
     priorities: defaultPriorities(),
     map: { width: MAP_SIZE, height: MAP_SIZE, tiles },
     buildings: [
@@ -86,6 +97,9 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
     pressure: defaultPressure(seed),
     rngSeed: seed,
     paused: false,
+    outcome: "playing",
+    starvationTicks: 0,
+    stats: { peakPop: 5, raidsSurvived: 0, raidsFailed: 0, woodHarvested: 0 },
   };
   state.population.housingCap = recalcHousing(state);
   return state;
@@ -115,6 +129,7 @@ export function canPlaceBuilding(
   x: number,
   y: number,
 ): { ok: true } | { ok: false; reason: string } {
+  if (state.outcome !== "playing") return { ok: false, reason: "Game over" };
   const def = BUILDINGS[type];
   if (!def) return { ok: false, reason: "Unknown building" };
   if (!isBuildingUnlocked(state, type)) return { ok: false, reason: "Not unlocked yet" };
@@ -124,6 +139,10 @@ export function canPlaceBuilding(
   if (occupied(state, x, y)) return { ok: false, reason: "Tile occupied" };
   if (def.requiresDeposit && tile.deposit !== def.requiresDeposit) {
     return { ok: false, reason: `Needs ${def.requiresDeposit} deposit` };
+  }
+  // Farms prefer fertile soil (still allow grass)
+  if (type === "farm" && tile.terrain !== "fertile" && tile.terrain !== "grass") {
+    return { ok: false, reason: "Farms need grass or fertile soil" };
   }
   if (!canAfford(state.resources, def.cost)) return { ok: false, reason: "Not enough resources" };
   return { ok: true };
@@ -166,6 +185,7 @@ export function isTechAvailable(state: GameState, techId: TechId): boolean {
 }
 
 export function startResearch(state: GameState, techId: TechId): GameState {
+  if (state.outcome !== "playing") return state;
   if (!isTechAvailable(state, techId)) return state;
   if (state.research.active) return state;
   const tech = TECHS[techId];
@@ -212,6 +232,7 @@ export function ageUpRequirements(state: GameState): {
 }
 
 export function advanceAge(state: GameState): GameState {
+  if (state.outcome !== "playing") return state;
   const req = ageUpRequirements(state);
   if (!req.ready || !req.nextAge) return state;
   const age = AGES[state.age];
@@ -219,7 +240,33 @@ export function advanceAge(state: GameState): GameState {
   spend(next.resources, age.cost ?? {});
   next.age = req.nextAge;
   next.population.housingCap = recalcHousing(next);
+  if (next.age === "space") {
+    next.outcome = "victory";
+    next.paused = true;
+    next.pressure.lastBanner = "Launch succeeds — your people reach the stars!";
+  }
   return next;
+}
+
+/** Reduce deposit stock; clear terrain when exhausted. Mutates `state`. */
+export function harvestDeposit(state: GameState, gx: number, gy: number, amount: number): number {
+  const tile = tileAt(state, gx, gy);
+  if (!tile || !tile.deposit || amount <= 0) return 0;
+  if (tile.stock === undefined) {
+    tile.stock = DEPOSIT_STOCK[tile.deposit];
+  }
+  const taken = Math.min(tile.stock, amount);
+  tile.stock -= taken;
+  if (tile.deposit === "wood") state.stats.woodHarvested += taken;
+  if (tile.stock <= 0) {
+    tile.stock = 0;
+    tile.deposit = null;
+    if (tile.terrain === "forest") {
+      tile.terrain = "grass";
+      tile.elev = Math.min(tile.elev ?? 1, 1);
+    }
+  }
+  return taken;
 }
 
 function assignWorkers(state: GameState): {
@@ -268,6 +315,7 @@ function assignWorkers(state: GameState): {
   staff("research", quota("research"));
   staff("food", quota("food"));
   staff("production", quota("production"));
+  staff("defence", quota("defence"));
 
   // Fill remaining open slots
   for (const b of complete) {
@@ -284,8 +332,36 @@ function assignWorkers(state: GameState): {
   return { constructionWorkers, foragers };
 }
 
+/** Slow forest regrowth on empty grass next to living forest (autumn/spring). */
+function tickRegrowth(state: GameState): void {
+  if (state.pressure.season !== "spring" && state.pressure.season !== "autumn") return;
+  if (state.tick % 12 !== 0) return;
+  const { width, height, tiles } = state.map;
+  const candidates: Tile[] = [];
+  for (const t of tiles) {
+    if (t.terrain !== "grass" || t.deposit) continue;
+    let nearForest = false;
+    for (let dy = -1; dy <= 1 && !nearForest; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const nx = t.x + dx;
+        const ny = t.y + dy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const n = tiles[ny * width + nx];
+        if (n.terrain === "forest" && (n.stock ?? 0) > 10) nearForest = true;
+      }
+    }
+    if (nearForest) candidates.push(t);
+  }
+  if (!candidates.length) return;
+  const pick = candidates[Math.floor((state.rngSeed + state.tick * 7) % candidates.length)];
+  pick.terrain = "forest";
+  pick.deposit = "wood";
+  pick.stock = Math.floor(DEPOSIT_STOCK.wood * 0.45);
+}
+
 export function tick(state: GameState): GameState {
-  if (state.paused) return state;
+  if (state.paused || state.outcome !== "playing") return state;
   const next = cloneState(state);
   next.tick += 1;
   const { constructionWorkers } = assignWorkers(next);
@@ -293,12 +369,29 @@ export function tick(state: GameState): GameState {
   // Wood / stone / food / knowledge from gather buildings are delivered by
   // workers walking to resource tiles and depositing carry loads (see game/citizens).
   // Keep a tiny knowledge trickle so Fire can be started before a research hut.
-  next.resources.knowledge += 0.04 + next.population.count * 0.015;
+  next.resources.knowledge += 0.03 + next.population.count * 0.01;
 
-  const foodUse = next.population.count * FOOD_PER_CITIZEN * seasonFoodMultiplier(next);
+  const storage = foodStorageMultiplier(next);
+  const foodUse =
+    next.population.count * FOOD_PER_CITIZEN * seasonFoodMultiplier(next) * storage;
   next.resources.food -= foodUse;
   const starving = next.resources.food < 0;
-  if (starving) next.resources.food = 0;
+  if (starving) {
+    next.resources.food = 0;
+    next.starvationTicks += 1;
+    if (next.starvationTicks >= STARVE_DEATH_TICKS && next.population.count > 1) {
+      next.population.count -= 1;
+      next.starvationTicks = Math.floor(STARVE_DEATH_TICKS / 2);
+      next.pressure.lastBanner = "Starvation claims a villager.";
+    }
+    if (next.population.count <= 1 && next.starvationTicks >= STARVE_DEATH_TICKS + 10) {
+      next.outcome = "defeat";
+      next.paused = true;
+      next.pressure.lastBanner = "The settlement collapses to hunger.";
+    }
+  } else {
+    next.starvationTicks = 0;
+  }
 
   if (constructionWorkers > 0) {
     const sites = next.buildings.filter((b) => b.progress < 1);
@@ -316,7 +409,7 @@ export function tick(state: GameState): GameState {
     const researchWorkers = next.buildings
       .filter((b) => b.progress >= 1 && BUILDINGS[b.type].priority === "research")
       .reduce((sum, b) => sum + b.workers, 0);
-    const rate = 0.45 + researchWorkers * 0.5;
+    const rate = 0.4 + researchWorkers * 0.45;
     next.research.active.progress += rate / tech.researchTicks;
     if (next.research.active.progress >= 1) {
       next.research.unlocked.push(next.research.active.techId);
@@ -331,12 +424,14 @@ export function tick(state: GameState): GameState {
     !starving &&
     next.resources.food >= GROWTH_FOOD_BUFFER &&
     next.population.count < next.population.housingCap &&
-    next.tick % 8 === 0
+    next.tick % 10 === 0
   ) {
     next.population.count += 1;
-    next.resources.food -= 2;
+    next.resources.food -= 3;
   }
 
+  next.stats.peakPop = Math.max(next.stats.peakPop, next.population.count);
+  tickRegrowth(next);
   tickPressure(next);
   return next;
 }

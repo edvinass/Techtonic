@@ -760,6 +760,81 @@ input[type="text"] {
   font-size: 0.88rem;
 }
 
+.outcome-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 12, 10, 0.72);
+  backdrop-filter: blur(6px);
+  padding: 1.5rem;
+}
+
+.outcome-card {
+  width: min(420px, 100%);
+  background: linear-gradient(160deg, #1c2a22 0%, #141c18 100%);
+  border: 1px solid rgba(201, 162, 39, 0.4);
+  border-radius: 18px;
+  padding: 1.4rem 1.5rem 1.25rem;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+.outcome-overlay.victory .outcome-card {
+  border-color: rgba(120, 200, 140, 0.45);
+}
+
+.outcome-overlay.defeat .outcome-card {
+  border-color: rgba(200, 90, 70, 0.5);
+}
+
+.outcome-card h2 {
+  margin: 0 0 0.5rem;
+  font-family: "Fraunces", "DM Sans", serif;
+  font-size: 1.85rem;
+  letter-spacing: 0.02em;
+}
+
+.outcome-overlay.victory h2 {
+  color: #9ad4a4;
+}
+
+.outcome-overlay.defeat h2 {
+  color: #e08a72;
+}
+
+.outcome-card p {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.outcome-stats {
+  list-style: none;
+  margin: 0 0 1.1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  text-align: left;
+}
+
+.outcome-stats li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.outcome-stats strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 1100px) {
   .resource-chip em {
     display: none;

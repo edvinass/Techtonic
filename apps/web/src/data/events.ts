@@ -3,16 +3,16 @@ import type { Resources } from "../sim/types";
 export type SeasonId = "spring" | "summer" | "autumn" | "winter";
 
 export const SEASON_ORDER: SeasonId[] = ["spring", "summer", "autumn", "winter"];
-export const SEASON_LENGTH = 40; // ticks per season
+export const SEASON_LENGTH = 36; // ticks per season
 
 export const SEASON_INFO: Record<
   SeasonId,
   { label: string; blurb: string; foodMult: number }
 > = {
-  spring: { label: "Spring", blurb: "Growth returns.", foodMult: 1 },
-  summer: { label: "Summer", blurb: "Long days, steady foraging.", foodMult: 0.95 },
-  autumn: { label: "Autumn", blurb: "Harvest ease — less hunger.", foodMult: 0.8 },
-  winter: { label: "Winter", blurb: "Cold bites. Food drains faster.", foodMult: 1.45 },
+  spring: { label: "Spring", blurb: "Mud and hope. Forests slowly reclaim clearings.", foodMult: 1.05 },
+  summer: { label: "Summer", blurb: "Long days — but mouths still need filling.", foodMult: 1 },
+  autumn: { label: "Autumn", blurb: "Harvest ease — less hunger for a while.", foodMult: 0.85 },
+  winter: { label: "Winter", blurb: "Frost bites hard. Food drains fast without stores.", foodMult: 1.65 },
 };
 
 export type EventEffect = {
@@ -26,6 +26,8 @@ export type EventEffect = {
   growthHaltTicks?: number;
   popDelta?: number;
   knowledgeDelta?: number;
+  /** Burn this many forest tiles on the map */
+  burnForests?: number;
 };
 
 export type ChallengeEventDef = {
@@ -41,25 +43,25 @@ export type ChallengeEventDef = {
 export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
   {
     id: "poor_harvest",
-    title: "Poor harvest",
+    title: "Failed forage",
     text: "The berry patches fail and stores look thin. Your people look to you.",
     choices: [
       {
         label: "Ration carefully",
-        hint: "−food now, milder ongoing hunger",
+        hint: "−food now, harsher ongoing hunger",
         effect: {
           result: "Rations stretch the stores — everyone eats less for a while.",
-          resources: { food: -12 },
-          foodMult: 1.15,
-          foodMultTicks: 24,
+          resources: { food: -18 },
+          foodMult: 1.28,
+          foodMultTicks: 28,
         },
       },
       {
         label: "Send foragers farther",
-        hint: "−wood, chance to recover food",
+        hint: "−wood, gamble for food",
         effect: {
-          result: "Foragers trek wide and bring back what they can.",
-          resources: { wood: -10, food: 8 },
+          result: "Foragers trek wide. Some return empty-handed.",
+          resources: { wood: -14, food: 4 },
         },
       },
     ],
@@ -71,42 +73,45 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
     choices: [
       {
         label: "Quarantine the sick",
-        hint: "Growth stalls; saves knowledge",
+        hint: "Growth stalls hard; may lose a villager",
         effect: {
-          result: "The sick are kept apart. Growth pauses, but wisdom is preserved.",
-          growthHaltTicks: 30,
+          result: "The sick are kept apart. Growth pauses; one does not recover.",
+          growthHaltTicks: 36,
+          popDelta: -1,
         },
       },
       {
         label: "Brew healing draughts",
-        hint: "−knowledge, keep growing",
+        hint: "−knowledge & food, keep growing",
         effect: {
           result: "Healers spend hard-won lore on bitter medicines.",
-          knowledgeDelta: -8,
-          resources: { food: -5 },
+          knowledgeDelta: -12,
+          resources: { food: -10 },
         },
       },
     ],
   },
   {
     id: "wildfire",
-    title: "Brush fire",
-    text: "Sparks leap through dry grass near the settlement. Act now or lose timber.",
+    title: "Wildfire",
+    text: "Sparks leap through dry timber near the settlement. Act now or lose the woods.",
     choices: [
       {
         label: "Fight the flames",
-        hint: "−food (effort), save most wood",
+        hint: "−food (effort), fewer trees burn",
         effect: {
-          result: "Buckets and beaters spare the stores. Exhaustion costs food.",
-          resources: { food: -10, wood: -4 },
+          result: "Buckets and beaters spare most stands. Exhaustion costs food.",
+          resources: { food: -14, wood: -8 },
+          burnForests: 3,
         },
       },
       {
         label: "Cut a firebreak",
-        hint: "Sacrifice wood to stop the spread",
+        hint: "Sacrifice timber — fire still scars the map",
         effect: {
-          result: "You fell trees for a break. The fire dies, but timber burns with it.",
-          resources: { wood: -22 },
+          result: "You fell trees for a break. The fire dies, but the woods are scarred.",
+          resources: { wood: -28 },
+          burnForests: 6,
         },
       },
     ],
@@ -118,19 +123,18 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
     choices: [
       {
         label: "Stand watch",
-        hint: "Needs Defence priority; else lose food",
+        hint: "Needs strong Defence / towers; else lose people",
         effect: {
           result: "Guards hold the line… if you kept Defence high.",
-          // Special-cased in resolve using defence readiness
-          resources: { food: -6 },
+          resources: { food: -8 },
         },
       },
       {
         label: "Leave a tribute of meat",
-        hint: "−food, avoid a worse raid",
+        hint: "Heavy −food, avoid a bloodier raid",
         effect: {
           result: "A carcass is left at the treeline. The wolves take it and fade.",
-          resources: { food: -18 },
+          resources: { food: -26 },
         },
       },
     ],
@@ -145,16 +149,43 @@ export const CHALLENGE_EVENTS: ChallengeEventDef[] = [
         hint: "+knowledge, briefly pause growth",
         effect: {
           result: "The markings hint at forgotten craft. Minds race; hands idle.",
-          knowledgeDelta: 14,
-          growthHaltTicks: 12,
+          knowledgeDelta: 16,
+          growthHaltTicks: 14,
         },
       },
       {
         label: "Leave them be",
         hint: "Safe, small food find nearby",
         effect: {
-          result: "You seal the hollow. Foragers notice a overlooked cache instead.",
-          resources: { food: 10 },
+          result: "You seal the hollow. Foragers notice an overlooked cache instead.",
+          resources: { food: 12 },
+        },
+      },
+    ],
+  },
+  {
+    id: "drought",
+    title: "Dry season",
+    text: "Creeks shrink. Farms wilt. Someone must decide how hard to push the land.",
+    choices: [
+      {
+        label: "Dig irrigation ditches",
+        hint: "−wood & stone, soften the drought",
+        effect: {
+          result: "Ditches buy time. Hunger still rises, but slower.",
+          resources: { wood: -12, stone: -8 },
+          foodMult: 1.2,
+          foodMultTicks: 20,
+        },
+      },
+      {
+        label: "Endure the thirst",
+        hint: "Harsh hunger, no material cost",
+        effect: {
+          result: "Lips crack. The settlement scrapes by on thin porridge.",
+          foodMult: 1.4,
+          foodMultTicks: 30,
+          resources: { food: -10 },
         },
       },
     ],

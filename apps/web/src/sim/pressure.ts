@@ -1,5 +1,7 @@
 import { CHALLENGE_EVENTS, getEventDef, SEASON_INFO, SEASON_LENGTH, SEASON_ORDER } from "../data/events";
 import type { EventEffect } from "../data/events";
+import { BUILDINGS } from "../data/buildings";
+import { ageIndex } from "../data/ages";
 import { createRng } from "./rng";
 import type { GameState, Priorities } from "./types";
 
@@ -7,10 +9,10 @@ export function defaultPressure(seed: number): GameState["pressure"] {
   return {
     season: "spring",
     seasonTick: 0,
-    nextRaidAt: 55 + (seed % 40),
+    nextRaidAt: 40 + (seed % 28),
     raidWarningTicks: 0,
     pendingEventId: null,
-    eventCooldown: 35,
+    eventCooldown: 28,
     growthHaltTicks: 0,
     foodMult: 1,
     foodMultTicks: 0,
@@ -18,9 +20,27 @@ export function defaultPressure(seed: number): GameState["pressure"] {
   };
 }
 
-export function defenceReadiness(priorities: Priorities): number {
-  const total = Math.max(1, Object.values(priorities).reduce((a, b) => a + b, 0));
-  return priorities.defence / total;
+/** Priority share + completed defence buildings. */
+export function defenceReadiness(state: GameState | Priorities): number {
+  // Back-compat: tests sometimes pass priorities alone
+  if (!("buildings" in state)) {
+    const priorities = state as Priorities;
+    const total = Math.max(1, Object.values(priorities).reduce((a, b) => a + b, 0));
+    return priorities.defence / total;
+  }
+  const gs = state as GameState;
+  const total = Math.max(1, Object.values(gs.priorities).reduce((a, b) => a + b, 0));
+  let ready = gs.priorities.defence / total;
+  for (const b of gs.buildings) {
+    if (b.progress < 1) continue;
+    ready += BUILDINGS[b.type]?.defenceBonus ?? 0;
+  }
+  // Staffed towers punch above empty shells
+  const towerStaff = gs.buildings
+    .filter((b) => b.progress >= 1 && b.type === "watchtower")
+    .reduce((s, b) => s + b.workers, 0);
+  ready += towerStaff * 0.04;
+  return Math.min(1, ready);
 }
 
 function clampRes(state: GameState): void {
@@ -28,6 +48,25 @@ function clampRes(state: GameState): void {
     state.resources[k] = Math.max(0, state.resources[k]);
   }
   state.population.count = Math.max(1, state.population.count);
+}
+
+/** Burn nearby forest tiles (wildfire). Mutates map. */
+export function burnForests(state: GameState, count: number): number {
+  const forests = state.map.tiles.filter(
+    (t) => t.terrain === "forest" || t.deposit === "wood",
+  );
+  const rng = createRng(state.rngSeed + state.tick * 41);
+  let burned = 0;
+  for (let i = 0; i < count && forests.length; i++) {
+    const pick = forests.splice(Math.floor(rng() * forests.length), 1)[0];
+    if (!pick) break;
+    pick.terrain = "grass";
+    pick.deposit = null;
+    pick.stock = 0;
+    pick.elev = Math.min(pick.elev ?? 1, 1);
+    burned += 1;
+  }
+  return burned;
 }
 
 export function applyEffect(state: GameState, effect: EventEffect, defenceBoost = false): string {
@@ -58,11 +97,20 @@ export function applyEffect(state: GameState, effect: EventEffect, defenceBoost 
     state.pressure.foodMult = effect.foodMult;
     state.pressure.foodMultTicks = effect.foodMultTicks;
   }
+  if (effect.burnForests) {
+    const n = burnForests(state, effect.burnForests);
+    if (n > 0) {
+      // appended to result below
+    }
+  }
   clampRes(state);
 
   let result = effect.result;
   if (defenceBoost) {
     result += " High Defence kept losses light.";
+  }
+  if (effect.burnForests) {
+    result += ` ${effect.burnForests} wooded stands scarred.`;
   }
   return result;
 }
@@ -78,27 +126,29 @@ export function resolveEventChoice(state: GameState, choiceIndex: 0 | 1): GameSt
   }
   const choice = def.choices[choiceIndex];
   const isWatch = id === "wolves" && choiceIndex === 0;
-  const ready = defenceReadiness(next.priorities);
-  const defenceBoost = isWatch && ready >= 0.18;
+  const ready = defenceReadiness(next);
+  const defenceBoost = isWatch && ready >= 0.22;
 
   if (isWatch && !defenceBoost) {
     // Failed watch — worse than the mild default
-    next.resources.food = Math.max(0, next.resources.food - 16);
-    next.resources.wood = Math.max(0, next.resources.wood - 8);
-    next.pressure.lastBanner = "The watch was thin. Wolves scatter the stores.";
+    next.resources.food = Math.max(0, next.resources.food - 22);
+    next.resources.wood = Math.max(0, next.resources.wood - 12);
+    if (next.population.count > 3) next.population.count -= 1;
+    next.pressure.lastBanner = "The watch was thin. Wolves scatter the stores — a villager is lost.";
   } else {
     next.pressure.lastBanner = applyEffect(next, choice.effect, defenceBoost);
   }
 
   next.pressure.pendingEventId = null;
-  next.pressure.eventCooldown = 45 + Math.floor(ready * 20);
-  next.paused = false;
+  next.pressure.eventCooldown = 38 + Math.floor(ready * 25);
+  next.paused = next.outcome !== "playing" ? true : false;
   return next;
 }
 
 /** Advance seasons, raids, and maybe spawn a challenge event. Mutates `state`. */
 export function tickPressure(state: GameState): void {
   const p = state.pressure;
+  if (state.outcome !== "playing") return;
 
   // Don't stack systems while a choice is open
   if (p.pendingEventId) {
@@ -131,17 +181,19 @@ export function tickPressure(state: GameState): void {
     if (p.raidWarningTicks === 0) {
       resolveRaid(state);
       const rng = createRng(state.rngSeed + state.tick * 17);
-      p.nextRaidAt = state.tick + 70 + Math.floor(rng() * 50);
+      const ageScale = 55 - ageIndex(state.age) * 4;
+      p.nextRaidAt = state.tick + ageScale + Math.floor(rng() * 35);
     }
   } else if (state.tick >= p.nextRaidAt) {
-    p.raidWarningTicks = 6;
-    p.lastBanner = "Scouts spot a raiding pack approaching… raise Defence!";
+    p.raidWarningTicks = 7;
+    p.lastBanner = "Scouts spot a raiding pack approaching… raise Defence and man the towers!";
   }
 
-  // Challenge events
-  if (p.eventCooldown <= 0 && state.tick > 25 && state.tick % 7 === 0) {
+  // Challenge events — more frequent as ages advance
+  const eventChance = 0.28 + ageIndex(state.age) * 0.03;
+  if (p.eventCooldown <= 0 && state.tick > 18 && state.tick % 6 === 0) {
     const rng = createRng(state.rngSeed + state.tick * 31);
-    if (rng() < 0.22) {
+    if (rng() < eventChance) {
       const def = CHALLENGE_EVENTS[Math.floor(rng() * CHALLENGE_EVENTS.length)];
       p.pendingEventId = def.id;
       state.paused = true;
@@ -151,28 +203,34 @@ export function tickPressure(state: GameState): void {
 }
 
 function resolveRaid(state: GameState): void {
-  const ready = defenceReadiness(state.priorities);
+  const ready = defenceReadiness(state);
   const rng = createRng(state.rngSeed + state.tick * 13);
-  if (ready >= 0.22) {
-    const spoils = 3 + Math.floor(rng() * 5);
+  const ageHarsh = 1 + ageIndex(state.age) * 0.18;
+
+  if (ready >= 0.28) {
+    const spoils = 2 + Math.floor(rng() * 4);
     state.resources.food += spoils;
-    state.pressure.lastBanner = `Raiders driven off! Scavenged +${spoils} food. Defence held.`;
-  } else if (ready >= 0.12) {
-    const foodLoss = 10 + Math.floor(rng() * 8);
-    const woodLoss = 6 + Math.floor(rng() * 6);
+    state.stats.raidsSurvived += 1;
+    state.pressure.lastBanner = `Raiders driven off! Scavenged +${spoils} food. Defences held.`;
+  } else if (ready >= 0.16) {
+    const foodLoss = Math.floor((14 + Math.floor(rng() * 10)) * ageHarsh);
+    const woodLoss = Math.floor((8 + Math.floor(rng() * 8)) * ageHarsh);
     state.resources.food = Math.max(0, state.resources.food - foodLoss);
     state.resources.wood = Math.max(0, state.resources.wood - woodLoss);
+    state.stats.raidsFailed += 1;
     state.pressure.lastBanner = `Raid blunted but costly (−${foodLoss} food, −${woodLoss} wood).`;
   } else {
-    const foodLoss = 18 + Math.floor(rng() * 12);
-    const woodLoss = 12 + Math.floor(rng() * 10);
+    const foodLoss = Math.floor((24 + Math.floor(rng() * 14)) * ageHarsh);
+    const woodLoss = Math.floor((16 + Math.floor(rng() * 12)) * ageHarsh);
     state.resources.food = Math.max(0, state.resources.food - foodLoss);
     state.resources.wood = Math.max(0, state.resources.wood - woodLoss);
-    if (state.population.count > 3 && rng() < 0.35) {
-      state.population.count -= 1;
-      state.pressure.lastBanner = `Brutal raid! −${foodLoss} food, −${woodLoss} wood, and a villager is lost.`;
+    state.stats.raidsFailed += 1;
+    if (state.population.count > 3 && rng() < 0.55) {
+      const lost = rng() < 0.3 && state.population.count > 5 ? 2 : 1;
+      state.population.count -= lost;
+      state.pressure.lastBanner = `Brutal raid! −${foodLoss} food, −${woodLoss} wood, and ${lost} villager${lost > 1 ? "s" : ""} lost.`;
     } else {
-      state.pressure.lastBanner = `Raid tears through camp (−${foodLoss} food, −${woodLoss} wood). Raise Defence!`;
+      state.pressure.lastBanner = `Raid tears through camp (−${foodLoss} food, −${woodLoss} wood). Fortify!`;
     }
   }
 }

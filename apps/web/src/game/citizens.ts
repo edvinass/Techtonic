@@ -51,6 +51,8 @@ export interface CitizenStepContext {
   ox: number;
   oy: number;
   onDeposit: (resource: ResourceId, amount: number, wx: number, wy: number) => void;
+  /** Called as gatherers pull finite deposits from the map */
+  onHarvest?: (gx: number, gy: number, amount: number) => number;
 }
 
 function buildingById(state: GameState, id: string): BuildingInstance | undefined {
@@ -381,7 +383,7 @@ export function syncCitizens(
 
 export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepContext): void {
   const speed = 0.07 * dt;
-  const { state, ox, oy, onDeposit } = ctx;
+  const { state, ox, oy, onDeposit, onHarvest } = ctx;
   const hasTools = state.research.unlocked.includes("primitive_tools");
 
   for (const c of citizens) {
@@ -444,10 +446,54 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
 
     if (c.job.kind === "gather") {
       const wild = c.job.work === "forage" && c.job.resource === "wood";
+      const depletes =
+        c.job.resource === "wood" ||
+        c.job.resource === "stone" ||
+        c.job.resource === "metal";
       const cap = carryCapacityFor(c.job.resource, hasTools, wild);
+      const fertileBonus =
+        c.job.resource === "food" && c.job.work === "farm"
+          ? (() => {
+              const t = state.map.tiles[c.job.tile.gy * state.map.width + c.job.tile.gx];
+              return t?.terrain === "fertile" ? 1.35 : 1;
+            })()
+          : 1;
       const rate =
-        GATHER_PER_SEC[c.job.resource] * (hasTools ? 1.15 : 1) * (wild ? 0.55 : 1);
-      c.carryAmount = Math.min(cap, c.carryAmount + (rate * dt) / 1000);
+        GATHER_PER_SEC[c.job.resource] *
+        (hasTools ? 1.15 : 1) *
+        (wild ? 0.5 : 1) *
+        fertileBonus;
+      const gain = (rate * dt) / 1000;
+
+      if (depletes && onHarvest && c.job.tile) {
+        const taken = onHarvest(c.job.tile.gx, c.job.tile.gy, gain);
+        if (taken <= 0) {
+          // Deposit exhausted — abandon and find another
+          c.carryAmount = Math.max(0, c.carryAmount);
+          if (c.carryAmount > 0.5) {
+            const building = buildingById(state, c.job.buildingId);
+            if (building) {
+              const drop = worldPos(building.x, building.y, ox, oy);
+              c.job = {
+                kind: "walk",
+                tx: drop.x,
+                ty: drop.y,
+                buildingId: building.id,
+                work: c.job.work,
+                phase: "toDropoff",
+                resource: c.job.resource,
+                tile: c.job.tile,
+              };
+              continue;
+            }
+          }
+          startGatherTrip(c, state, ox, oy, c.job.buildingId, c.job.work, c.job.resource);
+          continue;
+        }
+        c.carryAmount = Math.min(cap, c.carryAmount + taken);
+      } else {
+        c.carryAmount = Math.min(cap, c.carryAmount + gain);
+      }
       c.carrying = c.job.resource;
       // Slow gather sway
       c.x += Math.sin(c.bobPhase * 0.28) * 0.02;
