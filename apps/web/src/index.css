@@ -1031,6 +1031,14 @@ button.primary.harmony {
   transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.worker-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #b8d0c0;
+  opacity: 0.9;
+}
+
 .worker-readiness {
   display: grid;
   gap: 0.35rem;

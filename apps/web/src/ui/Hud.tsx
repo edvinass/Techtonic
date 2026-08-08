@@ -163,6 +163,9 @@ export function Hud() {
   const workTargets = workerTargets(state.priorities, pop);
   const workAssigned = PRIORITY_IDS.reduce((sum, id) => sum + workTargets[id], 0);
   const workUnassigned = Math.max(0, pop - workAssigned);
+  const hasResearchBuilding = state.buildings.some(
+    (b) => BUILDINGS[b.type].priority === "research" && b.progress >= 1,
+  );
 
   const tabs: { id: SideTab; label: string; badge?: string }[] = [
     { id: "build", label: "Build" },
@@ -470,6 +473,13 @@ export function Hud() {
                 />
               </div>
             </div>
+
+            {workTargets.research > 0 && !hasResearchBuilding && (
+              <p className="worker-hint">
+                Scholars are studying at home — build a Research Hut (needs Fire) for faster
+                research.
+              </p>
+            )}
 
             <div className="worker-readiness">
               <div className="worker-meter" title="Defence readiness from towers and walls">

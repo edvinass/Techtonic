@@ -328,25 +328,28 @@ export class MainScene extends Phaser.Scene {
       this.lastMapSig = mapSig;
     }
 
-    if (!state.paused && state.outcome === "playing") {
+    if (state.outcome === "playing") {
+      // Keep assigning even while paused so Work-tab Research changes show up immediately
       syncCitizens(this.citizens, state, ox, oy);
-      stepCitizens(this.citizens, delta, {
-        state,
-        ox,
-        oy,
-        onDeposit: (resource, amount, wx, wy) => {
-          useGameStore.getState().depositResources(resource, amount);
-          play("deposit");
-          this.floaters.push({
-            x: wx,
-            y: wy - 28,
-            resource,
-            amount,
-            life: 1200,
-          });
-        },
-        onHarvest: (gx, gy, amount) => useGameStore.getState().harvestDeposit(gx, gy, amount),
-      });
+      if (!state.paused) {
+        stepCitizens(this.citizens, delta, {
+          state,
+          ox,
+          oy,
+          onDeposit: (resource, amount, wx, wy) => {
+            useGameStore.getState().depositResources(resource, amount);
+            play("deposit");
+            this.floaters.push({
+              x: wx,
+              y: wy - 28,
+              resource,
+              amount,
+              life: 1200,
+            });
+          },
+          onHarvest: (gx, gy, amount) => useGameStore.getState().harvestDeposit(gx, gy, amount),
+        });
+      }
     }
     this.renderCitizens();
     this.updateFloaters(delta);

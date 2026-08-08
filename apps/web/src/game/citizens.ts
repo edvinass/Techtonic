@@ -179,6 +179,32 @@ function desiredAssignments(state: GameState): Assignment[] {
   const hasLumberCamp = state.buildings.some(
     (b) => b.type === "lumber_camp" && b.progress >= 1,
   );
+  const hasResearchBuilding = state.buildings.some(
+    (b) => BUILDINGS[b.type].priority === "research" && b.progress >= 1,
+  );
+
+  // Match sim assignWorkers order: research before resource camps so Work-tab
+  // Research quotas actually produce visible scholars on the map.
+  for (const b of state.buildings) {
+    if (BUILDINGS[b.type].priority === "research") {
+      researchBudget -= staffBuilding(b, researchBudget, "research", "knowledge");
+    }
+  }
+  // No research hut yet: scholars study at home so Research workers still appear.
+  if (!hasResearchBuilding && home && researchBudget > 0) {
+    const scholars = Math.min(researchBudget, remaining, 3);
+    for (let i = 0; i < scholars; i++) {
+      list.push({ buildingId: home.id, work: "research", resource: "knowledge" });
+      remaining -= 1;
+      researchBudget -= 1;
+    }
+  }
+
+  for (const b of state.buildings) {
+    if (b.type === "farm") {
+      foodBudget -= staffBuilding(b, foodBudget, "farm", "food");
+    }
+  }
 
   for (const b of state.buildings) {
     const res = resourceForBuilding(b);
@@ -198,17 +224,6 @@ function desiredAssignments(state: GameState): Assignment[] {
       list.push({ buildingId: home.id, work: "forage", resource: "wood" });
       remaining -= 1;
       woodBudget -= 1;
-    }
-  }
-
-  for (const b of state.buildings) {
-    if (BUILDINGS[b.type].priority === "research") {
-      researchBudget -= staffBuilding(b, researchBudget, "research", "knowledge");
-    }
-  }
-  for (const b of state.buildings) {
-    if (b.type === "farm") {
-      foodBudget -= staffBuilding(b, foodBudget, "farm", "food");
     }
   }
 
@@ -398,10 +413,10 @@ export function syncCitizens(
     for (let i = have; i < arr.length; i++) open.push(arr[i]);
   }
 
-  // Production / gather jobs first so woodcutters leave base before foragers/wander
+  // Research first so scholars claim free villagers before wood/forage fills the roster
   open.sort((a, b) => {
     const rank = (x: Assignment) =>
-      x.work === "gather" ? 0 : x.work === "farm" ? 1 : x.work === "research" ? 2 : x.work === "build" ? 3 : 4;
+      x.work === "research" ? 0 : x.work === "gather" ? 1 : x.work === "farm" ? 2 : x.work === "build" ? 3 : 4;
     return rank(a) - rank(b);
   });
 

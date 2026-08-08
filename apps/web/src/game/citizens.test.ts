@@ -172,6 +172,78 @@ describe("citizen wood gathering", () => {
     expect(stoneBound.length).toBeGreaterThan(0);
   });
 
+  it("assigns research scholars from the Research Work quota", () => {
+    let state = createNewGame(25);
+    state.resources.wood = 200;
+    state.resources.stone = 50;
+    state.population.count = 5;
+    state.research.unlocked = ["fire"];
+    state.priorities = {
+      food: 0,
+      wood: 0,
+      stone: 0,
+      metal: 0,
+      construction: 0,
+      research: 3,
+      defence: 0,
+    };
+    const house = state.buildings.find((b) => b.type === "house")!;
+    state = placeBuilding(state, "research_hut", house.x + 2, house.y);
+    state.buildings.forEach((b) => {
+      if (b.type === "research_hut") b.progress = 1;
+    });
+
+    const ox = 400;
+    const oy = 80;
+    const citizens: Citizen[] = [];
+    syncCitizens(citizens, state, ox, oy);
+    for (const c of citizens) {
+      if (c.job.kind === "walk" && c.job.phase === "wander") c.job = { kind: "idle" };
+    }
+    syncCitizens(citizens, state, ox, oy);
+
+    const scholars = citizens.filter(
+      (c) =>
+        (c.job.kind === "walk" && c.job.work === "research") ||
+        (c.job.kind === "gather" && c.job.work === "research"),
+    );
+    expect(scholars.length).toBeGreaterThan(0);
+    expect(scholars[0].job.kind === "walk" || scholars[0].job.kind === "gather").toBe(true);
+    if (scholars[0].job.kind === "walk" || scholars[0].job.kind === "gather") {
+      expect(scholars[0].job.resource).toBe("knowledge");
+    }
+  });
+
+  it("sends research workers to study at home before a research hut exists", () => {
+    const state = createNewGame(26);
+    state.population.count = 4;
+    state.priorities = {
+      food: 0,
+      wood: 0,
+      stone: 0,
+      metal: 0,
+      construction: 0,
+      research: 2,
+      defence: 0,
+    };
+
+    const ox = 400;
+    const oy = 80;
+    const citizens: Citizen[] = [];
+    syncCitizens(citizens, state, ox, oy);
+    for (const c of citizens) {
+      if (c.job.kind === "walk" && c.job.phase === "wander") c.job = { kind: "idle" };
+    }
+    syncCitizens(citizens, state, ox, oy);
+
+    const scholars = citizens.filter(
+      (c) =>
+        (c.job.kind === "walk" && c.job.work === "research") ||
+        (c.job.kind === "gather" && c.job.work === "research"),
+    );
+    expect(scholars.length).toBeGreaterThan(0);
+  });
+
   it("delivers gathered wood to the nearest stockpile, not the lumber camp", () => {
     let state = createNewGame(24);
     state.resources.wood = 200;
