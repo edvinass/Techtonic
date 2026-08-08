@@ -1,10 +1,12 @@
 import Phaser from "phaser";
 import { BUILDINGS } from "../data/buildings";
+import { RESOURCES } from "../data/resources";
 import { canPlaceBuilding } from "../sim/engine";
-import type { GameState, TerrainId } from "../sim/types";
+import type { GameState, ResourceId, TerrainId } from "../sim/types";
 import { useGameStore } from "../store/gameStore";
 import { stepCitizens, syncCitizens, type Citizen } from "./citizens";
 import { gridToScreen, screenToGrid, TILE_HEIGHT, TILE_WIDTH } from "./iso";
+import { drawResourceMark } from "./resourceArt";
 
 const TERRAIN_COLORS: Record<TerrainId, number> = {
   grass: 0x5a8f4d,
@@ -16,9 +18,9 @@ const TERRAIN_COLORS: Record<TerrainId, number> = {
 interface Floater {
   x: number;
   y: number;
-  text: string;
+  resource: ResourceId;
+  amount: number;
   life: number;
-  color: number;
 }
 
 export class MainScene extends Phaser.Scene {
@@ -28,7 +30,6 @@ export class MainScene extends Phaser.Scene {
   private fxLayer!: Phaser.GameObjects.Container;
   private ghost!: Phaser.GameObjects.Graphics;
   private lastStructureHash = "";
-  private lastTick = -1;
   private floaters: Floater[] = [];
   private centeredOnce = false;
   private citizens: Citizen[] = [];
@@ -182,14 +183,23 @@ export class MainScene extends Phaser.Scene {
 
     if (!state.paused) {
       syncCitizens(this.citizens, state, ox, oy);
-      stepCitizens(this.citizens, delta);
+      stepCitizens(this.citizens, delta, {
+        state,
+        ox,
+        oy,
+        onDeposit: (resource, amount, wx, wy) => {
+          useGameStore.getState().depositResources(resource, amount);
+          this.floaters.push({
+            x: wx,
+            y: wy - 28,
+            resource,
+            amount,
+            life: 1200,
+          });
+        },
+      });
     }
     this.renderCitizens();
-
-    if (state.tick !== this.lastTick) {
-      this.spawnProductionFloaters(state);
-      this.lastTick = state.tick;
-    }
     this.updateFloaters(delta);
   }
 
@@ -261,22 +271,9 @@ export class MainScene extends Phaser.Scene {
       if (farmingTint && tile.terrain === "grass") color = 0x6fa85a;
       this.drawDiamond(this.tileGraphics, ox + sx, oy + sy, color, 0x1b2618);
       if (tile.deposit === "wood") {
-        // Tree
-        this.tileGraphics.fillStyle(0x2a4a24, 1);
-        this.tileGraphics.fillTriangle(
-          ox + sx,
-          oy + sy - 18,
-          ox + sx - 8,
-          oy + sy - 2,
-          ox + sx + 8,
-          oy + sy - 2,
-        );
-        this.tileGraphics.fillStyle(0x6b4a2a, 1);
-        this.tileGraphics.fillRect(ox + sx - 1.5, oy + sy - 4, 3, 6);
+        drawResourceMark(this.tileGraphics, ox + sx, oy + sy, "wood", 1);
       } else if (tile.deposit === "stone") {
-        this.tileGraphics.fillStyle(0xb0b4bc, 1);
-        this.tileGraphics.fillCircle(ox + sx - 3, oy + sy - 2, 4);
-        this.tileGraphics.fillCircle(ox + sx + 4, oy + sy - 1, 3);
+        drawResourceMark(this.tileGraphics, ox + sx, oy + sy, "stone", 1);
       }
     }
 
@@ -309,10 +306,14 @@ export class MainScene extends Phaser.Scene {
         g.strokeRect(-16, -30, 32, 34);
       }
 
-      // Soft work glow
+      // Soft work glow + produced-resource badge on active buildings
       if (b.progress >= 1 && b.workers > 0) {
         g.fillStyle(0xfff3c4, 0.12);
         g.fillCircle(0, -10, 22);
+      }
+      if (b.progress >= 1 && def.produces) {
+        const res = Object.keys(def.produces)[0] as ResourceId | undefined;
+        if (res) drawResourceMark(g, 12, -36, res, 0.55);
       }
 
       g.setPosition(ox + sx, oy + sy);
@@ -331,23 +332,39 @@ export class MainScene extends Phaser.Scene {
         this.citizenGfx.set(c.id, node);
         this.citizenLayer.add(node);
       }
-      const bob =
-        c.job.kind === "walk"
-          ? Math.abs(Math.sin(c.bobPhase * 2)) * 3
-          : Math.sin(c.bobPhase) * 1.2;
-      const workBounce =
-        c.job.kind === "work" ? Math.abs(Math.sin(c.bobPhase * 4)) * 2.5 : 0;
+      const walking = c.job.kind === "walk";
+      const working = c.job.kind === "gather" || c.job.kind === "work";
+      const bob = walking
+        ? Math.abs(Math.sin(c.bobPhase * 2)) * 3
+        : Math.sin(c.bobPhase) * 1.2;
+      const workBounce = working ? Math.abs(Math.sin(c.bobPhase * 4)) * 2.5 : 0;
       node.setPosition(c.x, c.y - bob - workBounce);
       node.setDepth(10_000 + c.y);
 
-      // Facing tint / tool flash
       const body = node.getAt(0) as Phaser.GameObjects.Arc;
-      if (c.job.kind === "work") {
+      const bundle = node.getAt(4) as Phaser.GameObjects.Arc;
+      const label = node.getAt(5) as Phaser.GameObjects.Text;
+
+      if (c.job.kind === "gather" || c.job.kind === "work") {
         body.setFillStyle(0xffe08a);
-      } else if (c.carry) {
+      } else if (c.carryAmount > 0) {
         body.setFillStyle(0xf0d2a0);
       } else {
         body.setFillStyle(0xf5e6c8);
+      }
+
+      if (c.carryAmount > 0 && c.carrying) {
+        const visual = RESOURCES[c.carrying];
+        bundle.setVisible(true);
+        bundle.setFillStyle(visual.color);
+        const fill = Math.min(1, c.carryAmount / 8);
+        bundle.setRadius(2.2 + fill * 2.2);
+        label.setVisible(true);
+        label.setColor(`#${visual.hex}`);
+        label.setText(`${visual.glyph}${Math.max(1, Math.round(c.carryAmount))}`);
+      } else {
+        bundle.setVisible(false);
+        label.setVisible(false);
       }
     }
 
@@ -364,36 +381,23 @@ export class MainScene extends Phaser.Scene {
     body.setStrokeStyle(1, 0x3a2a18);
     const head = this.add.circle(0, -14, 3.2, 0xffe0b8);
     head.setStrokeStyle(1, 0x3a2a18);
-    // Shadow
     const shadow = this.add.ellipse(0, 2, 10, 4, 0x000000, 0.25);
     const tool = this.add.rectangle(6, -8, 2, 8, 0x8b6914);
-    tool.setVisible(true);
-    const node = this.add.container(c.x, c.y, [body, head, shadow, tool]);
-    // Slight unique scale
+    const bundle = this.add.circle(-6, -7, 3, 0x6b8f4e);
+    bundle.setVisible(false);
+    bundle.setStrokeStyle(1, 0x2a2010);
+    const label = this.add.text(-6, -18, "", {
+      fontFamily: "DM Sans, sans-serif",
+      fontSize: "9px",
+      color: "#fff8e8",
+      stroke: "#142017",
+      strokeThickness: 2,
+    });
+    label.setOrigin(0.5, 1);
+    label.setVisible(false);
+    const node = this.add.container(c.x, c.y, [body, head, shadow, tool, bundle, label]);
     node.setScale(0.9 + (c.id % 5) * 0.04);
     return node;
-  }
-
-  private spawnProductionFloaters(state: GameState) {
-    const { ox, oy } = this.mapOrigin();
-    for (const b of state.buildings) {
-      if (b.progress < 1 || b.workers <= 0) continue;
-      const def = BUILDINGS[b.type];
-      if (!def.produces) continue;
-      const [res, amount] = Object.entries(def.produces)[0] ?? [];
-      if (!res || !amount) continue;
-      const { sx, sy } = gridToScreen(b.x, b.y);
-      this.floaters.push({
-        x: ox + sx + (Math.random() - 0.5) * 16,
-        y: oy + sy - 40,
-        text: `+${(amount * b.workers).toFixed(1)} ${res}`,
-        life: 1100,
-        color: res === "food" ? 0xd4c05a : res === "knowledge" ? 0xb39dff : 0xa8d48a,
-      });
-    }
-    if (this.floaters.length > 50) {
-      this.floaters.splice(0, this.floaters.length - 50);
-    }
   }
 
   private updateFloaters(delta: number) {
@@ -404,16 +408,23 @@ export class MainScene extends Phaser.Scene {
       f.y -= delta * 0.028;
       if (f.life <= 0) continue;
       next.push(f);
-      const label = this.add.text(f.x, f.y, f.text, {
+      const visual = RESOURCES[f.resource];
+      const mark = this.add.graphics();
+      drawResourceMark(mark, f.x - 18, f.y - 4, f.resource, 0.7);
+      mark.setAlpha(Math.min(1, f.life / 450));
+      mark.setDepth(40_000);
+      this.fxLayer.add(mark);
+
+      const label = this.add.text(f.x, f.y, `+${Math.round(f.amount)} ${visual.label}`, {
         fontFamily: "DM Sans, sans-serif",
         fontSize: "12px",
-        color: `#${f.color.toString(16).padStart(6, "0")}`,
+        color: `#${visual.hex}`,
         stroke: "#142017",
         strokeThickness: 3,
       });
-      label.setOrigin(0.5, 1);
+      label.setOrigin(0, 1);
       label.setAlpha(Math.min(1, f.life / 450));
-      label.setDepth(40_000);
+      label.setDepth(40_001);
       this.fxLayer.add(label);
     }
     this.floaters = next;

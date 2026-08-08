@@ -1,10 +1,13 @@
+import type { CSSProperties } from "react";
 import { AGES } from "../data/ages";
 import { BUILDINGS } from "../data/buildings";
+import { RESOURCE_ORDER, RESOURCES } from "../data/resources";
 import { TECH_LIST } from "../data/techs";
 import { ageUpRequirements, getBuildableTypes, isTechAvailable } from "../sim/engine";
-import type { PriorityId } from "../sim/types";
+import type { PriorityId, ResourceId } from "../sim/types";
 import { useGameStore } from "../store/gameStore";
 import { putSave } from "../api/client";
+import { ResourceIcon } from "./ResourceIcon";
 
 const PRIORITIES: PriorityId[] = [
   "food",
@@ -66,17 +69,16 @@ export function Hud() {
           <span className="age-pill">{age.name}</span>
         </div>
         <div className="resources">
-          {(
-            [
-              ["food", state.resources.food],
-              ["wood", state.resources.wood],
-              ["stone", state.resources.stone],
-              ["metal", state.resources.metal],
-              ["knowledge", state.resources.knowledge],
-            ] as const
-          ).map(([id, value]) => (
-            <span key={id}>
-              {id} <strong>{Math.floor(value)}</strong>
+          {RESOURCE_ORDER.map((id) => (
+            <span
+              key={id}
+              className="resource-chip"
+              style={{ "--res": `#${RESOURCES[id].hex}` } as CSSProperties}
+              title={RESOURCES[id].label}
+            >
+              <ResourceIcon id={id} size={15} />
+              <em>{RESOURCES[id].label}</em>
+              <strong>{Math.floor(state.resources[id])}</strong>
             </span>
           ))}
         </div>
@@ -113,9 +115,9 @@ export function Hud() {
       {!tutorialDismissed && (
         <div className="tutorial">
           <p>
-            Drag to pan (right/middle mouse, or left-drag when not building). WASD/arrows and
-            screen-edge also pan. Scroll to zoom. Select a building, then left-click to place —
-            citizens walk to jobs and work. Research Fire → Farming, build a Granary, age up.
+            Workers walk to resource tiles, fill a limited carry (e.g. 8 wood), then return to
+            drop off. Pan with right/middle drag or WASD. Select a building, click to place.
+            Research Fire → Farming, build a Granary, age up.
           </p>
           <button type="button" onClick={dismissTutorial}>
             Got it
@@ -137,10 +139,13 @@ export function Hud() {
                   onClick={() => selectBuilding(selectedBuilding === id ? null : id)}
                 >
                   <strong>{def.name}</strong>
-                  <span>
-                    {Object.entries(def.cost)
-                      .map(([k, v]) => `${v} ${k}`)
-                      .join(" · ")}
+                  <span className="cost-row">
+                    {(Object.entries(def.cost) as [ResourceId, number][]).map(([k, v]) => (
+                      <span key={k} className="cost-item" title={RESOURCES[k].label}>
+                        <ResourceIcon id={k} size={12} />
+                        {v}
+                      </span>
+                    ))}
                   </span>
                 </button>
               );
@@ -193,8 +198,12 @@ export function Hud() {
                     {tech.name}
                     {unlocked ? " ✓" : ""}
                   </strong>
-                  <span>
-                    {tech.costKnowledge} knowledge · {tech.description}
+                  <span className="cost-row">
+                    <span className="cost-item" title="Knowledge">
+                      <ResourceIcon id="knowledge" size={12} />
+                      {tech.costKnowledge}
+                    </span>
+                    <span className="tech-desc">{tech.description}</span>
                   </span>
                 </button>
               );
@@ -209,7 +218,20 @@ export function Hud() {
               <li className={ageReq.hasTech ? "ok" : ""}>Research Farming</li>
               <li className={ageReq.hasLandmark ? "ok" : ""}>Build Granary landmark</li>
               <li className={ageReq.hasPopulation ? "ok" : ""}>Population ≥ 12</li>
-              <li className={ageReq.canPay ? "ok" : ""}>Pay 40 food, 30 wood, 20 stone</li>
+              <li className={ageReq.canPay ? "ok" : ""}>
+                Pay{" "}
+                <span className="cost-row inline">
+                  <span className="cost-item">
+                    <ResourceIcon id="food" size={12} /> 40
+                  </span>
+                  <span className="cost-item">
+                    <ResourceIcon id="wood" size={12} /> 30
+                  </span>
+                  <span className="cost-item">
+                    <ResourceIcon id="stone" size={12} /> 20
+                  </span>
+                </span>
+              </li>
             </ul>
             <button
               type="button"

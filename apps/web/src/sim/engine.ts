@@ -16,8 +16,6 @@ import type {
 const MAP_SIZE = 32;
 const FOOD_PER_CITIZEN = 0.15;
 const GROWTH_FOOD_BUFFER = 5;
-const BASE_FOOD_GATHER = 0.35;
-
 let nextBuildingSeq = 1;
 
 function defaultPriorities(): Priorities {
@@ -55,12 +53,6 @@ function canAfford(resources: Resources, cost: Partial<Resources>): boolean {
 function spend(resources: Resources, cost: Partial<Resources>): void {
   for (const key of Object.keys(cost) as (keyof Resources)[]) {
     resources[key] -= cost[key] ?? 0;
-  }
-}
-
-function addResources(resources: Resources, gain: Partial<Resources>, mult = 1): void {
-  for (const key of Object.keys(gain) as (keyof Resources)[]) {
-    resources[key] += (gain[key] ?? 0) * mult;
   }
 }
 
@@ -284,27 +276,12 @@ export function tick(state: GameState): GameState {
   if (state.paused) return state;
   const next = cloneState(state);
   next.tick += 1;
-  const { constructionWorkers, foragers } = assignWorkers(next);
+  const { constructionWorkers } = assignWorkers(next);
 
-  for (const b of next.buildings) {
-    if (b.progress < 1 || b.workers <= 0) continue;
-    const def = BUILDINGS[b.type];
-    if (!def.produces) continue;
-    const toolsBonus =
-      next.research.unlocked.includes("primitive_tools") &&
-      (b.type === "lumber_camp" || b.type === "quarry")
-        ? 1.15
-        : 1;
-    addResources(next.resources, def.produces, b.workers * toolsBonus);
-  }
-
-  if (foragers > 0) {
-    const fireBonus = next.research.unlocked.includes("fire") ? 1.2 : 1;
-    next.resources.food += foragers * BASE_FOOD_GATHER * fireBonus;
-  }
-
-  // Early discovery: population generates a trickle of knowledge before research buildings
-  next.resources.knowledge += 0.05 + next.population.count * 0.02;
+  // Wood / stone / food / knowledge from gather buildings are delivered by
+  // workers walking to resource tiles and depositing carry loads (see game/citizens).
+  // Keep a tiny knowledge trickle so Fire can be started before a research hut.
+  next.resources.knowledge += 0.04 + next.population.count * 0.015;
 
   next.resources.food -= next.population.count * FOOD_PER_CITIZEN;
   const starving = next.resources.food < 0;

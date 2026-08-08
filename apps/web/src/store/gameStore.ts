@@ -9,7 +9,7 @@ import {
   tick,
 } from "../sim/engine";
 import { deserialize, serialize, type SavedGamePayload } from "../sim/serialize";
-import type { BuildingId, GameState, Priorities, TechId } from "../sim/types";
+import type { BuildingId, GameState, Priorities, ResourceId, TechId } from "../sim/types";
 
 export type Screen = "auth" | "menu" | "game";
 
@@ -40,6 +40,8 @@ interface GameStore {
   setStatus: (msg: string | null) => void;
   dismissTutorial: () => void;
   getSavePayload: () => SavedGamePayload | null;
+  /** Worker drop-off after a gather trip (carry-limited). */
+  depositResources: (resource: ResourceId, amount: number) => void;
 }
 
 const TOKEN_KEY = "techtonic_token";
@@ -175,5 +177,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state } = get();
     if (!state) return null;
     return serialize(state);
+  },
+
+  depositResources: (resource, amount) => {
+    const { state } = get();
+    if (!state || amount <= 0) return;
+    const next = structuredClone(state);
+    next.resources[resource] += amount;
+    set({ state: next });
   },
 }));

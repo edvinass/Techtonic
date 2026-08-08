@@ -1,0 +1,67 @@
+import type { ResourceId } from "../sim/types";
+
+export interface ResourceVisual {
+  id: ResourceId;
+  label: string;
+  /** CSS / text hex without # */
+  hex: string;
+  /** Phaser integer color */
+  color: number;
+  /** Short glyph used in Phaser text floaters */
+  glyph: string;
+}
+
+export const RESOURCE_ORDER: ResourceId[] = [
+  "food",
+  "wood",
+  "stone",
+  "metal",
+  "knowledge",
+];
+
+export const RESOURCES: Record<ResourceId, ResourceVisual> = {
+  food: {
+    id: "food",
+    label: "Food",
+    hex: "d4c05a",
+    color: 0xd4c05a,
+    glyph: "◉",
+  },
+  wood: {
+    id: "wood",
+    label: "Wood",
+    hex: "6b8f4e",
+    color: 0x6b8f4e,
+    glyph: "▲",
+  },
+  stone: {
+    id: "stone",
+    label: "Stone",
+    hex: "8a8f98",
+    color: 0x8a8f98,
+    glyph: "◆",
+  },
+  metal: {
+    id: "metal",
+    label: "Metal",
+    hex: "c08a4a",
+    color: 0xc08a4a,
+    glyph: "▬",
+  },
+  knowledge: {
+    id: "knowledge",
+    label: "Knowledge",
+    hex: "7b6bb5",
+    color: 0x7b6bb5,
+    glyph: "✦",
+  },
+};
+
+export function resourceCss(id: ResourceId): string {
+  return `#${RESOURCES[id].hex}`;
+}
+
+export function formatResourceAmount(id: ResourceId, amount: number): string {
+  const v = RESOURCES[id];
+  return `${v.glyph} +${Math.round(amount)} ${v.label}`;
+}
