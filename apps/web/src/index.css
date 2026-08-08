@@ -198,6 +198,8 @@ input[type="text"] {
   display: block;
   width: 100% !important;
   height: 100% !important;
+  /* Smooth upscale if CSS size and buffer ever diverge; never force nearest-neighbor */
+  image-rendering: auto;
 }
 
 .hud {

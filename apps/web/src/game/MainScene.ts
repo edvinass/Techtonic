@@ -63,6 +63,8 @@ export class MainScene extends Phaser.Scene {
   private spaceDown = false;
   private lastPanX = 0;
   private lastPanY = 0;
+  /** Zoom relative to 1 CSS-pixel world unit (camera.zoom = dpr * userZoom). */
+  private userZoom = 1.05;
 
   private panKeys!: {
     w: Phaser.Input.Keyboard.Key;
@@ -80,9 +82,20 @@ export class MainScene extends Phaser.Scene {
     super("main");
   }
 
+  private dpr(): number {
+    return (this.game.registry.get("dpr") as number) || 1;
+  }
+
+  private applyZoom(userZoom: number) {
+    this.userZoom = Phaser.Math.Clamp(userZoom, 0.4, 2.2);
+    this.cameras.main.setZoom(this.dpr() * this.userZoom);
+  }
+
   create() {
     this.cameras.main.setBackgroundColor("#1a2218");
-    this.cameras.main.setRoundPixels(true);
+    // Keep sub-pixel positions so zoomed vectors stay smooth (not stair-stepped)
+    this.cameras.main.setRoundPixels(false);
+    this.applyZoom(this.userZoom);
 
     this.tileGraphics = this.add.graphics();
     this.buildingLayer = this.add.container(0, 0);
@@ -165,7 +178,7 @@ export class MainScene extends Phaser.Scene {
     this.input.on("wheel", (_p: unknown, _dx: number, _dy: number, dz: number) => {
       const cam = this.cameras.main;
       const before = cam.getWorldPoint(cam.centerX, cam.centerY);
-      cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dz > 0 ? 0.9 : 1.1), 0.4, 2.2));
+      this.applyZoom(this.userZoom * (dz > 0 ? 0.9 : 1.1));
       const after = cam.getWorldPoint(cam.centerX, cam.centerY);
       cam.scrollX += before.x - after.x;
       cam.scrollY += before.y - after.y;
@@ -174,6 +187,8 @@ export class MainScene extends Phaser.Scene {
     // Only re-draw structure on resize; do not yank camera back to spawn
     this.scale.on("resize", () => {
       this.lastStructureHash = "";
+      // Re-apply zoom so DPR × userZoom stays correct after framebuffer resize
+      this.applyZoom(this.userZoom);
     });
 
     const state = useGameStore.getState().state;
@@ -280,7 +295,7 @@ export class MainScene extends Phaser.Scene {
     const { sx, sy } = gridToScreen(gx, gy);
     const { ox, oy } = this.mapOrigin();
     this.cameras.main.centerOn(ox + sx, oy + sy);
-    this.cameras.main.setZoom(1.05);
+    this.applyZoom(1.05);
   }
 
   private redrawStructure(state: GameState) {
