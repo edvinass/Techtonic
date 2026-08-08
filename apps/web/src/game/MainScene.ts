@@ -6,7 +6,13 @@ import { RESOURCES } from "../data/resources";
 import { stanceFor } from "../sim/diplomacy";
 import { canPlaceBuilding } from "../sim/engine";
 import { tileRemainingPct } from "../sim/mapgen";
-import type { GameState, ResourceId, SeasonId, TerrainId, Tile } from "../sim/types";
+import type {
+  GameState,
+  NeighbourState,
+  ResourceId,
+  SeasonId,
+  TerrainId,
+} from "../sim/types";
 import { useGameStore } from "../store/gameStore";
 import { drawBuildingArt } from "./buildingArt";
 import {
@@ -32,6 +38,7 @@ import {
   type RaiderNode,
 } from "./raiderArt";
 import { stepRaiderGang, type RaiderGang } from "./raiders";
+import { tileElevPx } from "./gather";
 import { drawResourceMark } from "./resourceArt";
 import { mapTextResolution } from "./textRes";
 
@@ -73,6 +80,9 @@ const TERRAIN_HINT: Record<TerrainId, string | null> = {
 /** Dwell time before a map object hint appears. */
 const HOVER_HINT_DELAY_MS = 1200;
 
+/** World-space hit radius for tall neighbour camps (tents + banner). */
+const CAMP_HOVER_RADIUS = 44;
+
 function shadeColor(color: number, factor: number): number {
   const r = Math.min(255, Math.max(0, Math.round(((color >> 16) & 0xff) * factor)));
   const g = Math.min(255, Math.max(0, Math.round(((color >> 8) & 0xff) * factor)));
@@ -92,15 +102,6 @@ function lerpColor(a: number, b: number, t: number): number {
   const g = Math.round(ag + (bg - ag) * u);
   const bl = Math.round(ab + (bb - ab) * u);
   return (r << 16) | (g << 8) | bl;
-}
-
-function tileElevPx(tile: Tile): number {
-  if (tile.terrain === "water") return 0;
-  const base =
-    tile.terrain === "rock" ? 4 : tile.terrain === "sand" ? 1 : tile.terrain === "forest" ? 2 : 1.5;
-  const e = tile.elev ?? base;
-  // Stronger extrusion so the island reads as 3D strategy terrain, not flat paper
-  return 4 + e * 3.4;
 }
 
 interface Floater {
@@ -458,6 +459,42 @@ export class MainScene extends Phaser.Scene {
     return false;
   }
 
+  /** Neighbour camps sit elevated and tall — pick by proximity, not exact tile. */
+  private findHoveredCamp(
+    state: GameState,
+    worldX: number,
+    worldY: number,
+    ox: number,
+    oy: number,
+  ): NeighbourState | null {
+    let best: NeighbourState | null = null;
+    let bestDist = CAMP_HOVER_RADIUS;
+    for (const n of state.diplomacy.neighbours) {
+      const { sx, sy } = gridToScreen(n.x, n.y);
+      const tile = state.map.tiles[n.y * state.map.width + n.x];
+      const elev = tile ? tileElevPx(tile) : 3;
+      // Visual centre of tents / banner, above the tile top
+      const cx = ox + sx;
+      const cy = oy + sy - elev - 12;
+      const dist = Math.hypot(worldX - cx, worldY - cy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = n;
+      }
+    }
+    return best;
+  }
+
+  private campHoverLabel(camp: NeighbourState): { key: string; label: string } {
+    const def = NEIGHBOURS[camp.id];
+    const stance = stanceFor(camp.standing);
+    const epithet = def?.epithet ? ` — ${def.epithet}` : "";
+    return {
+      key: `n:${camp.id}:${stance}`,
+      label: `${def?.name ?? camp.id}${epithet} · ${stanceLabel(stance)}`,
+    };
+  }
+
   private resolveHoverTarget(
     state: GameState,
     gx: number,
@@ -476,14 +513,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     const camp = state.diplomacy.neighbours.find((n) => n.x === gx && n.y === gy);
-    if (camp) {
-      const def = NEIGHBOURS[camp.id];
-      const stance = stanceFor(camp.standing);
-      return {
-        key: `n:${camp.id}:${stance}`,
-        label: `${def?.name ?? camp.id} · ${stanceLabel(stance)} · open the Valley tab`,
-      };
-    }
+    if (camp) return this.campHoverLabel(camp);
 
     const tile = state.map.tiles[gy * state.map.width + gx];
     if (!tile) return null;
@@ -530,8 +560,11 @@ export class MainScene extends Phaser.Scene {
 
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const { ox, oy } = this.mapOrigin();
+    const hoveredCamp = this.findHoveredCamp(state, world.x, world.y, ox, oy);
     const { x, y } = screenToGrid(world.x - ox, world.y - oy);
-    const target = this.resolveHoverTarget(state, x, y);
+    const target = hoveredCamp
+      ? this.campHoverLabel(hoveredCamp)
+      : this.resolveHoverTarget(state, x, y);
 
     if (!target) {
       this.clearHover();

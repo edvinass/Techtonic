@@ -1,9 +1,18 @@
+import { ageReached } from "../data/ages";
 import { BUILDINGS } from "../data/buildings";
 import { techModifiers } from "./strategy";
 import type { GameState } from "./types";
 
 /** Base battery before substations / tech bonuses. */
 export const ENERGY_BATTERY_BASE = 12;
+
+/**
+ * Energy HUD / Work controls appear from the Metal Age (boilers, steam)
+ * or sooner if a save already has charge on the grid.
+ */
+export function energyUnlocked(state: GameState): boolean {
+  return ageReached(state.age, "metal") || state.resources.energy > 0.05;
+}
 
 export function energyCap(state: GameState): number {
   const mods = techModifiers(state);

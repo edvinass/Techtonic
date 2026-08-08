@@ -74,7 +74,12 @@ describe("pathfinding", () => {
 
   it("nearestWalkable finds a grass tile beside rock", () => {
     const state = createNewGame(5);
-    paint(state, 40, 40, "rock");
+    // Clear the ring so the first walkable hit is the painted grass
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        paint(state, 40 + dx, 40 + dy, "rock");
+      }
+    }
     paint(state, 41, 40, "grass");
     expect(nearestWalkable(state, { x: 40, y: 40 })).toEqual({ x: 41, y: 40 });
   });

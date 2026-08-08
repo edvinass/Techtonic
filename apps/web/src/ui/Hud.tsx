@@ -7,7 +7,7 @@ import { currentMonthName, SEASON_INFO } from "../data/events";
 import { RESOURCE_ORDER, RESOURCES } from "../data/resources";
 import { TECH_LIST } from "../data/techs";
 import { ageUpRequirements, getBuildableTypes, isTechAvailable } from "../sim/engine";
-import { energyCap } from "../sim/energy";
+import { energyCap, energyUnlocked } from "../sim/energy";
 import { tileRemainingPct } from "../sim/mapgen";
 import { defenceReadiness } from "../sim/pressure";
 import {
@@ -308,7 +308,8 @@ export function Hud() {
   const strainLevel = strain >= 70 ? "critical" : strain >= 40 ? "high" : strain >= 15 ? "warm" : "calm";
   const popTight = state.population.count >= state.population.housingCap;
   const foodLow = state.resources.food < state.population.count * 2;
-  const energyLow = state.powerFactor < 0.98;
+  const showEnergy = energyUnlocked(state);
+  const energyLow = showEnergy && state.powerFactor < 0.98;
   const batteryCap = energyCap(state);
   const selectedDef = selectedBuilding ? BUILDINGS[selectedBuilding] : null;
   const inspected = inspectedBuildingId
@@ -465,7 +466,7 @@ export function Hud() {
         </div>
 
         <div className="resource-bar" role="group" aria-label="Resources">
-          {RESOURCE_ORDER.map((id) => {
+          {RESOURCE_ORDER.filter((id) => id !== "energy" || showEnergy).map((id) => {
             const amount = state.resources[id];
             const delta = deltas[id];
             const critical =
@@ -863,7 +864,7 @@ export function Hud() {
             </button>
 
             <div className="worker-list">
-              {PRIORITY_IDS.map((p, i) => {
+              {PRIORITY_IDS.filter((p) => p !== "energy" || showEnergy).map((p, i) => {
                 const count = workTargets[p];
                 const share = pop > 0 ? (count / pop) * 100 : 0;
                 const accent = PRIORITY_ACCENT[p];

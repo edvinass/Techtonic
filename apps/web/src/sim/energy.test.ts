@@ -3,6 +3,7 @@ import { createNewGame, tick } from "./engine";
 import {
   ENERGY_BATTERY_BASE,
   energyCap,
+  energyUnlocked,
   idealEnergyProduction,
   tickEnergy,
   totalEnergyDemand,
@@ -28,6 +29,19 @@ describe("energy grid", () => {
     expect(state.resources.energy).toBe(0);
     expect(state.powerFactor).toBe(1);
     expect(energyCap(state)).toBe(ENERGY_BATTERY_BASE);
+  });
+
+  it("unlocks energy HUD from the Metal Age (or stored charge)", () => {
+    const early = createNewGame(7);
+    expect(energyUnlocked(early)).toBe(false);
+    early.age = "farming";
+    expect(energyUnlocked(early)).toBe(false);
+    early.age = "metal";
+    expect(energyUnlocked(early)).toBe(true);
+
+    const charged = createNewGame(7);
+    charged.resources.energy = 1;
+    expect(energyUnlocked(charged)).toBe(true);
   });
 
   it("fills the battery from staffed boilers and burns wood fuel", () => {

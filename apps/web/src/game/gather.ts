@@ -64,9 +64,30 @@ export function gatherRateFor(
 }
 
 /** Match MainScene tile elevation so citizens stand on the tile top face. */
+export function tileElevPx(tile: Tile): number {
+  if (tile.terrain === "water") return 0;
+  const base =
+    tile.terrain === "rock" ? 4 : tile.terrain === "sand" ? 1 : tile.terrain === "forest" ? 2 : 1.5;
+  const e = tile.elev ?? base;
+  return 4 + e * 3.4;
+}
+
+/** Match MainScene tile elevation so citizens stand on the tile top face. */
 export function worldPos(gx: number, gy: number, ox: number, oy: number, elev = 3) {
   const { sx, sy } = gridToScreen(gx, gy);
   return { x: ox + sx, y: oy + sy - elev };
+}
+
+/** World position of a map tile's top face. */
+export function worldPosAt(
+  state: GameState,
+  gx: number,
+  gy: number,
+  ox: number,
+  oy: number,
+) {
+  const t = tileAt(state, gx, gy);
+  return worldPos(gx, gy, ox, oy, t ? tileElevPx(t) : 3);
 }
 
 function tileAt(state: GameState, x: number, y: number): Tile | undefined {
@@ -111,6 +132,7 @@ export function findResourceTile(
   building: BuildingInstance,
   resource: ResourceId,
   preferAwayFrom?: { x: number; y: number },
+  exclude?: ReadonlySet<string>,
 ): { gx: number; gy: number } | null {
   const candidates: { gx: number; gy: number; score: number }[] = [];
   const maxDist =
@@ -119,6 +141,7 @@ export function findResourceTile(
   const piles = stockpilePositions(state);
   const haulDist = (x: number, y: number) =>
     distToNearestStockpile(piles, x, y, building);
+  const skipped = (x: number, y: number) => exclude?.has(`${x},${y}`) ?? false;
 
   const hasStock = (t: Tile) => (t.stock ?? 1) > 0;
 
@@ -126,6 +149,7 @@ export function findResourceTile(
     for (const t of state.map.tiles) {
       if (t.deposit !== "wood" && t.terrain !== "forest") continue;
       if (t.deposit === "wood" && !hasStock(t)) continue;
+      if (skipped(t.x, t.y)) continue;
       const dist = haulDist(t.x, t.y);
       if (dist > maxDist) continue;
       let score = dist;
@@ -140,6 +164,7 @@ export function findResourceTile(
     // Only real stone deposits yield via harvestDeposit — barren rock is a no-op.
     for (const t of state.map.tiles) {
       if (t.deposit !== "stone" || !hasStock(t)) continue;
+      if (skipped(t.x, t.y)) continue;
       const dist = haulDist(t.x, t.y);
       if (dist > maxDist) continue;
       let score = dist;
@@ -151,6 +176,7 @@ export function findResourceTile(
   } else if (resource === "metal") {
     for (const t of state.map.tiles) {
       if (t.deposit !== "metal" || !hasStock(t)) continue;
+      if (skipped(t.x, t.y)) continue;
       const dist = haulDist(t.x, t.y);
       if (dist > maxDist) continue;
       let score = dist;
@@ -164,6 +190,7 @@ export function findResourceTile(
         for (let dx = -1; dx <= 1; dx++) {
           const t = tileAt(state, building.x + dx, building.y + dy);
           if (!t || t.terrain === "water" || t.terrain === "rock") continue;
+          if (skipped(t.x, t.y)) continue;
           let score = Math.abs(dx) + Math.abs(dy) + Math.random() * 0.5;
           if (t.terrain === "fertile") score -= 1.2;
           candidates.push({ gx: t.x, gy: t.y, score });
@@ -173,6 +200,7 @@ export function findResourceTile(
       // Wild foraging: fertile land only (grass is barren for food)
       for (const t of state.map.tiles) {
         if (t.terrain !== "fertile" || t.deposit || !hasStock(t)) continue;
+        if (skipped(t.x, t.y)) continue;
         const dist = haulDist(t.x, t.y);
         if (dist < 2 || dist > 7) continue;
         let score = dist + Math.random();
@@ -182,12 +210,15 @@ export function findResourceTile(
     }
   } else if (resource === "knowledge") {
     // Prefer researching on the hut itself so the channel pose reads clearly
-    candidates.push({ gx: building.x, gy: building.y, score: 0.1 + Math.random() * 0.2 });
+    if (!skipped(building.x, building.y)) {
+      candidates.push({ gx: building.x, gy: building.y, score: 0.1 + Math.random() * 0.2 });
+    }
     for (let dy = -2; dy <= 2; dy++) {
       for (let dx = -2; dx <= 2; dx++) {
         if (dx === 0 && dy === 0) continue;
         const t = tileAt(state, building.x + dx, building.y + dy);
         if (!t || t.terrain === "water") continue;
+        if (skipped(t.x, t.y)) continue;
         candidates.push({
           gx: t.x,
           gy: t.y,
@@ -216,6 +247,7 @@ export function findResourceTile(
                 ? t.terrain === "fertile" && !t.deposit && hasStock(t)
                 : t.deposit === "stone" && hasStock(t);
         if (!match) continue;
+        if (skipped(t.x, t.y)) continue;
         const dist = haulDist(t.x, t.y);
         if (t.x === building.x && t.y === building.y) continue;
         if (!best || dist < best.score) best = { gx: t.x, gy: t.y, score: dist };

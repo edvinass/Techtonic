@@ -7,7 +7,7 @@ import {
   findResourceTile,
   gatherRateFor,
   resourceForBuilding,
-  worldPos,
+  worldPosAt,
 } from "./gather";
 import {
   findPath,
@@ -290,6 +290,16 @@ export function findNearestDropoff(
   );
 }
 
+/**
+ * True when A* takes a long coastal slog vs crow-flies — usually a river/rock
+ * barrier. Manhattan haul scoring alone would send villagers looping the shore.
+ */
+export function isPathDetour(from: GridPos, to: GridPos, hops: number): boolean {
+  const manh = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
+  const cheb = Math.max(Math.abs(from.x - to.x), Math.abs(from.y - to.y));
+  return hops > Math.max(12, cheb * 2 + 4) && hops > manh + 6;
+}
+
 /** Prefer a ring/spread world point; snap to nearest walkable if it lands on rock/water. */
 function walkableStandPoint(
   state: GameState,
@@ -304,7 +314,7 @@ function walkableStandPoint(
   }
   const safe = nearestWalkable(state, prefGrid) ?? nearestWalkable(state, near);
   if (!safe) return { x: preferred.x, y: preferred.y, tile: near };
-  const p = worldPos(safe.x, safe.y, ox, oy);
+  const p = worldPosAt(state, safe.x, safe.y, ox, oy);
   return { x: p.x, y: p.y, tile: safe };
 }
 
@@ -315,6 +325,7 @@ function routeWalk(
   oy: number,
   dest: { x: number; y: number },
   goalTile?: GridPos | null,
+  opts?: { allowDetour?: boolean },
 ): { tx: number; ty: number; path: { x: number; y: number }[] } | null {
   const from = worldToGrid(c.x, c.y, ox, oy);
   const start = nearestWalkable(state, from) ?? from;
@@ -327,17 +338,20 @@ function routeWalk(
   }
   if (!cells.length) return null;
 
+  const last = cells[cells.length - 1];
+  const hops = cells.length - 1;
+  if (!opts?.allowDetour && isPathDetour(start, last, hops)) return null;
+
   const path: { x: number; y: number }[] = [];
   for (let i = 1; i < cells.length; i++) {
-    const p = worldPos(cells[i].x, cells[i].y, ox, oy);
+    const p = worldPosAt(state, cells[i].x, cells[i].y, ox, oy);
     path.push(p);
   }
   // Final hop uses the exact world dest only when that cell is standable
   // (or the path actually ends on the rock goal). Prevents ring offsets — and
   // unreachable-rock fallbacks — from dragging onto rock and fighting the
   // stranded-citizen nudge every frame.
-  const last = cells[cells.length - 1];
-  const lastWorld = worldPos(last.x, last.y, ox, oy);
+  const lastWorld = worldPosAt(state, last.x, last.y, ox, oy);
   const destGrid = worldToGrid(dest.x, dest.y, ox, oy);
   const allowRock =
     last.x === rawGoal.x && last.y === rawGoal.y ? rawGoal : null;
@@ -373,12 +387,15 @@ function startDropoffTrip(
     c.job = { kind: "idle" };
     return;
   }
-  const drop = worldPos(dropoff.x, dropoff.y, ox, oy);
+  const drop = worldPosAt(state, dropoff.x, dropoff.y, ox, oy);
   const dest = {
     x: drop.x + (Math.random() - 0.5) * 8,
     y: drop.y + (Math.random() - 0.5) * 6,
   };
-  const routed = routeWalk(c, state, ox, oy, dest, { x: dropoff.x, y: dropoff.y });
+  // Always allow dropoff detours — carrying goods must get home somehow.
+  const routed = routeWalk(c, state, ox, oy, dest, { x: dropoff.x, y: dropoff.y }, {
+    allowDetour: true,
+  });
   if (!routed) {
     c.job = { kind: "idle" };
     return;
@@ -567,45 +584,53 @@ function startGatherTrip(
     c.job = { kind: "idle" };
     return;
   }
-  const tile = findResourceTile(state, building, resource, {
-    x: building.x,
-    y: building.y,
-  });
-  if (!tile) {
-    c.job = { kind: "idle" };
-    return;
-  }
-  // Metal/stone sit on impassable rock — stand beside the deposit (harvest still
-  // uses job.tile). Standing on rock fights syncCitizens' stranded nudge.
-  const deposit = { x: tile.gx, y: tile.gy };
-  const standTile = isWalkable(state, deposit.x, deposit.y)
-    ? deposit
-    : (nearestWalkable(state, deposit) ?? deposit);
-  const pos = worldPos(standTile.x, standTile.y, ox, oy);
-  // Spread workers so they don't stack; step off the building footprint when gathering on-site
-  const onSite = tile.gx === building.x && tile.gy === building.y;
-  const spread = onSite ? 22 : 12;
-  const preferred = {
-    x: pos.x + (Math.random() - 0.5) * spread + (onSite ? (c.id % 3) * 6 - 6 : 0),
-    y: pos.y + (Math.random() - 0.5) * (spread * 0.55) + (onSite ? (c.id % 2) * 4 - 2 : 0),
-  };
-  const stand = walkableStandPoint(state, ox, oy, standTile, preferred);
-  const routed = routeWalk(c, state, ox, oy, stand, stand.tile);
   c.carrying = null;
   c.carryAmount = 0;
-  if (!routed) {
-    c.job = { kind: "idle" };
+
+  // Skip tiles that only look close by Manhattan but force a shore loop around water.
+  const exclude = new Set<string>();
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const tile = findResourceTile(
+      state,
+      building,
+      resource,
+      { x: building.x, y: building.y },
+      exclude,
+    );
+    if (!tile) break;
+    exclude.add(`${tile.gx},${tile.gy}`);
+
+    // Metal/stone sit on impassable rock — stand beside the deposit (harvest still
+    // uses job.tile). Standing on rock fights syncCitizens' stranded nudge.
+    const deposit = { x: tile.gx, y: tile.gy };
+    const standTile = isWalkable(state, deposit.x, deposit.y)
+      ? deposit
+      : (nearestWalkable(state, deposit) ?? deposit);
+    const pos = worldPosAt(state, standTile.x, standTile.y, ox, oy);
+    // Spread workers so they don't stack; step off the building footprint when gathering on-site
+    const onSite = tile.gx === building.x && tile.gy === building.y;
+    const spread = onSite ? 22 : 12;
+    const preferred = {
+      x: pos.x + (Math.random() - 0.5) * spread + (onSite ? (c.id % 3) * 6 - 6 : 0),
+      y: pos.y + (Math.random() - 0.5) * (spread * 0.55) + (onSite ? (c.id % 2) * 4 - 2 : 0),
+    };
+    const stand = walkableStandPoint(state, ox, oy, standTile, preferred);
+    const routed = routeWalk(c, state, ox, oy, stand, stand.tile);
+    if (!routed) continue;
+
+    c.job = {
+      kind: "walk",
+      ...routed,
+      buildingId,
+      work,
+      phase: "toResource",
+      resource,
+      tile,
+    };
     return;
   }
-  c.job = {
-    kind: "walk",
-    ...routed,
-    buildingId,
-    work,
-    phase: "toResource",
-    resource,
-    tile,
-  };
+
+  c.job = { kind: "idle" };
 }
 
 function startBuildTrip(
@@ -623,7 +648,7 @@ function startBuildTrip(
   // Stand on walkable ground next to the scaffold (quarries sit on rock)
   const site = { x: building.x, y: building.y };
   const standTile = nearestWalkable(state, site) ?? site;
-  const pos = worldPos(standTile.x, standTile.y, ox, oy);
+  const pos = worldPosAt(state, standTile.x, standTile.y, ox, oy);
   // Ring builders around the scaffold instead of stacking inside it
   const angle = ((c.id * 2.4) % (Math.PI * 2)) + Math.random() * 0.4;
   const radius = 16 + (c.id % 3) * 5;
@@ -632,7 +657,7 @@ function startBuildTrip(
     y: pos.y + Math.sin(angle) * radius * 0.55,
   };
   const stand = walkableStandPoint(state, ox, oy, standTile, preferred);
-  const routed = routeWalk(c, state, ox, oy, stand, stand.tile);
+  const routed = routeWalk(c, state, ox, oy, stand, stand.tile, { allowDetour: true });
   if (!routed) {
     c.job = { kind: "idle" };
     return;
@@ -662,7 +687,7 @@ function startPostTrip(
   }
   const site = { x: building.x, y: building.y };
   const standTile = nearestWalkable(state, site) ?? site;
-  const pos = worldPos(standTile.x, standTile.y, ox, oy);
+  const pos = worldPosAt(state, standTile.x, standTile.y, ox, oy);
   // Post at the tower base — offset by id so two guards don't stack
   const angle = ((c.id * 2.1) % (Math.PI * 2)) + Math.random() * 0.35;
   const radius = 10 + (c.id % 2) * 4;
@@ -671,7 +696,7 @@ function startPostTrip(
     y: pos.y + Math.sin(angle) * radius * 0.55 - 6,
   };
   const stand = walkableStandPoint(state, ox, oy, standTile, preferred);
-  const routed = routeWalk(c, state, ox, oy, stand, stand.tile);
+  const routed = routeWalk(c, state, ox, oy, stand, stand.tile, { allowDetour: true });
   if (!routed) {
     c.job = { kind: "idle" };
     return;
@@ -704,8 +729,8 @@ export function syncCitizens(
   const home =
     state.buildings.find((b) => b.type === "house") ?? state.buildings[0];
   const homePos = home
-    ? worldPos(home.x, home.y, ox, oy)
-    : worldPos(state.map.width / 2, state.map.height / 2, ox, oy);
+    ? worldPosAt(state, home.x, home.y, ox, oy)
+    : worldPosAt(state, Math.floor(state.map.width / 2), Math.floor(state.map.height / 2), ox, oy);
 
   // Nudge anyone stranded on water/rock back onto land (except quarry work on rock)
   for (const c of citizens) {
@@ -719,10 +744,26 @@ export function syncCitizens(
         c.job.tile.gy === g.y);
     if (workingRock) continue;
     const safe = nearestWalkable(state, g);
-    if (safe) {
-      const p = worldPos(safe.x, safe.y, ox, oy);
-      c.x = p.x;
-      c.y = p.y;
+    if (!safe) continue;
+    const p = worldPosAt(state, safe.x, safe.y, ox, oy);
+    c.x = p.x;
+    c.y = p.y;
+    // Repath so they don't immediately walk back into the hazard
+    if (c.job.kind === "walk") {
+      const dest = { x: c.job.tx, y: c.job.ty };
+      const goal = c.job.tile
+        ? nearestWalkable(state, { x: c.job.tile.gx, y: c.job.tile.gy })
+        : worldToGrid(dest.x, dest.y, ox, oy);
+      const routed = routeWalk(c, state, ox, oy, dest, goal, {
+        allowDetour: c.job.phase === "toDropoff" || c.job.work === "build",
+      });
+      if (routed) {
+        c.job.path = routed.path;
+        c.job.tx = routed.tx;
+        c.job.ty = routed.ty;
+      } else if (c.carryAmount <= 0) {
+        c.job = { kind: "idle" };
+      }
     }
   }
 
@@ -876,7 +917,7 @@ export function syncCitizens(
         }
       }
       if (!destTile) continue;
-      const pos = worldPos(destTile.x, destTile.y, ox, oy);
+      const pos = worldPosAt(state, destTile.x, destTile.y, ox, oy);
       const dest = {
         x: pos.x + (Math.random() - 0.5) * 10,
         y: pos.y + (Math.random() - 0.5) * 6,
@@ -909,8 +950,10 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
       const dy = hop.y - c.y;
       const dist = Math.hypot(dx, dy);
       if (dist >= 3.5) {
-        c.x += (dx / dist) * Math.min(speed, dist);
-        c.y += (dy / dist) * Math.min(speed * 0.7, dist);
+        // Keep x/y on the same unit vector so paths don't drift into water.
+        const step = Math.min(speed, dist);
+        c.x += (dx / dist) * step;
+        c.y += (dy / dist) * step;
         continue;
       }
       if (c.job.path.length > 0) {
