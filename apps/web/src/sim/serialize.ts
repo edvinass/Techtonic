@@ -1,14 +1,32 @@
 import { DEPOSIT_STOCK, FERTILE_STOCK } from "./mapgen";
 import { defaultPressure } from "./pressure";
 import { normalizePriorities } from "./priorities";
-import type { GameState, Priorities, PressureState, RunStats, Tile } from "./types";
+import type {
+  GameState,
+  Priorities,
+  PressureState,
+  ResourceId,
+  RunStats,
+  Tile,
+} from "./types";
 import { ensureStarterStockpile, syncBuildingSeq } from "./engine";
 
 /** Pre-v5 Work tab used a single Gather (`production`) quota. */
 type LegacyPriorities = Partial<Priorities> & { production?: number };
 
+/** Phaser citizen runtime snapshot (schema v6+). Jobs are opaque JSON. */
+export interface SavedCitizen {
+  id: number;
+  x: number;
+  y: number;
+  bobPhase: number;
+  carrying: ResourceId | null;
+  carryAmount: number;
+  job: unknown;
+}
+
 export interface SavedGamePayload {
-  schemaVersion: 1 | 2 | 3 | 4 | 5;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6;
   tick: number;
   age: GameState["age"];
   resources: GameState["resources"];
@@ -23,6 +41,8 @@ export interface SavedGamePayload {
   starvationTicks?: number;
   stats?: RunStats;
   strain?: number;
+  /** Worker world positions / jobs — restored into Phaser on load */
+  citizens?: SavedCitizen[];
 }
 
 function migrateTiles(tiles: Tile[]): Tile[] {
@@ -54,7 +74,7 @@ function migrateTiles(tiles: Tile[]): Tile[] {
 
 export function serialize(state: GameState): SavedGamePayload {
   return {
-    schemaVersion: 5,
+    schemaVersion: 6,
     tick: state.tick,
     age: state.age,
     resources: state.resources,
@@ -78,7 +98,8 @@ export function deserialize(payload: SavedGamePayload): GameState {
     payload.schemaVersion !== 2 &&
     payload.schemaVersion !== 3 &&
     payload.schemaVersion !== 4 &&
-    payload.schemaVersion !== 5
+    payload.schemaVersion !== 5 &&
+    payload.schemaVersion !== 6
   ) {
     throw new Error(`Unsupported save schema version: ${payload.schemaVersion}`);
   }

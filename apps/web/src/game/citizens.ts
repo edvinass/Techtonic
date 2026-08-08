@@ -1,4 +1,5 @@
 import type { BuildingInstance, GameState, PriorityId, ResourceId } from "../sim/types";
+import type { SavedCitizen } from "../sim/serialize";
 import { BUILDINGS } from "../data/buildings";
 import { workerQuota } from "../sim/priorities";
 import {
@@ -24,6 +25,17 @@ export type WorkKind =
   | "forage"
   | "defend"
   | "idle";
+
+const RESOURCES: ResourceId[] = ["food", "wood", "stone", "metal", "knowledge"];
+const WORK_KINDS: WorkKind[] = [
+  "gather",
+  "build",
+  "research",
+  "farm",
+  "forage",
+  "defend",
+  "idle",
+];
 
 export type CitizenJob =
   | { kind: "idle" }
@@ -61,6 +73,135 @@ export interface Citizen {
   bobPhase: number;
   carrying: ResourceId | null;
   carryAmount: number;
+}
+
+function isResourceId(v: unknown): v is ResourceId {
+  return typeof v === "string" && (RESOURCES as string[]).includes(v);
+}
+
+function isWorkKind(v: unknown): v is WorkKind {
+  return typeof v === "string" && (WORK_KINDS as string[]).includes(v);
+}
+
+function parseJob(raw: unknown): CitizenJob {
+  if (!raw || typeof raw !== "object") return { kind: "idle" };
+  const j = raw as Record<string, unknown>;
+  if (j.kind === "idle") return { kind: "idle" };
+
+  if (j.kind === "gather") {
+    const tile = j.tile as { gx?: unknown; gy?: unknown } | undefined;
+    if (
+      typeof j.buildingId === "string" &&
+      isWorkKind(j.work) &&
+      isResourceId(j.resource) &&
+      tile &&
+      typeof tile.gx === "number" &&
+      typeof tile.gy === "number"
+    ) {
+      return {
+        kind: "gather",
+        buildingId: j.buildingId,
+        work: j.work,
+        resource: j.resource,
+        tile: { gx: tile.gx, gy: tile.gy },
+      };
+    }
+    return { kind: "idle" };
+  }
+
+  if (j.kind === "work") {
+    if (
+      typeof j.buildingId === "string" &&
+      isWorkKind(j.work) &&
+      typeof j.timer === "number"
+    ) {
+      return {
+        kind: "work",
+        buildingId: j.buildingId,
+        work: j.work,
+        timer: j.timer,
+      };
+    }
+    return { kind: "idle" };
+  }
+
+  if (j.kind === "walk") {
+    const path = Array.isArray(j.path)
+      ? j.path
+          .filter(
+            (p): p is { x: number; y: number } =>
+              !!p &&
+              typeof p === "object" &&
+              typeof (p as { x: unknown }).x === "number" &&
+              typeof (p as { y: unknown }).y === "number",
+          )
+          .map((p) => ({ x: p.x, y: p.y }))
+      : [];
+    const tile = j.tile as { gx?: unknown; gy?: unknown } | undefined;
+    const phase = j.phase;
+    if (
+      typeof j.tx === "number" &&
+      typeof j.ty === "number" &&
+      typeof j.buildingId === "string" &&
+      isWorkKind(j.work) &&
+      (phase === "toResource" ||
+        phase === "toDropoff" ||
+        phase === "toSite" ||
+        phase === "wander")
+    ) {
+      const job: CitizenJob = {
+        kind: "walk",
+        tx: j.tx,
+        ty: j.ty,
+        path: path.length ? path : [{ x: j.tx, y: j.ty }],
+        buildingId: j.buildingId,
+        work: j.work,
+        phase,
+      };
+      if (isResourceId(j.resource)) job.resource = j.resource;
+      if (tile && typeof tile.gx === "number" && typeof tile.gy === "number") {
+        job.tile = { gx: tile.gx, gy: tile.gy };
+      }
+      return job;
+    }
+    return { kind: "idle" };
+  }
+
+  return { kind: "idle" };
+}
+
+/** Snapshot live citizens for cloud saves. */
+export function snapshotCitizens(citizens: Citizen[]): SavedCitizen[] {
+  return citizens.map((c) => ({
+    id: c.id,
+    x: c.x,
+    y: c.y,
+    bobPhase: c.bobPhase,
+    carrying: c.carrying,
+    carryAmount: c.carryAmount,
+    job: structuredClone(c.job),
+  }));
+}
+
+/** Restore citizens from a save payload (positions + jobs). */
+export function hydrateCitizens(saved: SavedCitizen[]): Citizen[] {
+  return saved.map((s, i) => {
+    const carrying =
+      s.carrying != null && isResourceId(s.carrying) ? s.carrying : null;
+    const carryAmount =
+      typeof s.carryAmount === "number" && s.carryAmount > 0 && carrying
+        ? s.carryAmount
+        : 0;
+    return {
+      id: typeof s.id === "number" ? s.id : i,
+      x: typeof s.x === "number" ? s.x : 0,
+      y: typeof s.y === "number" ? s.y : 0,
+      bobPhase: typeof s.bobPhase === "number" ? s.bobPhase : Math.random() * Math.PI * 2,
+      carrying: carryAmount > 0 ? carrying : null,
+      carryAmount,
+      job: parseJob(s.job),
+    };
+  });
 }
 
 export interface CitizenStepContext {
@@ -102,6 +243,24 @@ export function findNearestDropoff(
   );
 }
 
+/** Prefer a ring/spread world point; snap to nearest walkable if it lands on rock/water. */
+function walkableStandPoint(
+  state: GameState,
+  ox: number,
+  oy: number,
+  near: GridPos,
+  preferred: { x: number; y: number },
+): { x: number; y: number; tile: GridPos } {
+  const prefGrid = worldToGrid(preferred.x, preferred.y, ox, oy);
+  if (isWalkable(state, prefGrid.x, prefGrid.y)) {
+    return { x: preferred.x, y: preferred.y, tile: prefGrid };
+  }
+  const safe = nearestWalkable(state, prefGrid) ?? nearestWalkable(state, near);
+  if (!safe) return { x: preferred.x, y: preferred.y, tile: near };
+  const p = worldPos(safe.x, safe.y, ox, oy);
+  return { x: p.x, y: p.y, tile: safe };
+}
+
 function routeWalk(
   c: Citizen,
   state: GameState,
@@ -126,13 +285,21 @@ function routeWalk(
     const p = worldPos(cells[i].x, cells[i].y, ox, oy);
     path.push(p);
   }
-  // Final hop uses the exact world destination (spread / ring offset)
+  // Final hop uses the exact world dest only when that cell is standable
+  // (or the allowed rock goal). Prevents ring offsets from dragging onto rock
+  // and fighting the stranded-citizen nudge every frame.
+  const last = cells[cells.length - 1];
+  const lastWorld = worldPos(last.x, last.y, ox, oy);
+  const destGrid = worldToGrid(dest.x, dest.y, ox, oy);
+  const end = isWalkable(state, destGrid.x, destGrid.y, rawGoal)
+    ? dest
+    : lastWorld;
   if (path.length) {
-    path[path.length - 1] = { x: dest.x, y: dest.y };
+    path[path.length - 1] = { x: end.x, y: end.y };
   } else {
-    path.push({ x: dest.x, y: dest.y });
+    path.push({ x: end.x, y: end.y });
   }
-  return { tx: dest.x, ty: dest.y, path };
+  return { tx: end.x, ty: end.y, path };
 }
 
 function startDropoffTrip(
@@ -380,15 +547,19 @@ function startBuildTrip(
     c.job = { kind: "idle" };
     return;
   }
-  const pos = worldPos(building.x, building.y, ox, oy);
+  // Stand on walkable ground next to the scaffold (quarries sit on rock)
+  const site = { x: building.x, y: building.y };
+  const standTile = nearestWalkable(state, site) ?? site;
+  const pos = worldPos(standTile.x, standTile.y, ox, oy);
   // Ring builders around the scaffold instead of stacking inside it
   const angle = ((c.id * 2.4) % (Math.PI * 2)) + Math.random() * 0.4;
   const radius = 16 + (c.id % 3) * 5;
-  const dest = {
+  const preferred = {
     x: pos.x + Math.cos(angle) * radius,
     y: pos.y + Math.sin(angle) * radius * 0.55,
   };
-  const routed = routeWalk(c, state, ox, oy, dest, { x: building.x, y: building.y });
+  const stand = walkableStandPoint(state, ox, oy, standTile, preferred);
+  const routed = routeWalk(c, state, ox, oy, stand, stand.tile);
   if (!routed) {
     c.job = { kind: "idle" };
     return;
@@ -415,15 +586,18 @@ function startDefendTrip(
     c.job = { kind: "idle" };
     return;
   }
-  const pos = worldPos(building.x, building.y, ox, oy);
+  const site = { x: building.x, y: building.y };
+  const standTile = nearestWalkable(state, site) ?? site;
+  const pos = worldPos(standTile.x, standTile.y, ox, oy);
   // Post at the tower base — offset by id so two guards don't stack
   const angle = ((c.id * 2.1) % (Math.PI * 2)) + Math.random() * 0.35;
   const radius = 10 + (c.id % 2) * 4;
-  const dest = {
+  const preferred = {
     x: pos.x + Math.cos(angle) * radius,
     y: pos.y + Math.sin(angle) * radius * 0.55 - 6,
   };
-  const routed = routeWalk(c, state, ox, oy, dest, { x: building.x, y: building.y });
+  const stand = walkableStandPoint(state, ox, oy, standTile, preferred);
+  const routed = routeWalk(c, state, ox, oy, stand, stand.tile);
   if (!routed) {
     c.job = { kind: "idle" };
     return;
@@ -487,6 +661,24 @@ export function syncCitizens(
 
   const assignments = desiredAssignments(state);
   const validIds = new Set(state.buildings.map((b) => b.id));
+
+  // After load: carriers with a broken/idle job resume drop-off so haul isn't stranded
+  for (const c of citizens) {
+    if (c.carryAmount <= 0 || !c.carrying || c.job.kind !== "idle") continue;
+    const dropBuilding =
+      state.buildings.find((b) => b.progress >= 1 && BUILDINGS[b.type]?.acceptsDropoff) ??
+      home;
+    if (!dropBuilding || !c.carrying) continue;
+    startDropoffTrip(
+      c,
+      state,
+      ox,
+      oy,
+      dropBuilding.id,
+      "gather",
+      c.carrying,
+    );
+  }
 
   for (const c of citizens) {
     if (c.job.kind === "idle" || isWanderer(c)) continue;

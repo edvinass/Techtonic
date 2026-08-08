@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import { createNewGame, placeBuilding, tick } from "../sim/engine";
 import {
   findNearestDropoff,
+  hydrateCitizens,
+  snapshotCitizens,
   stepCitizens,
   syncCitizens,
   type Citizen,
 } from "./citizens";
 import { CARRY_CAPACITY, worldPos } from "./gather";
+import { isWalkable, worldToGrid } from "./pathfinding";
 
 describe("citizen wood gathering", () => {
   it("sends workers toward forest tiles when a lumber camp exists", () => {
@@ -327,6 +330,82 @@ describe("citizen wood gathering", () => {
     expect(builders.length).toBe(0);
   });
 
+  it("routes builders to walkable ground beside a rock-corner scaffold", () => {
+    const state = createNewGame(33);
+    state.resources.wood = 100;
+    state.population.count = 4;
+    state.priorities = {
+      food: 0,
+      wood: 0,
+      stone: 0,
+      metal: 0,
+      construction: 5,
+      research: 0,
+      defence: 0,
+    };
+
+    // Stone clump with a reachable corner scaffold on rock
+    const bx = 18;
+    const by = 18;
+    for (let y = by; y <= by + 2; y++) {
+      for (let x = bx; x <= bx + 2; x++) {
+        const t = state.map.tiles[y * state.map.width + x];
+        t.terrain = "rock";
+        t.deposit = "stone";
+      }
+    }
+    // Clear grass approach from the west
+    for (let x = bx - 4; x < bx; x++) {
+      const t = state.map.tiles[by * state.map.width + x];
+      t.terrain = "grass";
+      t.deposit = null;
+    }
+
+    state.buildings.push({
+      id: "b_quarry_scaffold",
+      type: "quarry",
+      x: bx,
+      y: by,
+      progress: 0.1,
+      workers: 0,
+    });
+
+    const ox = 400;
+    const oy = 80;
+    const citizens: Citizen[] = [];
+    syncCitizens(citizens, state, ox, oy);
+    for (const c of citizens) {
+      if (c.job.kind === "walk" && c.job.phase === "wander") c.job = { kind: "idle" };
+    }
+    syncCitizens(citizens, state, ox, oy);
+
+    const builders = citizens.filter(
+      (c) => c.job.kind === "walk" && c.job.work === "build",
+    );
+    expect(builders.length).toBeGreaterThan(0);
+
+    for (const b of builders) {
+      if (b.job.kind !== "walk") continue;
+      // Destination and every waypoint must be walkable (not rock/water)
+      const spots = [...b.job.path, { x: b.job.tx, y: b.job.ty }];
+      for (const p of spots) {
+        const g = worldToGrid(p.x, p.y, ox, oy);
+        expect(isWalkable(state, g.x, g.y)).toBe(true);
+      }
+    }
+
+    // Simulate arrival + several sync frames — must not bounce off rock
+    const builder = builders[0];
+    if (builder.job.kind !== "walk") throw new Error("expected walk");
+    builder.x = builder.job.tx;
+    builder.y = builder.job.ty;
+    builder.job.path = [];
+    const ax = builder.x;
+    const ay = builder.y;
+    for (let i = 0; i < 5; i++) syncCitizens(citizens, state, ox, oy);
+    expect(Math.hypot(builder.x - ax, builder.y - ay)).toBeLessThan(2);
+  });
+
   it("advances scaffold progress only while a builder works on-site", () => {
     const state = createNewGame(32);
     state.buildings.push({
@@ -434,5 +513,97 @@ describe("citizen wood gathering", () => {
     const distPile = Math.hypot(citizen.job.tx - pilePos.x, citizen.job.ty - pilePos.y);
     const distCamp = Math.hypot(citizen.job.tx - campPos.x, citizen.job.ty - campPos.y);
     expect(distPile).toBeLessThan(distCamp);
+  });
+});
+
+describe("citizen save/load positions", () => {
+  it("round-trips world positions and jobs through snapshot/hydrate", () => {
+    const citizens: Citizen[] = [
+      {
+        id: 3,
+        x: 412.5,
+        y: 188.25,
+        bobPhase: 1.2,
+        carrying: "wood",
+        carryAmount: 4,
+        job: {
+          kind: "walk",
+          tx: 500,
+          ty: 200,
+          path: [
+            { x: 450, y: 190 },
+            { x: 500, y: 200 },
+          ],
+          buildingId: "b1",
+          work: "gather",
+          phase: "toDropoff",
+          resource: "wood",
+          tile: { gx: 10, gy: 12 },
+        },
+      },
+      {
+        id: 7,
+        x: 300,
+        y: 140,
+        bobPhase: 0.4,
+        carrying: null,
+        carryAmount: 0,
+        job: {
+          kind: "work",
+          buildingId: "b2",
+          work: "research",
+          timer: 0.55,
+        },
+      },
+    ];
+
+    const restored = hydrateCitizens(snapshotCitizens(citizens));
+    expect(restored).toHaveLength(2);
+    expect(restored[0].x).toBe(412.5);
+    expect(restored[0].y).toBe(188.25);
+    expect(restored[0].carrying).toBe("wood");
+    expect(restored[0].carryAmount).toBe(4);
+    expect(restored[0].job).toEqual(citizens[0].job);
+    expect(restored[1].x).toBe(300);
+    expect(restored[1].y).toBe(140);
+    expect(restored[1].job).toEqual(citizens[1].job);
+  });
+
+  it("keeps restored positions when syncCitizens reassigns work", () => {
+    let state = createNewGame(21);
+    state.population.count = 2;
+    const ox = 400;
+    const oy = 80;
+    const home = state.buildings.find((b) => b.type === "house")!;
+    const homePos = worldPos(home.x, home.y, ox, oy);
+
+    const saved = hydrateCitizens([
+      {
+        id: 0,
+        x: homePos.x + 80,
+        y: homePos.y - 40,
+        bobPhase: 0,
+        carrying: null,
+        carryAmount: 0,
+        job: { kind: "idle" },
+      },
+      {
+        id: 1,
+        x: homePos.x - 60,
+        y: homePos.y + 30,
+        bobPhase: 0,
+        carrying: null,
+        carryAmount: 0,
+        job: { kind: "idle" },
+      },
+    ]);
+
+    const before = saved.map((c) => ({ x: c.x, y: c.y }));
+    syncCitizens(saved, state, ox, oy);
+    expect(saved).toHaveLength(2);
+    expect(saved[0].x).toBe(before[0].x);
+    expect(saved[0].y).toBe(before[0].y);
+    expect(saved[1].x).toBe(before[1].x);
+    expect(saved[1].y).toBe(before[1].y);
   });
 });

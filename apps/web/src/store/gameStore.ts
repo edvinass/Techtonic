@@ -15,7 +15,12 @@ import {
   tick,
 } from "../sim/engine";
 import { resolveEventChoice } from "../sim/pressure";
-import { deserialize, serialize, type SavedGamePayload } from "../sim/serialize";
+import {
+  deserialize,
+  serialize,
+  type SavedCitizen,
+  type SavedGamePayload,
+} from "../sim/serialize";
 import type { BuildingId, GameState, Priorities, ResourceId, TechId } from "../sim/types";
 
 export type Screen = "auth" | "menu" | "game";
@@ -30,6 +35,10 @@ interface GameStore {
   lastSavedAt: number | null;
   statusMessage: string | null;
   tutorialDismissed: boolean;
+  /** Citizens from a loaded save, consumed once by MainScene */
+  pendingCitizens: SavedCitizen[] | null;
+  /** Live Phaser scene registers this so saves include worker positions */
+  citizenSnapshotGetter: (() => SavedCitizen[]) | null;
 
   setScreen: (screen: Screen) => void;
   setAuth: (token: string, email: string) => void;
@@ -47,6 +56,8 @@ interface GameStore {
   setSaveMeta: (slot: number, at: number) => void;
   setStatus: (msg: string | null) => void;
   dismissTutorial: () => void;
+  setCitizenSnapshotGetter: (getter: (() => SavedCitizen[]) | null) => void;
+  consumePendingCitizens: () => SavedCitizen[] | null;
   getSavePayload: () => SavedGamePayload | null;
   /** Worker drop-off after a gather trip (carry-limited). */
   depositResources: (resource: ResourceId, amount: number) => void;
@@ -85,6 +96,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   lastSavedAt: null,
   statusMessage: null,
   tutorialDismissed: false,
+  pendingCitizens: null,
+  citizenSnapshotGetter: null,
 
   setScreen: (screen) => set({ screen }),
 
@@ -104,6 +117,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       state: null,
       saveSlot: null,
       selectedBuilding: null,
+      pendingCitizens: null,
+      citizenSnapshotGetter: null,
     });
   },
 
@@ -116,6 +131,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       saveSlot: null,
       lastSavedAt: null,
       tutorialDismissed: false,
+      pendingCitizens: null,
       statusMessage:
         "Stone Age begins. Forests are finite — Land Strain rises with every axe swing. Fortify homes before the raids.",
     });
@@ -129,6 +145,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       saveSlot: slot,
       selectedBuilding: null,
       lastSavedAt: Date.now(),
+      pendingCitizens: payload.citizens?.length ? payload.citizens : null,
       statusMessage: `Loaded slot ${slot}`,
     });
   },
@@ -237,10 +254,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   dismissTutorial: () => set({ tutorialDismissed: true }),
 
+  setCitizenSnapshotGetter: (getter) => set({ citizenSnapshotGetter: getter }),
+
+  consumePendingCitizens: () => {
+    const pending = get().pendingCitizens;
+    if (pending) set({ pendingCitizens: null });
+    return pending;
+  },
+
   getSavePayload: () => {
-    const { state } = get();
+    const { state, citizenSnapshotGetter } = get();
     if (!state) return null;
-    return serialize(state);
+    const payload = serialize(state);
+    const citizens = citizenSnapshotGetter?.();
+    if (citizens?.length) payload.citizens = citizens;
+    return payload;
   },
 
   depositResources: (resource, amount) => {

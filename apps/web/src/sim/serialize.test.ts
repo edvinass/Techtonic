@@ -57,6 +57,28 @@ describe("serialize", () => {
     );
   });
 
+  it("preserves citizen snapshots on the save payload", () => {
+    const state = createNewGame(12);
+    const payload = serialize(state);
+    expect(payload.schemaVersion).toBe(6);
+    payload.citizens = [
+      {
+        id: 0,
+        x: 120,
+        y: 80,
+        bobPhase: 0.5,
+        carrying: null,
+        carryAmount: 0,
+        job: { kind: "idle" },
+      },
+    ];
+    // deserialize only restores GameState; citizens stay on the payload for the scene
+    const restored = deserialize(payload);
+    expect(restored.population.count).toBe(state.population.count);
+    expect(payload.citizens?.[0].x).toBe(120);
+    expect(payload.citizens?.[0].y).toBe(80);
+  });
+
   it("migrates legacy Gather (production) priority into wood", () => {
     const state = createNewGame(12);
     const payload = serialize(state);

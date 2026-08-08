@@ -109,7 +109,7 @@ export interface RunStats {
 }
 
 export interface GameState {
-  schemaVersion: 4 | 5;
+  schemaVersion: 4 | 5 | 6;
   tick: number;
   age: AgeId;
   resources: Resources;

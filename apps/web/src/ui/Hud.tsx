@@ -153,7 +153,7 @@ export function Hud() {
       await putSave(token, slot, {
         name: `${AGES[current.age].name} settlement`,
         age: current.age,
-        schema_version: 4,
+        schema_version: 6,
         state: payload,
       });
       setSaveMeta(slot, Date.now());

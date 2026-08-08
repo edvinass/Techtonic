@@ -13,7 +13,13 @@ import {
   updateCitizenArt,
   type CitizenNode,
 } from "./citizenArt";
-import { stepCitizens, syncCitizens, type Citizen } from "./citizens";
+import {
+  hydrateCitizens,
+  snapshotCitizens,
+  stepCitizens,
+  syncCitizens,
+  type Citizen,
+} from "./citizens";
 import { gridToScreen, screenToGrid, TILE_HEIGHT, TILE_WIDTH } from "./iso";
 import { drawResourceMark } from "./resourceArt";
 import { mapTextResolution } from "./textRes";
@@ -291,7 +297,21 @@ export class MainScene extends Phaser.Scene {
       if (state) this.clampCameraToMap(state);
     });
 
-    const state = useGameStore.getState().state;
+    const store = useGameStore.getState();
+    const pending = store.consumePendingCitizens();
+    if (pending?.length) {
+      this.citizens = hydrateCitizens(pending);
+    }
+    const snapshotGetter = () => snapshotCitizens(this.citizens);
+    store.setCitizenSnapshotGetter(snapshotGetter);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      const current = useGameStore.getState();
+      if (current.citizenSnapshotGetter === snapshotGetter) {
+        current.setCitizenSnapshotGetter(null);
+      }
+    });
+
+    const state = store.state;
     if (state) {
       this.redrawStructure(state);
       this.centerOnSettlement(state);
