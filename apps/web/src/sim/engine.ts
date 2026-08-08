@@ -19,7 +19,7 @@ const GROWTH_FOOD_BUFFER = 5;
 let nextBuildingSeq = 1;
 
 function defaultPriorities(): Priorities {
-  return { food: 30, construction: 20, research: 20, production: 25, defence: 5 };
+  return { food: 25, construction: 15, research: 15, production: 40, defence: 5 };
 }
 
 function tileAt(state: GameState, x: number, y: number): Tile | undefined {

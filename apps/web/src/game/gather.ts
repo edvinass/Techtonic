@@ -46,43 +46,47 @@ export function findResourceTile(
   preferAwayFrom?: { x: number; y: number },
 ): { gx: number; gy: number } | null {
   const candidates: { gx: number; gy: number; score: number }[] = [];
+  const maxDist = resource === "wood" || resource === "stone" ? 14 : 8;
 
   if (resource === "wood") {
     for (const t of state.map.tiles) {
       if (t.deposit !== "wood" && t.terrain !== "forest") continue;
-      // Prefer real deposits; allow forest without deposit too
       const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
-      if (dist > 8) continue;
-      let score = dist + (t.deposit === "wood" ? 0 : 2);
-      if (preferAwayFrom) {
-        score -= Math.min(3, Math.hypot(t.x - preferAwayFrom.x, t.y - preferAwayFrom.y) * 0.15);
-      }
-      // Slightly prefer tiles that aren't the building itself so they walk out
-      if (t.x === building.x && t.y === building.y) score += 1.5;
+      if (dist > maxDist) continue;
+      // Prefer nearby trees that are NOT the camp tile itself (so they walk out)
+      let score = dist;
+      if (t.deposit === "wood") score -= 0.5;
+      if (t.x === building.x && t.y === building.y) score += 8;
+      if (preferAwayFrom && dist >= 1) score -= 0.25;
+      // Slight randomness so workers spread across several trees
+      score += Math.random() * 1.5;
       candidates.push({ gx: t.x, gy: t.y, score });
     }
   } else if (resource === "stone") {
     for (const t of state.map.tiles) {
       if (t.deposit !== "stone" && t.terrain !== "rock") continue;
       const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
-      if (dist > 8) continue;
-      let score = dist + (t.deposit === "stone" ? 0 : 2);
-      if (t.x === building.x && t.y === building.y) score += 1.5;
+      if (dist > maxDist) continue;
+      let score = dist;
+      if (t.deposit === "stone") score -= 0.5;
+      if (t.x === building.x && t.y === building.y) score += 8;
+      score += Math.random() * 1.5;
       candidates.push({ gx: t.x, gy: t.y, score });
     }
   } else if (resource === "food") {
     if (building.type === "farm") {
-      // Work plots around the farm
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           const t = tileAt(state, building.x + dx, building.y + dy);
           if (!t || t.terrain === "water") continue;
-          const score = Math.abs(dx) + Math.abs(dy) + Math.random() * 0.5;
-          candidates.push({ gx: t.x, gy: t.y, score });
+          candidates.push({
+            gx: t.x,
+            gy: t.y,
+            score: Math.abs(dx) + Math.abs(dy) + Math.random() * 0.5,
+          });
         }
       }
     } else {
-      // Foraging wild food on grass/forest near settlement
       for (const t of state.map.tiles) {
         if (t.terrain !== "grass" && t.terrain !== "forest") continue;
         const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
@@ -91,33 +95,44 @@ export function findResourceTile(
       }
     }
   } else if (resource === "knowledge") {
-    // Study near the research hut — small walk around it
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
         if (dx === 0 && dy === 0) continue;
         const t = tileAt(state, building.x + dx, building.y + dy);
         if (!t || t.terrain === "water") continue;
-        candidates.push({ gx: t.x, gy: t.y, score: Math.random() });
+        candidates.push({ gx: t.x, gy: t.y, score: Math.abs(dx) + Math.abs(dy) + Math.random() });
       }
     }
-    candidates.push({ gx: building.x, gy: building.y, score: 2 });
   }
 
   if (!candidates.length) {
-    // Fallback: building tile
+    // Global fallback: any matching resource on the map nearest the building
+    if (resource === "wood" || resource === "stone") {
+      const deposit = resource === "wood" ? "wood" : "stone";
+      const terrain = resource === "wood" ? "forest" : "rock";
+      let best: { gx: number; gy: number; score: number } | null = null;
+      for (const t of state.map.tiles) {
+        if (t.deposit !== deposit && t.terrain !== terrain) continue;
+        const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
+        if (t.x === building.x && t.y === building.y) continue;
+        if (!best || dist < best.score) best = { gx: t.x, gy: t.y, score: dist };
+      }
+      if (best) return { gx: best.gx, gy: best.gy };
+    }
     return { gx: building.x, gy: building.y };
   }
 
   candidates.sort((a, b) => a.score - b.score);
-  // Pick among a few best so workers spread out
-  const top = candidates.slice(0, Math.min(5, candidates.length));
+  // Prefer walking at least 1 tile away when possible
+  const away = candidates.filter(
+    (c) => !(c.gx === building.x && c.gy === building.y),
+  );
+  const pool = away.length ? away : candidates;
+  const top = pool.slice(0, Math.min(6, pool.length));
   return top[Math.floor(Math.random() * top.length)];
 }
 
-export function carryCapacityFor(
-  resource: ResourceId,
-  hasTools: boolean,
-): number {
+export function carryCapacityFor(resource: ResourceId, hasTools: boolean): number {
   const base = CARRY_CAPACITY[resource];
   return hasTools && (resource === "wood" || resource === "stone")
     ? Math.ceil(base * 1.25)

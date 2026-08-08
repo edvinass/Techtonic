@@ -1,4 +1,4 @@
-import type { BuildingInstance, GameState, ResourceId } from "../sim/types";
+import type { BuildingInstance, GameState, PriorityId, ResourceId } from "../sim/types";
 import { BUILDINGS } from "../data/buildings";
 import {
   carryCapacityFor,
@@ -42,7 +42,6 @@ export interface Citizen {
   y: number;
   job: CitizenJob;
   bobPhase: number;
-  /** Resource currently carried */
   carrying: ResourceId | null;
   carryAmount: number;
 }
@@ -73,45 +72,114 @@ interface Assignment {
   resource: ResourceId | null;
 }
 
+function quota(state: GameState, p: PriorityId): number {
+  const weights = state.priorities;
+  const total = Math.max(1, Object.values(weights).reduce((a, b) => a + b, 0));
+  return Math.floor((state.population.count * weights[p]) / total);
+}
+
+/**
+ * Desired jobs from priorities + buildings (does not depend on sim tick workers,
+ * which can lag a full second behind).
+ */
 function desiredAssignments(state: GameState): Assignment[] {
   const list: Assignment[] = [];
+  let remaining = state.population.count;
+
+  // Construction sites first
+  const sites = state.buildings.filter((b) => b.progress < 1);
+  let buildSlots = Math.min(quota(state, "construction"), remaining, sites.length * 2);
+  for (const site of sites) {
+    if (buildSlots <= 0 || remaining <= 0) break;
+    const take = Math.min(2, buildSlots, remaining);
+    for (let i = 0; i < take; i++) {
+      list.push({ buildingId: site.id, work: "build", resource: null });
+    }
+    buildSlots -= take;
+    remaining -= take;
+  }
+
+  const staffBuilding = (
+    building: BuildingInstance,
+    budget: number,
+    work: WorkKind,
+    resource: ResourceId | null,
+  ) => {
+    if (budget <= 0 || remaining <= 0 || building.progress < 1) return 0;
+    const slots = BUILDINGS[building.type].workerSlots;
+    const take = Math.min(slots, budget, remaining);
+    for (let i = 0; i < take; i++) {
+      list.push({ buildingId: building.id, work, resource });
+    }
+    remaining -= take;
+    return take;
+  };
+
+  let researchBudget = quota(state, "research");
+  let foodBudget = quota(state, "food");
+  let productionBudget = quota(state, "production");
 
   for (const b of state.buildings) {
-    if (b.progress < 1) {
-      const n = Math.max(1, Math.min(3, Math.ceil(state.priorities.construction / 30)));
-      for (let i = 0; i < n; i++) {
-        list.push({ buildingId: b.id, work: "build", resource: null });
-      }
-      continue;
+    if (BUILDINGS[b.type].priority === "research") {
+      researchBudget -= staffBuilding(b, researchBudget, "research", "knowledge");
     }
-    const work = workKindFor(b);
-    const resource = resourceForBuilding(b);
-    for (let i = 0; i < b.workers; i++) {
-      list.push({ buildingId: b.id, work, resource });
+  }
+  for (const b of state.buildings) {
+    if (b.type === "farm") {
+      foodBudget -= staffBuilding(b, foodBudget, "farm", "food");
+    }
+  }
+  for (const b of state.buildings) {
+    if (BUILDINGS[b.type].priority === "production") {
+      const res = resourceForBuilding(b);
+      if (!res) continue;
+      productionBudget -= staffBuilding(b, productionBudget, "gather", res);
     }
   }
 
-  // Foragers: food-priority people not already on farms
-  const farmWorkers = list.filter((a) => a.work === "farm").length;
-  const foodQuota = Math.floor(
-    (state.population.count * state.priorities.food) /
-      Math.max(1, Object.values(state.priorities).reduce((a, b) => a + b, 0)),
-  );
-  const forageCount = Math.max(0, foodQuota - farmWorkers);
+  // Fill leftover population into any open production/food/research slots
+  for (const b of state.buildings) {
+    if (remaining <= 0) break;
+    if (b.progress < 1) continue;
+    const def = BUILDINGS[b.type];
+    if (def.workerSlots <= 0) continue;
+    const already = list.filter((a) => a.buildingId === b.id).length;
+    const room = def.workerSlots - already;
+    if (room <= 0) continue;
+    const work = workKindFor(b);
+    const resource = resourceForBuilding(b);
+    if (!resource && work !== "build") continue;
+    const take = Math.min(room, remaining);
+    for (let i = 0; i < take; i++) {
+      list.push({ buildingId: b.id, work, resource });
+    }
+    remaining -= take;
+  }
+
+  // Foragers for leftover food budget (wild food near home)
   const home = state.buildings.find((b) => b.type === "house") ?? state.buildings[0];
-  for (let i = 0; i < forageCount && home; i++) {
+  const forageWanted = Math.min(foodBudget, remaining);
+  for (let i = 0; i < forageWanted && home; i++) {
     list.push({ buildingId: home.id, work: "forage", resource: "food" });
+    remaining -= 1;
   }
 
   return list;
 }
 
-function isBusyGatherer(c: Citizen): boolean {
-  return (
-    c.job.kind === "gather" ||
-    c.job.kind === "work" ||
-    (c.job.kind === "walk" && c.job.phase !== "wander")
-  );
+function isWanderer(c: Citizen): boolean {
+  return c.job.kind === "walk" && (c.job.phase === "wander" || c.job.work === "idle");
+}
+
+function isFreeForWork(c: Citizen): boolean {
+  return c.carryAmount <= 0 && (c.job.kind === "idle" || isWanderer(c));
+}
+
+function isOnAssignment(c: Citizen): boolean {
+  if (c.carryAmount > 0) return true;
+  if (c.job.kind === "gather" || c.job.kind === "work") return true;
+  if (c.job.kind === "walk" && c.job.phase !== "wander" && c.job.work !== "idle") return true;
+  return false;
 }
 
 function startGatherTrip(
@@ -128,7 +196,10 @@ function startGatherTrip(
     c.job = { kind: "idle" };
     return;
   }
-  const tile = findResourceTile(state, building, resource);
+  const tile = findResourceTile(state, building, resource, {
+    x: building.x,
+    y: building.y,
+  });
   if (!tile) {
     c.job = { kind: "idle" };
     return;
@@ -138,8 +209,8 @@ function startGatherTrip(
   c.carryAmount = 0;
   c.job = {
     kind: "walk",
-    tx: pos.x + (Math.random() - 0.5) * 10,
-    ty: pos.y + (Math.random() - 0.5) * 6,
+    tx: pos.x + (Math.random() - 0.5) * 8,
+    ty: pos.y + (Math.random() - 0.5) * 5,
     buildingId,
     work,
     phase: "toResource",
@@ -201,9 +272,8 @@ export function syncCitizens(
   const assignments = desiredAssignments(state);
   const validIds = new Set(state.buildings.map((b) => b.id));
 
-  // Cancel jobs for missing buildings (unless carrying — finish dropoff first)
   for (const c of citizens) {
-    if (c.job.kind === "idle") continue;
+    if (c.job.kind === "idle" || isWanderer(c)) continue;
     const bid =
       c.job.kind === "walk" || c.job.kind === "gather" || c.job.kind === "work"
         ? c.job.buildingId
@@ -214,48 +284,40 @@ export function syncCitizens(
     }
   }
 
-  const taken = citizens.filter(isBusyGatherer).length;
-  const need = Math.max(0, assignments.length - taken);
-
-  // Count current assignments per building+work
-  const used = new Map<string, number>();
   const keyOf = (buildingId: string, work: WorkKind) => `${buildingId}:${work}`;
+  const used = new Map<string, number>();
   for (const c of citizens) {
-    if (!isBusyGatherer(c)) continue;
+    if (!isOnAssignment(c)) continue;
     if (c.job.kind === "walk" || c.job.kind === "gather" || c.job.kind === "work") {
       const work = c.job.work;
       if (work === "idle") continue;
-      const k = keyOf(c.job.buildingId, work);
-      used.set(k, (used.get(k) ?? 0) + 1);
+      used.set(keyOf(c.job.buildingId, work), (used.get(keyOf(c.job.buildingId, work)) ?? 0) + 1);
     }
   }
 
   const open: Assignment[] = [];
-  const needCount = new Map<string, number>();
+  const needCount = new Map<string, Assignment[]>();
   for (const a of assignments) {
     const k = keyOf(a.buildingId, a.work);
-    needCount.set(k, (needCount.get(k) ?? 0) + 1);
+    const arr = needCount.get(k) ?? [];
+    arr.push(a);
+    needCount.set(k, arr);
   }
-  for (const [k, n] of needCount) {
+  for (const [k, arr] of needCount) {
     const have = used.get(k) ?? 0;
-    const [buildingId, work] = k.split(":") as [string, WorkKind];
-    const sample = assignments.find(
-      (a) => a.buildingId === buildingId && a.work === work,
-    );
-    for (let i = have; i < n; i++) {
-      open.push(
-        sample ?? {
-          buildingId,
-          work,
-          resource: work === "forage" ? "food" : null,
-        },
-      );
-    }
+    for (let i = have; i < arr.length; i++) open.push(arr[i]);
   }
+
+  // Production / gather jobs first so woodcutters leave base before foragers/wander
+  open.sort((a, b) => {
+    const rank = (x: Assignment) =>
+      x.work === "gather" ? 0 : x.work === "farm" ? 1 : x.work === "research" ? 2 : x.work === "build" ? 3 : 4;
+    return rank(a) - rank(b);
+  });
 
   let oi = 0;
   for (const c of citizens) {
-    if (c.job.kind !== "idle" || c.carryAmount > 0) continue;
+    if (!isFreeForWork(c)) continue;
     const a = open[oi++];
     if (!a) break;
     if (a.work === "build") {
@@ -265,10 +327,8 @@ export function syncCitizens(
     }
   }
 
-  void need;
-
   for (const c of citizens) {
-    if (c.job.kind === "idle" && c.carryAmount <= 0 && Math.random() < 0.012) {
+    if (c.job.kind === "idle" && c.carryAmount <= 0 && Math.random() < 0.008) {
       c.job = {
         kind: "walk",
         tx: homePos.x + (Math.random() - 0.5) * 80,
@@ -282,7 +342,7 @@ export function syncCitizens(
 }
 
 export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepContext): void {
-  const speed = 0.058 * dt;
+  const speed = 0.07 * dt;
   const { state, ox, oy, onDeposit } = ctx;
   const hasTools = state.research.unlocked.includes("primitive_tools");
 
@@ -295,11 +355,10 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
       const dist = Math.hypot(dx, dy);
       if (dist >= 3.5) {
         c.x += (dx / dist) * Math.min(speed, dist);
-        c.y += (dy / dist) * Math.min(speed * 0.65, dist);
+        c.y += (dy / dist) * Math.min(speed * 0.7, dist);
         continue;
       }
 
-      // Arrived
       if (c.job.phase === "wander" || c.job.work === "idle") {
         c.job = { kind: "idle" };
         continue;
@@ -350,7 +409,6 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
       const rate = GATHER_PER_SEC[c.job.resource] * (hasTools ? 1.15 : 1);
       c.carryAmount = Math.min(cap, c.carryAmount + (rate * dt) / 1000);
       c.carrying = c.job.resource;
-      // Work animation jitter
       c.x += Math.sin(c.bobPhase * 2.4) * 0.12;
       c.y += Math.cos(c.bobPhase * 2.4) * 0.06;
 
@@ -381,7 +439,6 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
       c.x += Math.sin(c.bobPhase * 2.2) * 0.1;
       c.y += Math.cos(c.bobPhase * 2.2) * 0.05;
       if (c.job.timer <= 0) {
-        // Resume building or idle
         const building = buildingById(state, c.job.buildingId);
         if (building && building.progress < 1) {
           startBuildTrip(c, state, ox, oy, building.id);
