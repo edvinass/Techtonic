@@ -212,6 +212,8 @@ export class MainScene extends Phaser.Scene {
         this.cameras.main.scrollY -= dy / zoom;
         this.lastPanX = pointer.x;
         this.lastPanY = pointer.y;
+        const state = useGameStore.getState().state;
+        if (state) this.clampCameraToMap(state);
       }
       this.drawGhost(pointer);
       this.trackHover(pointer);
@@ -247,6 +249,8 @@ export class MainScene extends Phaser.Scene {
       const after = cam.getWorldPoint(cam.centerX, cam.centerY);
       cam.scrollX += before.x - after.x;
       cam.scrollY += before.y - after.y;
+      const state = useGameStore.getState().state;
+      if (state) this.clampCameraToMap(state);
     });
 
     // Only re-draw structure on resize; do not yank camera back to spawn
@@ -255,6 +259,8 @@ export class MainScene extends Phaser.Scene {
       this.drawAmbience();
       // Re-apply zoom so DPR × userZoom stays correct after framebuffer resize
       this.applyZoom(this.userZoom);
+      const state = useGameStore.getState().state;
+      if (state) this.clampCameraToMap(state);
     });
 
     const state = useGameStore.getState().state;
@@ -277,6 +283,7 @@ export class MainScene extends Phaser.Scene {
 
     this.handleKeyboardPan(delta);
     this.handleEdgePan(delta);
+    this.clampCameraToMap(state);
     this.tickHover(delta);
     this.waterPulse += delta;
 
@@ -479,6 +486,41 @@ export class MainScene extends Phaser.Scene {
     if (ptr.y > h - edge) this.cameras.main.scrollY += speed;
   }
 
+  /** Keep the camera centered over the map diamond — no infinite void scrolling. */
+  private clampCameraToMap(state: GameState) {
+    const cam = this.cameras.main;
+    const { ox, oy } = this.mapOrigin();
+    const mw = state.map.width;
+    const mh = state.map.height;
+    const corners = [
+      gridToScreen(0, 0),
+      gridToScreen(mw, 0),
+      gridToScreen(0, mh),
+      gridToScreen(mw, mh),
+    ];
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const { sx, sy } of corners) {
+      minX = Math.min(minX, ox + sx);
+      maxX = Math.max(maxX, ox + sx);
+      minY = Math.min(minY, oy + sy);
+      maxY = Math.max(maxY, oy + sy);
+    }
+    // Slack for tile sides / underlay so the rim can still reach mid-screen
+    const padX = TILE_WIDTH * 0.5;
+    const padY = TILE_HEIGHT * 2;
+    minX -= padX;
+    maxX += padX;
+    minY -= padY;
+    maxY += padY + 24;
+
+    const cx = Phaser.Math.Clamp(cam.midPoint.x, minX, maxX);
+    const cy = Phaser.Math.Clamp(cam.midPoint.y, minY, maxY);
+    cam.centerOn(cx, cy);
+  }
+
   private mapOrigin() {
     return {
       ox: this.scale.width / 2,
@@ -494,6 +536,7 @@ export class MainScene extends Phaser.Scene {
     const { ox, oy } = this.mapOrigin();
     this.cameras.main.centerOn(ox + sx, oy + sy);
     this.applyZoom(1.25);
+    this.clampCameraToMap(state);
   }
 
   private drawAmbience() {
