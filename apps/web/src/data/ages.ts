@@ -35,7 +35,6 @@ export const AGES: Record<AgeId, AgeDef> = {
     next: "farming",
     keyTech: "farming",
     landmark: "granary",
-    minPopulation: 18,
     cost: { food: 90, wood: 80, stone: 55 },
   },
   farming: {
@@ -45,7 +44,6 @@ export const AGES: Record<AgeId, AgeDef> = {
     next: "metal",
     keyTech: "metallurgy",
     landmark: "forge",
-    minPopulation: 32,
     cost: { food: 120, wood: 100, stone: 80, metal: 70 },
   },
   metal: {
@@ -55,7 +53,6 @@ export const AGES: Record<AgeId, AgeDef> = {
     next: "industrial",
     keyTech: "steam_power",
     landmark: "factory",
-    minPopulation: 45,
     cost: { food: 150, wood: 110, stone: 95, metal: 160, knowledge: 60, energy: 12 },
   },
   industrial: {
@@ -65,7 +62,6 @@ export const AGES: Record<AgeId, AgeDef> = {
     next: "atomic",
     keyTech: "atomic_theory",
     landmark: "reactor",
-    minPopulation: 58,
     cost: { food: 170, wood: 90, stone: 120, metal: 220, knowledge: 130, energy: 28 },
   },
   atomic: {
@@ -75,7 +71,6 @@ export const AGES: Record<AgeId, AgeDef> = {
     next: "space",
     keyTech: "rocketry",
     landmark: "launch_pad",
-    minPopulation: 72,
     cost: { food: 200, stone: 110, metal: 300, knowledge: 240, energy: 40 },
   },
   space: {

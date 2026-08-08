@@ -1035,9 +1035,6 @@ export function Hud() {
                       Build {landmarkName} landmark
                     </li>
                   )}
-                  <li className={ageReq.hasPopulation ? "ok" : ""}>
-                    Population ≥ {age.minPopulation ?? 0}
-                  </li>
                   <li className={ageReq.canPay ? "ok" : ""}>
                     Pay{" "}
                     <span className="cost-row inline">

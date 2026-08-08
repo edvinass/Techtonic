@@ -343,6 +343,5 @@ export interface AgeDef {
   next?: AgeId;
   keyTech?: TechId;
   landmark?: BuildingId;
-  minPopulation?: number;
   cost?: Partial<Resources>;
 }

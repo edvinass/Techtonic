@@ -323,7 +323,6 @@ export function ageUpRequirements(state: GameState): {
   ready: boolean;
   hasTech: boolean;
   hasLandmark: boolean;
-  hasPopulation: boolean;
   canPay: boolean;
   nextAge: AgeId | null;
 } {
@@ -333,7 +332,6 @@ export function ageUpRequirements(state: GameState): {
       ready: false,
       hasTech: false,
       hasLandmark: false,
-      hasPopulation: false,
       canPay: false,
       nextAge: null,
     };
@@ -342,13 +340,11 @@ export function ageUpRequirements(state: GameState): {
   const hasLandmark =
     !!age.landmark &&
     state.buildings.some((b) => b.type === age.landmark && b.progress >= 1);
-  const hasPopulation = state.population.count >= (age.minPopulation ?? 0);
   const canPay = canAfford(state.resources, age.cost ?? {});
   return {
-    ready: hasTech && hasLandmark && hasPopulation && canPay,
+    ready: hasTech && hasLandmark && canPay,
     hasTech,
     hasLandmark,
-    hasPopulation,
     canPay,
     nextAge: age.next,
   };

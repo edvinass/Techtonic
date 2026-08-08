@@ -280,7 +280,7 @@ const AGES_VICTORY: LibraryEntry[] = [
     category: "ages",
     title: "Ascent victory",
     summary: "Climb ages and complete the Launch Pad.",
-    body: "Each age needs a key technology, a landmark building, enough population, and a resource payment. Finish the chain through Atomic into Space by building the Launch Pad after Rocketry. This is the industrial / spacefaring win.",
+    body: "Each age needs a key technology, a landmark building, and a resource payment. Finish the chain through Atomic into Space by building the Launch Pad after Rocketry. This is the industrial / spacefaring win.",
   },
   {
     id: "victory-harmony",
@@ -395,7 +395,6 @@ function ageEntries(): LibraryEntry[] {
         const b = BUILDING_LIST.find((x) => x.id === age.landmark);
         bits.push(`Landmark: ${b?.name ?? age.landmark}.`);
       }
-      if (age.minPopulation) bits.push(`Population needed: ${age.minPopulation}.`);
     }
     return {
       id: `age-${id}`,
