@@ -15,21 +15,30 @@ export function drawResourceMark(
 
   switch (id) {
     case "wood": {
+      // Layered pine-like tree
+      g.fillStyle(0x000000, 0.18);
+      g.fillEllipse(x, y + 2 * s, 14 * s, 6 * s);
+      g.fillStyle(0x5a3d22, 1);
+      g.fillRect(x - 1.6 * s, y - 4 * s, 3.2 * s, 8 * s);
+      g.fillStyle(0x2f5a28, 1);
+      g.fillTriangle(x, y - 22 * s, x - 9 * s, y - 6 * s, x + 9 * s, y - 6 * s);
       g.fillStyle(color, 1);
-      g.fillTriangle(x, y - 16 * s, x - 7 * s, y - 2 * s, x + 7 * s, y - 2 * s);
+      g.fillTriangle(x, y - 18 * s, x - 7.5 * s, y - 4 * s, x + 7.5 * s, y - 4 * s);
       g.fillStyle(0x4a6f35, 1);
-      g.fillTriangle(x, y - 10 * s, x - 5.5 * s, y + 1 * s, x + 5.5 * s, y + 1 * s);
-      g.fillStyle(0x6b4a2a, 1);
-      g.fillRect(x - 1.4 * s, y - 2 * s, 2.8 * s, 6 * s);
+      g.fillTriangle(x, y - 12 * s, x - 6 * s, y + 1 * s, x + 6 * s, y + 1 * s);
       break;
     }
     case "stone": {
+      g.fillStyle(0x000000, 0.16);
+      g.fillEllipse(x + 1 * s, y + 3 * s, 16 * s, 7 * s);
+      g.fillStyle(0x6f747c, 1);
+      g.fillTriangle(x - 8 * s, y + 3 * s, x - 3 * s, y - 8 * s, x + 4 * s, y + 2 * s);
       g.fillStyle(color, 1);
-      g.fillTriangle(x - 6 * s, y + 2 * s, x - 2 * s, y - 6 * s, x + 3 * s, y + 1 * s);
-      g.fillStyle(0xa8adb8, 1);
-      g.fillTriangle(x - 1 * s, y + 1 * s, x + 4 * s, y - 5 * s, x + 8 * s, y + 3 * s);
-      g.fillStyle(0x707680, 1);
-      g.fillCircle(x + 1 * s, y + 3 * s, 2.2 * s);
+      g.fillTriangle(x - 2 * s, y + 2 * s, x + 5 * s, y - 7 * s, x + 10 * s, y + 4 * s);
+      g.fillStyle(0xb8bcc4, 1);
+      g.fillCircle(x + 1 * s, y + 1 * s, 3.2 * s);
+      g.fillStyle(0x5a5f68, 0.55);
+      g.fillCircle(x - 2 * s, y - 1 * s, 1.4 * s);
       break;
     }
     case "food": {

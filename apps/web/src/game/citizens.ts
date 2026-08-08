@@ -125,7 +125,12 @@ function desiredAssignments(state: GameState): Assignment[] {
   let foodBudget = quota(state, "food");
   let productionBudget = quota(state, "production");
 
-  // Production (wood/stone) before food foraging so camps actually get woodcutters
+  const home = state.buildings.find((b) => b.type === "house") ?? state.buildings[0];
+  const hasLumberCamp = state.buildings.some(
+    (b) => b.type === "lumber_camp" && b.progress >= 1,
+  );
+
+  // Production camps (wood/stone) first
   for (const b of state.buildings) {
     if (BUILDINGS[b.type].priority === "production") {
       const res = resourceForBuilding(b);
@@ -133,6 +138,17 @@ function desiredAssignments(state: GameState): Assignment[] {
       productionBudget -= staffBuilding(b, productionBudget, "gather", res);
     }
   }
+
+  // No lumber camp yet: production workers chop wild trees and drop off at the house
+  if (!hasLumberCamp && home && productionBudget > 0) {
+    const wildWood = Math.min(productionBudget, remaining, 3);
+    for (let i = 0; i < wildWood; i++) {
+      list.push({ buildingId: home.id, work: "forage", resource: "wood" });
+      remaining -= 1;
+      productionBudget -= 1;
+    }
+  }
+
   for (const b of state.buildings) {
     if (BUILDINGS[b.type].priority === "research") {
       researchBudget -= staffBuilding(b, researchBudget, "research", "knowledge");
@@ -144,8 +160,7 @@ function desiredAssignments(state: GameState): Assignment[] {
     }
   }
 
-  // Wild foragers only from remaining food budget (grass berries — not trees)
-  const home = state.buildings.find((b) => b.type === "house") ?? state.buildings[0];
+  // Wild food foragers (grass only)
   const forageWanted = Math.min(Math.max(0, foodBudget), remaining);
   for (let i = 0; i < forageWanted && home; i++) {
     list.push({ buildingId: home.id, work: "forage", resource: "food" });
@@ -364,7 +379,7 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
   const hasTools = state.research.unlocked.includes("primitive_tools");
 
   for (const c of citizens) {
-    c.bobPhase += dt * 0.014;
+    c.bobPhase += dt * 0.0045;
 
     if (c.job.kind === "walk") {
       const dx = c.job.tx - c.x;
@@ -422,12 +437,15 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
     }
 
     if (c.job.kind === "gather") {
-      const cap = carryCapacityFor(c.job.resource, hasTools);
-      const rate = GATHER_PER_SEC[c.job.resource] * (hasTools ? 1.15 : 1);
+      const wild = c.job.work === "forage" && c.job.resource === "wood";
+      const cap = carryCapacityFor(c.job.resource, hasTools, wild);
+      const rate =
+        GATHER_PER_SEC[c.job.resource] * (hasTools ? 1.15 : 1) * (wild ? 0.55 : 1);
       c.carryAmount = Math.min(cap, c.carryAmount + (rate * dt) / 1000);
       c.carrying = c.job.resource;
-      c.x += Math.sin(c.bobPhase * 2.4) * 0.12;
-      c.y += Math.cos(c.bobPhase * 2.4) * 0.06;
+      // Slow gather sway
+      c.x += Math.sin(c.bobPhase * 0.28) * 0.02;
+      c.y += Math.cos(c.bobPhase * 0.28) * 0.01;
 
       if (c.carryAmount >= cap - 0.001) {
         c.carryAmount = cap;
@@ -453,8 +471,8 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
 
     if (c.job.kind === "work") {
       c.job.timer -= dt;
-      c.x += Math.sin(c.bobPhase * 2.2) * 0.1;
-      c.y += Math.cos(c.bobPhase * 2.2) * 0.05;
+      c.x += Math.sin(c.bobPhase * 0.28) * 0.015;
+      c.y += Math.cos(c.bobPhase * 0.28) * 0.008;
       if (c.job.timer <= 0) {
         const building = buildingById(state, c.job.buildingId);
         if (building && building.progress < 1) {

@@ -133,8 +133,14 @@ export function findResourceTile(
   return top[Math.floor(Math.random() * top.length)];
 }
 
-export function carryCapacityFor(resource: ResourceId, hasTools: boolean): number {
-  const base = CARRY_CAPACITY[resource];
+export function carryCapacityFor(
+  resource: ResourceId,
+  hasTools: boolean,
+  wild = false,
+): number {
+  let base = CARRY_CAPACITY[resource];
+  // Hand-chopping without a lumber camp is slower / smaller loads
+  if (wild && resource === "wood") base = Math.max(3, Math.floor(base * 0.5));
   return hasTools && (resource === "wood" || resource === "stone")
     ? Math.ceil(base * 1.25)
     : base;

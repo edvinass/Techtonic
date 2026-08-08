@@ -16,8 +16,8 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   lumber_camp: {
     id: "lumber_camp",
     name: "Lumber Camp",
-    description: "Harvests wood from forest deposits.",
-    cost: { wood: 15 },
+    description: "Harvests wood from forest deposits. You can also chop trees slowly without one.",
+    cost: { wood: 12 },
     buildTicks: 6,
     workerSlots: 3,
     priority: "production",

@@ -4,6 +4,8 @@ import { RESOURCES } from "../data/resources";
 import { canPlaceBuilding } from "../sim/engine";
 import type { GameState, ResourceId, TerrainId } from "../sim/types";
 import { useGameStore } from "../store/gameStore";
+import { drawBuildingArt } from "./buildingArt";
+import { createCitizenArt, updateCitizenArt, type CitizenNode } from "./citizenArt";
 import { stepCitizens, syncCitizens, type Citizen } from "./citizens";
 import { gridToScreen, screenToGrid, TILE_HEIGHT, TILE_WIDTH } from "./iso";
 import { drawResourceMark } from "./resourceArt";
@@ -33,7 +35,7 @@ export class MainScene extends Phaser.Scene {
   private floaters: Floater[] = [];
   private centeredOnce = false;
   private citizens: Citizen[] = [];
-  private citizenGfx = new Map<number, Phaser.GameObjects.Container>();
+  private citizenGfx = new Map<number, CitizenNode>();
 
   private isPanning = false;
   private panMoved = false;
@@ -282,40 +284,16 @@ export class MainScene extends Phaser.Scene {
       const def = BUILDINGS[b.type];
       const { sx, sy } = gridToScreen(b.x, b.y);
       const g = this.add.graphics();
-      const alpha = b.progress < 1 ? 0.6 : 1;
-      const color =
-        state.age === "farming" && b.type === "house" ? 0xe0c089 : def.color;
-
-      // Iso building footprint + tower
-      g.fillStyle(0x000000, 0.18 * alpha);
-      g.fillEllipse(0, 6, 34, 14);
-      g.fillStyle(color, alpha);
-      g.fillRoundedRect(-16, -30, 32, 34, 5);
-      g.fillStyle(0xf0e2b0, 0.35 * alpha);
-      g.fillTriangle(-16, -30, 16, -30, 0, -42);
-      g.lineStyle(2, 0x1a160f, alpha);
-      g.strokeRoundedRect(-16, -30, 32, 34, 5);
-
-      if (b.progress < 1) {
-        g.fillStyle(0x1b2618, 0.6);
-        g.fillRect(-14, -2, 28, 5);
-        g.fillStyle(0xe8c95a, 1);
-        g.fillRect(-14, -2, 28 * b.progress, 5);
-        // Scaffold lines
-        g.lineStyle(1, 0xd8c090, 0.7);
-        g.strokeRect(-16, -30, 32, 34);
-      }
-
-      // Soft work glow + produced-resource badge on active buildings
-      if (b.progress >= 1 && b.workers > 0) {
-        g.fillStyle(0xfff3c4, 0.12);
-        g.fillCircle(0, -10, 22);
-      }
+      drawBuildingArt(g, b.type, {
+        alpha: b.progress < 1 ? 0.7 : 1,
+        age: state.age,
+        progress: b.progress,
+        active: b.progress >= 1 && b.workers > 0,
+      });
       if (b.progress >= 1 && def.produces) {
         const res = Object.keys(def.produces)[0] as ResourceId | undefined;
-        if (res) drawResourceMark(g, 12, -36, res, 0.55);
+        if (res) drawResourceMark(g, 14, -38, res, 0.5);
       }
-
       g.setPosition(ox + sx, oy + sy);
       g.setDepth(b.x + b.y);
       this.buildingLayer.add(g);
@@ -328,44 +306,11 @@ export class MainScene extends Phaser.Scene {
       live.add(c.id);
       let node = this.citizenGfx.get(c.id);
       if (!node) {
-        node = this.createCitizenNode(c);
+        node = createCitizenArt(this, c);
         this.citizenGfx.set(c.id, node);
         this.citizenLayer.add(node);
       }
-      const walking = c.job.kind === "walk";
-      const working = c.job.kind === "gather" || c.job.kind === "work";
-      const bob = walking
-        ? Math.abs(Math.sin(c.bobPhase * 2)) * 3
-        : Math.sin(c.bobPhase) * 1.2;
-      const workBounce = working ? Math.abs(Math.sin(c.bobPhase * 4)) * 2.5 : 0;
-      node.setPosition(c.x, c.y - bob - workBounce);
-      node.setDepth(10_000 + c.y);
-
-      const body = node.getAt(0) as Phaser.GameObjects.Arc;
-      const bundle = node.getAt(4) as Phaser.GameObjects.Arc;
-      const label = node.getAt(5) as Phaser.GameObjects.Text;
-
-      if (c.job.kind === "gather" || c.job.kind === "work") {
-        body.setFillStyle(0xffe08a);
-      } else if (c.carryAmount > 0) {
-        body.setFillStyle(0xf0d2a0);
-      } else {
-        body.setFillStyle(0xf5e6c8);
-      }
-
-      if (c.carryAmount > 0 && c.carrying) {
-        const visual = RESOURCES[c.carrying];
-        bundle.setVisible(true);
-        bundle.setFillStyle(visual.color);
-        const fill = Math.min(1, c.carryAmount / 8);
-        bundle.setRadius(2.2 + fill * 2.2);
-        label.setVisible(true);
-        label.setColor(`#${visual.hex}`);
-        label.setText(`${visual.glyph}${Math.max(1, Math.round(c.carryAmount))}`);
-      } else {
-        bundle.setVisible(false);
-        label.setVisible(false);
-      }
+      updateCitizenArt(node, c);
     }
 
     for (const [id, node] of this.citizenGfx) {
@@ -374,30 +319,6 @@ export class MainScene extends Phaser.Scene {
         this.citizenGfx.delete(id);
       }
     }
-  }
-
-  private createCitizenNode(c: Citizen): Phaser.GameObjects.Container {
-    const body = this.add.circle(0, -6, 5, 0xf5e6c8);
-    body.setStrokeStyle(1, 0x3a2a18);
-    const head = this.add.circle(0, -14, 3.2, 0xffe0b8);
-    head.setStrokeStyle(1, 0x3a2a18);
-    const shadow = this.add.ellipse(0, 2, 10, 4, 0x000000, 0.25);
-    const tool = this.add.rectangle(6, -8, 2, 8, 0x8b6914);
-    const bundle = this.add.circle(-6, -7, 3, 0x6b8f4e);
-    bundle.setVisible(false);
-    bundle.setStrokeStyle(1, 0x2a2010);
-    const label = this.add.text(-6, -18, "", {
-      fontFamily: "DM Sans, sans-serif",
-      fontSize: "9px",
-      color: "#fff8e8",
-      stroke: "#142017",
-      strokeThickness: 2,
-    });
-    label.setOrigin(0.5, 1);
-    label.setVisible(false);
-    const node = this.add.container(c.x, c.y, [body, head, shadow, tool, bundle, label]);
-    node.setScale(0.9 + (c.id % 5) * 0.04);
-    return node;
   }
 
   private updateFloaters(delta: number) {

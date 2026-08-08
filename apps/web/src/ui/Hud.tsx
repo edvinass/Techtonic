@@ -115,9 +115,8 @@ export function Hud() {
       {!tutorialDismissed && (
         <div className="tutorial">
           <p>
-            Workers walk to resource tiles, fill a limited carry (e.g. 8 wood), then return to
-            drop off. Pan with right/middle drag or WASD. Select a building, click to place.
-            Research Fire → Farming, build a Granary, age up.
+            Out of wood? Raise Production — workers will hand-chop trees and drop wood at your
+            house until you can afford a Lumber Camp (faster). Pan with right-drag / WASD.
           </p>
           <button type="button" onClick={dismissTutorial}>
             Got it
