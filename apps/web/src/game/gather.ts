@@ -69,6 +69,37 @@ function tileAt(state: GameState, x: number, y: number): Tile | undefined {
   return state.map.tiles[y * state.map.width + x];
 }
 
+/** Completed stockpile positions (drop-off buildings). */
+function stockpilePositions(state: GameState): { x: number; y: number }[] {
+  const piles: { x: number; y: number }[] = [];
+  for (const b of state.buildings) {
+    if (b.progress < 1 || !BUILDINGS[b.type]?.acceptsDropoff) continue;
+    piles.push({ x: b.x, y: b.y });
+  }
+  return piles;
+}
+
+/**
+ * Haul distance for a resource tile: Manhattan distance to the nearest stockpile.
+ * Falls back to the work building when no stockpile exists yet.
+ */
+function distToNearestStockpile(
+  piles: { x: number; y: number }[],
+  x: number,
+  y: number,
+  fallback: { x: number; y: number },
+): number {
+  if (!piles.length) {
+    return Math.abs(x - fallback.x) + Math.abs(y - fallback.y);
+  }
+  let best = Infinity;
+  for (const p of piles) {
+    const d = Math.abs(x - p.x) + Math.abs(y - p.y);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
 /** Pick a map tile this worker should walk to for gathering. */
 export function findResourceTile(
   state: GameState,
@@ -79,6 +110,10 @@ export function findResourceTile(
   const candidates: { gx: number; gy: number; score: number }[] = [];
   const maxDist =
     resource === "wood" || resource === "stone" || resource === "metal" ? 14 : 8;
+  // Prefer resources closest to whichever stockpile they'll drop off at.
+  const piles = stockpilePositions(state);
+  const haulDist = (x: number, y: number) =>
+    distToNearestStockpile(piles, x, y, building);
 
   const hasStock = (t: Tile) => (t.stock ?? 1) > 0;
 
@@ -86,7 +121,7 @@ export function findResourceTile(
     for (const t of state.map.tiles) {
       if (t.deposit !== "wood" && t.terrain !== "forest") continue;
       if (t.deposit === "wood" && !hasStock(t)) continue;
-      const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
+      const dist = haulDist(t.x, t.y);
       if (dist > maxDist) continue;
       let score = dist;
       if (t.deposit === "wood") score -= 0.5;
@@ -100,7 +135,7 @@ export function findResourceTile(
     // Only real stone deposits yield via harvestDeposit — barren rock is a no-op.
     for (const t of state.map.tiles) {
       if (t.deposit !== "stone" || !hasStock(t)) continue;
-      const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
+      const dist = haulDist(t.x, t.y);
       if (dist > maxDist) continue;
       let score = dist;
       if ((t.stock ?? 99) < 15) score += 2;
@@ -111,7 +146,7 @@ export function findResourceTile(
   } else if (resource === "metal") {
     for (const t of state.map.tiles) {
       if (t.deposit !== "metal" || !hasStock(t)) continue;
-      const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
+      const dist = haulDist(t.x, t.y);
       if (dist > maxDist) continue;
       let score = dist;
       if (t.x === building.x && t.y === building.y) score += 8;
@@ -133,7 +168,7 @@ export function findResourceTile(
       // Wild foraging: fertile land only (grass is barren for food)
       for (const t of state.map.tiles) {
         if (t.terrain !== "fertile" || t.deposit || !hasStock(t)) continue;
-        const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
+        const dist = haulDist(t.x, t.y);
         if (dist < 2 || dist > 7) continue;
         let score = dist + Math.random();
         if ((t.stock ?? 99) < 20) score += 1.5; // prefer fuller banks
@@ -158,7 +193,7 @@ export function findResourceTile(
   }
 
   if (!candidates.length) {
-    // Global fallback: any matching resource on the map nearest the building
+    // Global fallback: any matching resource with the shortest haul to a stockpile
     if (
       resource === "wood" ||
       resource === "stone" ||
@@ -176,7 +211,7 @@ export function findResourceTile(
                 ? t.terrain === "fertile" && !t.deposit && hasStock(t)
                 : t.deposit === "stone" && hasStock(t);
         if (!match) continue;
-        const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
+        const dist = haulDist(t.x, t.y);
         if (t.x === building.x && t.y === building.y) continue;
         if (!best || dist < best.score) best = { gx: t.x, gy: t.y, score: dist };
       }

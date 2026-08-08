@@ -32,6 +32,63 @@ describe("gather rules", () => {
     expect(found?.deposit === "wood" || found?.terrain === "forest").toBe(true);
   });
 
+  it("prefers wood closest to any stockpile, not the one nearest the lumber camp", () => {
+    const state = createNewGame(11);
+    const homePile = state.buildings.find((b) => b.type === "stockpile")!;
+    // Clear natural wood so only our planted deposits compete
+    for (const t of state.map.tiles) {
+      if (t.deposit === "wood") {
+        t.deposit = null;
+        t.stock = undefined;
+      }
+      if (t.terrain === "forest") t.terrain = "grass";
+    }
+
+    // Second stockpile far from home, with wood beside it
+    const remotePile = { x: homePile.x + 20, y: homePile.y + 20 };
+    state.buildings.push({
+      id: "b-pile-2",
+      type: "stockpile",
+      x: remotePile.x,
+      y: remotePile.y,
+      progress: 1,
+      workers: 0,
+    });
+
+    const nearRemote = [
+      { x: remotePile.x + 1, y: remotePile.y },
+      { x: remotePile.x + 2, y: remotePile.y },
+      { x: remotePile.x + 1, y: remotePile.y + 1 },
+      { x: remotePile.x + 2, y: remotePile.y + 1 },
+      { x: remotePile.x, y: remotePile.y + 1 },
+      { x: remotePile.x + 3, y: remotePile.y },
+    ];
+    // Wood by the camp, far from every stockpile
+    const byCamp = { x: homePile.x + 12, y: homePile.y };
+    for (const p of [...nearRemote, byCamp]) {
+      const t = state.map.tiles[p.y * state.map.width + p.x];
+      t.terrain = "grass";
+      t.deposit = "wood";
+      t.stock = 80;
+    }
+
+    const building = {
+      id: "b-lumber",
+      type: "lumber_camp" as const,
+      x: byCamp.x,
+      y: byCamp.y,
+      progress: 1,
+      workers: 2,
+    };
+
+    const nearKeys = new Set(nearRemote.map((p) => `${p.x},${p.y}`));
+    for (let i = 0; i < 30; i++) {
+      const tile = findResourceTile(state, building, "wood");
+      expect(tile).toBeTruthy();
+      expect(nearKeys.has(`${tile!.gx},${tile!.gy}`)).toBe(true);
+    }
+  });
+
   it("sends quarry workers only to stone deposits, never barren rock", () => {
     const state = createNewGame(11);
     const stoneTile = state.map.tiles.find((t) => t.deposit === "stone")!;

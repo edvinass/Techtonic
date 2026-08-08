@@ -244,6 +244,50 @@ describe("citizen wood gathering", () => {
     expect(scholars.length).toBeGreaterThan(0);
   });
 
+  it("sends defence workers to man completed watchtowers", () => {
+    let state = createNewGame(27);
+    state.resources.wood = 200;
+    state.resources.stone = 100;
+    state.population.count = 5;
+    state.research.unlocked = ["fortifications"];
+    state.priorities = {
+      food: 0,
+      wood: 0,
+      stone: 0,
+      metal: 0,
+      construction: 0,
+      research: 0,
+      defence: 3,
+    };
+    const house = state.buildings.find((b) => b.type === "house")!;
+    state = placeBuilding(state, "watchtower", house.x + 2, house.y);
+    state.buildings.forEach((b) => {
+      if (b.type === "watchtower") b.progress = 1;
+    });
+    const tower = state.buildings.find((b) => b.type === "watchtower");
+    expect(tower).toBeTruthy();
+
+    const ox = 400;
+    const oy = 80;
+    const citizens: Citizen[] = [];
+    syncCitizens(citizens, state, ox, oy);
+    for (const c of citizens) {
+      if (c.job.kind === "walk" && c.job.phase === "wander") c.job = { kind: "idle" };
+    }
+    syncCitizens(citizens, state, ox, oy);
+
+    const guards = citizens.filter(
+      (c) =>
+        (c.job.kind === "walk" && c.job.work === "defend") ||
+        (c.job.kind === "work" && c.job.work === "defend"),
+    );
+    expect(guards.length).toBeGreaterThan(0);
+    expect(guards.length).toBeLessThanOrEqual(2);
+    if (guards[0].job.kind === "walk" || guards[0].job.kind === "work") {
+      expect(guards[0].job.buildingId).toBe(tower!.id);
+    }
+  });
+
   it("does not send builders when Build workers are 0", () => {
     let state = createNewGame(31);
     state.resources.wood = 100;

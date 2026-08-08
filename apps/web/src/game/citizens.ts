@@ -16,7 +16,14 @@ import {
   type GridPos,
 } from "./pathfinding";
 
-export type WorkKind = "gather" | "build" | "research" | "farm" | "forage" | "idle";
+export type WorkKind =
+  | "gather"
+  | "build"
+  | "research"
+  | "farm"
+  | "forage"
+  | "defend"
+  | "idle";
 
 export type CitizenJob =
   | { kind: "idle" }
@@ -226,6 +233,7 @@ function desiredAssignments(state: GameState): Assignment[] {
   let woodBudget = quota(state, "wood");
   let stoneBudget = quota(state, "stone");
   let metalBudget = quota(state, "metal");
+  let defenceBudget = quota(state, "defence");
 
   const home = state.buildings.find((b) => b.type === "house") ?? state.buildings[0];
   const hasLumberCamp = state.buildings.some(
@@ -276,6 +284,13 @@ function desiredAssignments(state: GameState): Assignment[] {
       list.push({ buildingId: home.id, work: "forage", resource: "wood" });
       remaining -= 1;
       woodBudget -= 1;
+    }
+  }
+
+  // Guards man completed watchtowers (before forage so Defence quota isn't eaten)
+  for (const b of state.buildings) {
+    if (b.type === "watchtower") {
+      defenceBudget -= staffBuilding(b, defenceBudget, "defend", null);
     }
   }
 
@@ -383,6 +398,43 @@ function startBuildTrip(
     ...routed,
     buildingId,
     work: "build",
+    phase: "toSite",
+  };
+}
+
+/** Send a guard to stand watch near a completed tower. */
+function startDefendTrip(
+  c: Citizen,
+  state: GameState,
+  ox: number,
+  oy: number,
+  buildingId: string,
+): void {
+  const building = buildingById(state, buildingId);
+  if (!building || building.progress < 1 || building.type !== "watchtower") {
+    c.job = { kind: "idle" };
+    return;
+  }
+  const pos = worldPos(building.x, building.y, ox, oy);
+  // Post at the tower base — offset by id so two guards don't stack
+  const angle = ((c.id * 2.1) % (Math.PI * 2)) + Math.random() * 0.35;
+  const radius = 10 + (c.id % 2) * 4;
+  const dest = {
+    x: pos.x + Math.cos(angle) * radius,
+    y: pos.y + Math.sin(angle) * radius * 0.55 - 6,
+  };
+  const routed = routeWalk(c, state, ox, oy, dest, { x: building.x, y: building.y });
+  if (!routed) {
+    c.job = { kind: "idle" };
+    return;
+  }
+  c.carrying = null;
+  c.carryAmount = 0;
+  c.job = {
+    kind: "walk",
+    ...routed,
+    buildingId,
+    work: "defend",
     phase: "toSite",
   };
 }
@@ -503,7 +555,17 @@ export function syncCitizens(
   // Research first so scholars claim free villagers before wood/forage fills the roster
   open.sort((a, b) => {
     const rank = (x: Assignment) =>
-      x.work === "research" ? 0 : x.work === "gather" ? 1 : x.work === "farm" ? 2 : x.work === "build" ? 3 : 4;
+      x.work === "research"
+        ? 0
+        : x.work === "defend"
+          ? 1
+          : x.work === "gather"
+            ? 2
+            : x.work === "farm"
+              ? 3
+              : x.work === "build"
+                ? 4
+                : 5;
     return rank(a) - rank(b);
   });
 
@@ -514,6 +576,8 @@ export function syncCitizens(
     if (!a) break;
     if (a.work === "build") {
       startBuildTrip(c, state, ox, oy, a.buildingId);
+    } else if (a.work === "defend") {
+      startDefendTrip(c, state, ox, oy, a.buildingId);
     } else if (a.resource) {
       startGatherTrip(c, state, ox, oy, a.buildingId, a.work, a.resource);
     }
@@ -614,12 +678,21 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
       }
 
       if (c.job.phase === "toSite") {
-        c.job = {
-          kind: "work",
-          buildingId: c.job.buildingId,
-          work: "build",
-          timer: 2800 + Math.random() * 2200,
-        };
+        if (c.job.work === "defend") {
+          c.job = {
+            kind: "work",
+            buildingId: c.job.buildingId,
+            work: "defend",
+            timer: 4200 + Math.random() * 2800,
+          };
+        } else {
+          c.job = {
+            kind: "work",
+            buildingId: c.job.buildingId,
+            work: "build",
+            timer: 2800 + Math.random() * 2200,
+          };
+        }
       }
       continue;
     }
@@ -698,6 +771,22 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
 
     if (c.job.kind === "work") {
       const building = buildingById(state, c.job.buildingId);
+
+      if (c.job.work === "defend") {
+        if (!building || building.progress < 1 || building.type !== "watchtower") {
+          c.job = { kind: "idle" };
+          continue;
+        }
+        // Slow watch-post sway; periodically re-post around the tower
+        c.x += Math.sin(c.bobPhase * 0.18) * 0.018;
+        c.y += Math.cos(c.bobPhase * 0.16) * 0.01;
+        c.job.timer -= dt;
+        if (c.job.timer <= 0) {
+          startDefendTrip(c, state, ox, oy, building.id);
+        }
+        continue;
+      }
+
       if (!building || building.progress >= 1 || c.job.work !== "build") {
         c.job = { kind: "idle" };
         continue;

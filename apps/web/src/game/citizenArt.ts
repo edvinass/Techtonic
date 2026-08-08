@@ -5,7 +5,7 @@ import type { Citizen, WorkKind } from "./citizens";
 import { mapTextResolution } from "./textRes";
 
 /** Bump when CitizenParts shape changes so MainScene can rebuild stale sprites (HMR-safe). */
-export const CITIZEN_ART_VERSION = 8;
+export const CITIZEN_ART_VERSION = 9;
 
 const SKIN = [0xf0c8a0, 0xe8b890, 0xd4a574, 0xc68642, 0x8d5524] as const;
 const HAIR = [0x2a1c10, 0x4a3020, 0x6b4423, 0xc4a060, 0x1a120c] as const;
@@ -15,6 +15,13 @@ const BOOT = [0x2a1c10, 0x3a2818, 0x1a120c] as const;
 
 const RESEARCH_ROBE = 0xf0f3f6;
 const RESEARCH_SASH = 0x5a8ab8;
+
+/** Leather + iron — readable as a watchman without looking like fantasy plate. */
+const GUARD_TUNIC = 0x4a3a2e;
+const GUARD_SASH = 0x8a6a3a;
+const GUARD_HELM = 0x5a4a3a;
+
+type OutfitMode = "civilian" | "research" | "guard";
 
 function shade(color: number, factor: number): number {
   const r = Math.min(255, Math.max(0, Math.round(((color >> 16) & 0xff) * factor)));
@@ -49,11 +56,14 @@ export interface CitizenParts {
   wrapL: Phaser.GameObjects.Rectangle;
   wrapR: Phaser.GameObjects.Rectangle;
   researchHood: Phaser.GameObjects.Container;
+  guardHelm: Phaser.GameObjects.Container;
   tool: Phaser.GameObjects.Container;
   toolAxe: Phaser.GameObjects.Container;
   toolPick: Phaser.GameObjects.Container;
   toolHoe: Phaser.GameObjects.Container;
   toolStaff: Phaser.GameObjects.Container;
+  toolSpear: Phaser.GameObjects.Container;
+  toolShield: Phaser.GameObjects.Container;
   staffTip: Phaser.GameObjects.Arc;
   staffGlow: Phaser.GameObjects.Arc;
   researchAura: Phaser.GameObjects.Container;
@@ -68,7 +78,7 @@ export interface CitizenParts {
   skin: number;
   baseTunic: number;
   baseBelt: number;
-  wearingResearch: boolean;
+  outfitMode: OutfitMode;
   blinkUntil: number;
   /** +1 faces screen-right, -1 faces screen-left; persists after walking stops. */
   lastFacing: 1 | -1;
@@ -150,6 +160,18 @@ function makeResearchHood(scene: Phaser.Scene): Phaser.GameObjects.Container {
   const hood = scene.add.container(0, 0, [cape, crown, band]);
   hood.setVisible(false);
   return hood;
+}
+
+/** Low leather cap — army-readable without covering the face. */
+function makeGuardHelm(scene: Phaser.Scene): Phaser.GameObjects.Container {
+  const brim = scene.add.ellipse(0.2, -20.2, 9.2, 3.2, shade(GUARD_HELM, 0.78));
+  const dome = scene.add.ellipse(0.1, -22.2, 8.2, 5.2, GUARD_HELM);
+  dome.setStrokeStyle(1, shade(GUARD_HELM, 0.55), 0.55);
+  const ridge = scene.add.rectangle(0.1, -23.4, 1.4, 3.2, shade(GUARD_SASH, 0.85));
+  const cheek = scene.add.ellipse(-3.2, -18.6, 2.4, 3.4, shade(GUARD_HELM, 0.9), 0.9);
+  const helm = scene.add.container(0, 0, [brim, dome, ridge, cheek]);
+  helm.setVisible(false);
+  return helm;
 }
 
 /**
@@ -251,6 +273,24 @@ function makeStaff(scene: Phaser.Scene): {
   return { staff, tip, glow };
 }
 
+function makeSpear(scene: Phaser.Scene): Phaser.GameObjects.Container {
+  const shaft = scene.add.rectangle(0, 1, 1.35, 18, 0x6b4a2a);
+  const wrap = scene.add.rectangle(0, -4.5, 2.1, 2.2, GUARD_SASH);
+  const tip = scene.add.triangle(0, -9.5, 0, -5.5, 2.6, 0.5, -2.6, 0.5, 0xb0b6be);
+  tip.setStrokeStyle(1, 0x5a5f68, 0.55);
+  return scene.add.container(0, 0, [shaft, wrap, tip]);
+}
+
+function makeShield(scene: Phaser.Scene): Phaser.GameObjects.Container {
+  const disc = scene.add.ellipse(0, 0, 8.5, 9.5, 0x6b4a2a);
+  disc.setStrokeStyle(1.2, 0x3a2818, 0.7);
+  const face = scene.add.ellipse(0.2, -0.2, 6.2, 7, shade(0x8a6238, 1.05));
+  const boss = scene.add.circle(0.2, 0, 1.6, GUARD_SASH);
+  boss.setStrokeStyle(1, shade(GUARD_SASH, 0.65), 0.6);
+  const strap = scene.add.rectangle(-0.8, 0.5, 1.2, 4.5, 0x3a2818, 0.45);
+  return scene.add.container(0, 0, [disc, face, strap, boss]);
+}
+
 function makeResearchAura(
   scene: Phaser.Scene,
   dpr: number,
@@ -324,18 +364,31 @@ export function createCitizenArt(scene: Phaser.Scene, c: Citizen): CitizenNode {
     c.id,
   );
   const researchHood = makeResearchHood(scene);
-  // Hood behind face so features stay readable
+  const guardHelm = makeGuardHelm(scene);
+  // Hood/helm behind face so features stay readable
   head.addAt(researchHood, 0);
+  head.addAt(guardHelm, 0);
 
   const toolAxe = makeAxe(scene);
   const toolPick = makePick(scene);
   const toolHoe = makeHoe(scene);
   const { staff: toolStaff, tip: staffTip, glow: staffGlow } = makeStaff(scene);
-  const tool = scene.add.container(4.5, -8.5, [toolAxe, toolPick, toolHoe, toolStaff]);
+  const toolSpear = makeSpear(scene);
+  const toolShield = makeShield(scene);
+  toolShield.setPosition(-5.5, -6);
+  const tool = scene.add.container(4.5, -8.5, [
+    toolAxe,
+    toolPick,
+    toolHoe,
+    toolStaff,
+    toolSpear,
+  ]);
   toolAxe.setVisible(true);
   toolPick.setVisible(false);
   toolHoe.setVisible(false);
   toolStaff.setVisible(false);
+  toolSpear.setVisible(false);
+  toolShield.setVisible(false);
 
   const dpr = (scene.game.registry.get("dpr") as number) || 1;
   const { aura: researchAura, ring: auraRing, sparkA, sparkB, sparkC, mark: researchMark } =
@@ -362,6 +415,7 @@ export function createCitizenArt(scene: Phaser.Scene, c: Citizen): CitizenNode {
     researchAura,
     legL,
     armL,
+    toolShield,
     body,
     legR,
     armR,
@@ -397,11 +451,14 @@ export function createCitizenArt(scene: Phaser.Scene, c: Citizen): CitizenNode {
     wrapL,
     wrapR,
     researchHood,
+    guardHelm,
     tool,
     toolAxe,
     toolPick,
     toolHoe,
     toolStaff,
+    toolSpear,
+    toolShield,
     staffTip,
     staffGlow,
     researchAura,
@@ -416,7 +473,7 @@ export function createCitizenArt(scene: Phaser.Scene, c: Citizen): CitizenNode {
     skin,
     baseTunic: tunic,
     baseBelt: belt,
-    wearingResearch: false,
+    outfitMode: "civilian",
     blinkUntil: 0,
     lastFacing: 1,
   };
@@ -424,18 +481,24 @@ export function createCitizenArt(scene: Phaser.Scene, c: Citizen): CitizenNode {
   return node;
 }
 
-function applyOutfit(parts: CitizenParts, research: boolean): void {
-  if (parts.wearingResearch === research) return;
-  parts.wearingResearch = research;
+function applyOutfit(parts: CitizenParts, mode: OutfitMode): void {
+  if (parts.outfitMode === mode) return;
+  parts.outfitMode = mode;
 
-  const tunic = research ? RESEARCH_ROBE : parts.baseTunic;
-  const belt = research ? RESEARCH_SASH : parts.baseBelt;
-  const sleeve = shade(tunic, research ? 0.98 : 0.92);
+  const research = mode === "research";
+  const guard = mode === "guard";
+  const tunic = research ? RESEARCH_ROBE : guard ? GUARD_TUNIC : parts.baseTunic;
+  const belt = research ? RESEARCH_SASH : guard ? GUARD_SASH : parts.baseBelt;
+  const sleeve = shade(tunic, research ? 0.98 : guard ? 0.88 : 0.92);
 
   parts.outfitHem.setFillStyle(shade(tunic, 0.84));
   parts.outfitTorso.setFillStyle(tunic);
-  parts.outfitTorso.setStrokeStyle(1, shade(tunic, research ? 0.7 : 0.55), research ? 0.5 : 0.35);
-  parts.outfitShoulders.setFillStyle(shade(tunic, 1.06));
+  parts.outfitTorso.setStrokeStyle(
+    1,
+    shade(tunic, research ? 0.7 : guard ? 0.5 : 0.55),
+    research ? 0.5 : guard ? 0.55 : 0.35,
+  );
+  parts.outfitShoulders.setFillStyle(shade(tunic, guard ? 0.95 : 1.06));
   parts.outfitSash.setFillStyle(belt);
   parts.outfitFold.setFillStyle(shade(tunic, 0.78), 0.45);
 
@@ -445,8 +508,9 @@ function applyOutfit(parts: CitizenParts, research: boolean): void {
   parts.wrapR.setFillStyle(shade(tunic, 0.7));
 
   parts.researchHood.setVisible(research);
-  parts.hair.setVisible(!research);
-  parts.hairExtras.setVisible(!research);
+  parts.guardHelm.setVisible(guard);
+  parts.hair.setVisible(!research && !guard);
+  parts.hairExtras.setVisible(!research && !guard);
 }
 
 function workFromCitizen(c: Citizen): WorkKind | null {
@@ -457,12 +521,19 @@ function workFromCitizen(c: Citizen): WorkKind | null {
 }
 
 function selectTool(parts: CitizenParts, work: WorkKind | null, resource?: ResourceId) {
-  const { toolAxe, toolPick, toolHoe, toolStaff } = parts;
+  const { toolAxe, toolPick, toolHoe, toolStaff, toolSpear, toolShield } = parts;
   toolAxe.setVisible(false);
   toolPick.setVisible(false);
   toolHoe.setVisible(false);
   toolStaff.setVisible(false);
+  toolSpear.setVisible(false);
+  toolShield.setVisible(false);
 
+  if (work === "defend") {
+    toolSpear.setVisible(true);
+    toolShield.setVisible(true);
+    return;
+  }
   if (work === "research" || resource === "knowledge") {
     toolStaff.setVisible(true);
     return;
@@ -514,17 +585,20 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
     (c.job.kind === "walk" || c.job.kind === "gather" ? c.job.resource : undefined);
   const onResearch =
     work === "research" || resource === "knowledge" || c.carrying === "knowledge";
+  const onGuard = work === "defend";
   const channeling = onResearch && working;
+  const watching = onGuard && working;
   const phase = c.bobPhase;
 
-  applyOutfit(parts, onResearch);
+  applyOutfit(parts, onResearch ? "research" : onGuard ? "guard" : "civilian");
 
   // Faster stride frequency so steps keep up with travel speed
   const stride = walking ? Math.sin(phase * 1.85) : 0;
   const strideAbs = walking ? Math.abs(Math.sin(phase * 1.85)) : 0;
-  const workSwing = working && !onResearch ? Math.sin(phase * 0.38) : 0;
-  const workAbs = working && !onResearch ? Math.abs(Math.sin(phase * 0.38)) : 0;
+  const workSwing = working && !onResearch && !onGuard ? Math.sin(phase * 0.38) : 0;
+  const workAbs = working && !onResearch && !onGuard ? Math.abs(Math.sin(phase * 0.38)) : 0;
   const researchSwing = channeling ? Math.sin(phase * 0.45) : 0;
+  const guardScan = onGuard ? Math.sin(phase * 0.22) : 0;
   const pulse = onResearch ? 0.5 + 0.5 * Math.sin(phase * 0.9) : 0;
   const fastPulse = onResearch ? 0.5 + 0.5 * Math.sin(phase * 1.6) : 0;
   const breathe = Math.sin(phase * 0.4) * 0.4;
@@ -541,6 +615,12 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
     armR.setAngle(-70 - 24 * researchSwing);
     head.setAngle(-4 + 4 * Math.sin(phase * 0.35));
     body.setAngle(2 * researchSwing);
+  } else if (onGuard) {
+    // Upright spear stance — shield arm tucked, spear arm raised
+    armL.setAngle(-12 + 4 * guardScan);
+    armR.setAngle(watching ? -52 - 6 * guardScan : -28);
+    head.setAngle(guardScan * 6);
+    body.setAngle(guardScan * 1.5);
   } else if (working && !onResearch) {
     armL.setAngle(6 - 6 * workSwing);
     armR.setAngle(-6 + 36 * workSwing);
@@ -568,7 +648,9 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
   const workBob = working
     ? onResearch
       ? Math.abs(Math.sin(phase * 0.45)) * 0.8
-      : workAbs * 0.9
+      : onGuard
+        ? Math.abs(guardScan) * 0.35
+        : workAbs * 0.9
     : 0;
   const researchLift = channeling ? 1.2 + pulse * 0.6 : 0;
   const bob = walking ? walkBob : idleBob;
@@ -595,6 +677,7 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
 
   const showTool =
     onResearch ||
+    onGuard ||
     working ||
     (walking &&
       c.job.kind === "walk" &&
@@ -604,12 +687,22 @@ export function updateCitizenArt(node: CitizenNode, c: Citizen): void {
     tool.setAngle(-88 - 18 * researchSwing);
   } else if (onResearch) {
     tool.setAngle(-34);
+  } else if (onGuard) {
+    tool.setAngle(watching ? -62 - 4 * guardScan : -40);
   } else if (working) {
     tool.setAngle(-24 + 34 * workSwing);
   } else {
     tool.setAngle(-12);
   }
   if (showTool) selectTool(parts, work, resource);
+  else {
+    parts.toolShield.setVisible(false);
+  }
+  if (onGuard && showTool) {
+    parts.toolShield.setVisible(true);
+    parts.toolShield.setAngle(-8 + guardScan * 4);
+    parts.toolShield.setY(-6 + Math.abs(guardScan) * 0.4);
+  }
 
   if (onResearch && showTool) {
     staffGlow.setVisible(true);
