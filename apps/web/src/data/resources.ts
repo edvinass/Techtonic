@@ -51,8 +51,8 @@ export const RESOURCES: Record<ResourceId, ResourceVisual> = {
   knowledge: {
     id: "knowledge",
     label: "Knowledge",
-    hex: "7b6bb5",
-    color: 0x7b6bb5,
+    hex: "d4a84b",
+    color: 0xd4a84b,
     glyph: "✦",
   },
 };

@@ -45,8 +45,11 @@ function shadeColor(color: number, factor: number): number {
 
 function tileElevPx(tile: Tile): number {
   if (tile.terrain === "water") return 0;
-  const e = tile.elev ?? (tile.terrain === "rock" ? 3 : 1);
-  return 2 + e * 2.2;
+  const base =
+    tile.terrain === "rock" ? 4 : tile.terrain === "sand" ? 1 : tile.terrain === "forest" ? 2 : 1.5;
+  const e = tile.elev ?? base;
+  // Stronger extrusion so the island reads as 3D strategy terrain, not flat paper
+  return 4 + e * 3.4;
 }
 
 interface Floater {
@@ -58,6 +61,8 @@ interface Floater {
 }
 
 export class MainScene extends Phaser.Scene {
+  private ambience!: Phaser.GameObjects.Graphics;
+  private underlay!: Phaser.GameObjects.Graphics;
   private tileGraphics!: Phaser.GameObjects.Graphics;
   private buildingLayer!: Phaser.GameObjects.Container;
   private citizenLayer!: Phaser.GameObjects.Container;
@@ -78,7 +83,7 @@ export class MainScene extends Phaser.Scene {
   private lastPanX = 0;
   private lastPanY = 0;
   /** Zoom relative to 1 CSS-pixel world unit (camera.zoom = dpr * userZoom). */
-  private userZoom = 1.05;
+  private userZoom = 1.25;
 
   private panKeys!: {
     w: Phaser.Input.Keyboard.Key;
@@ -106,11 +111,19 @@ export class MainScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor("#121a16");
+    this.cameras.main.setBackgroundColor("#0c1410");
     // Keep sub-pixel positions so zoomed vectors stay smooth (not stair-stepped)
     this.cameras.main.setRoundPixels(false);
     this.applyZoom(this.userZoom);
 
+    // Screen-space wash so the map never sits in a dead black void
+    this.ambience = this.add.graphics();
+    this.ambience.setScrollFactor(0);
+    this.ambience.setDepth(-20_000);
+    this.drawAmbience();
+
+    this.underlay = this.add.graphics();
+    this.underlay.setDepth(-10);
     this.tileGraphics = this.add.graphics();
     this.buildingLayer = this.add.container(0, 0);
     this.citizenLayer = this.add.container(0, 0);
@@ -201,6 +214,7 @@ export class MainScene extends Phaser.Scene {
     // Only re-draw structure on resize; do not yank camera back to spawn
     this.scale.on("resize", () => {
       this.lastStructureHash = "";
+      this.drawAmbience();
       // Re-apply zoom so DPR × userZoom stays correct after framebuffer resize
       this.applyZoom(this.userZoom);
     });
@@ -327,13 +341,82 @@ export class MainScene extends Phaser.Scene {
     const { sx, sy } = gridToScreen(gx, gy);
     const { ox, oy } = this.mapOrigin();
     this.cameras.main.centerOn(ox + sx, oy + sy);
-    this.applyZoom(1.05);
+    this.applyZoom(1.25);
+  }
+
+  private drawAmbience() {
+    const g = this.ambience;
+    if (!g) return;
+    g.clear();
+    const w = this.scale.width;
+    const h = this.scale.height;
+    // Deep forest void with warm campfire-ish radial wash
+    g.fillStyle(0x0c1410, 1);
+    g.fillRect(0, 0, w, h);
+    g.fillStyle(0x1a281c, 0.55);
+    g.fillEllipse(w * 0.5, h * 0.55, w * 1.15, h * 0.95);
+    g.fillStyle(0x2a3a24, 0.22);
+    g.fillEllipse(w * 0.48, h * 0.5, w * 0.7, h * 0.55);
+    g.fillStyle(0xc9a227, 0.04);
+    g.fillEllipse(w * 0.5, h * 0.62, w * 0.35, h * 0.22);
+    // Vignette
+    g.fillStyle(0x050806, 0.35);
+    g.fillRect(0, 0, w, h * 0.12);
+    g.fillRect(0, h * 0.88, w, h * 0.12);
+  }
+
+  private drawMapUnderlay(state: GameState, ox: number, oy: number) {
+    this.underlay.clear();
+    const w = state.map.width;
+    const h = state.map.height;
+    const c = gridToScreen(w / 2, h / 2);
+    const span = Math.max(w, h) * TILE_WIDTH * 0.78;
+    // Soft mist plate
+    this.underlay.fillStyle(0x000000, 0.4);
+    this.underlay.fillEllipse(ox + c.sx, oy + c.sy + 36, span * 1.2, span * 0.58);
+    this.underlay.fillStyle(0x1e3220, 0.32);
+    this.underlay.fillEllipse(ox + c.sx, oy + c.sy + 22, span, span * 0.5);
+    this.underlay.fillStyle(0x2a4228, 0.14);
+    this.underlay.fillEllipse(ox + c.sx - 20, oy + c.sy + 10, span * 0.55, span * 0.3);
+
+    // Thick earth foundation under the iso diamond — strategy-map “table”
+    const hw = (w + h) * (TILE_WIDTH / 4);
+    const hh = (w + h) * (TILE_HEIGHT / 4);
+    const foundation = 18;
+    const top = {
+      N: { x: ox + c.sx, y: oy + c.sy - hh + 8 },
+      E: { x: ox + c.sx + hw, y: oy + c.sy + 8 },
+      S: { x: ox + c.sx, y: oy + c.sy + hh + 8 },
+      W: { x: ox + c.sx - hw, y: oy + c.sy + 8 },
+    };
+    const bot = {
+      E: { x: top.E.x, y: top.E.y + foundation },
+      S: { x: top.S.x, y: top.S.y + foundation },
+      W: { x: top.W.x, y: top.W.y + foundation },
+    };
+    this.underlay.fillStyle(0x2a1c10, 0.85);
+    this.underlay.beginPath();
+    this.underlay.moveTo(top.W.x, top.W.y);
+    this.underlay.lineTo(top.S.x, top.S.y);
+    this.underlay.lineTo(bot.S.x, bot.S.y);
+    this.underlay.lineTo(bot.W.x, bot.W.y);
+    this.underlay.closePath();
+    this.underlay.fillPath();
+    this.underlay.fillStyle(0x3a2818, 0.9);
+    this.underlay.beginPath();
+    this.underlay.moveTo(top.S.x, top.S.y);
+    this.underlay.lineTo(top.E.x, top.E.y);
+    this.underlay.lineTo(bot.E.x, bot.E.y);
+    this.underlay.lineTo(bot.S.x, bot.S.y);
+    this.underlay.closePath();
+    this.underlay.fillPath();
   }
 
   private redrawStructure(state: GameState) {
     const { ox, oy } = this.mapOrigin();
     this.tileGraphics.clear();
     this.buildingLayer.removeAll(true);
+    this.drawMapUnderlay(state, ox, oy);
 
     const season = state.pressure.season;
     const shimmer = 0.5 + 0.5 * Math.sin(this.waterPulse * 0.004);
@@ -373,11 +456,13 @@ export class MainScene extends Phaser.Scene {
       const topY = oy + sy - elev;
       if (tile.terrain === "forest" || tile.deposit === "wood") {
         const stockScale = tile.stock !== undefined ? Math.max(0.35, Math.min(1, tile.stock / 55)) : 1;
-        this.drawForestCanopy(this.tileGraphics, ox + sx, topY, stockScale, season, tile.x + tile.y);
+        this.drawForestStand(this.tileGraphics, ox + sx, topY, stockScale, season, tile.x * 31 + tile.y);
       } else if (tile.deposit === "stone") {
         drawResourceMark(this.tileGraphics, ox + sx, topY, "stone", 0.95);
       } else if (tile.deposit === "metal") {
         drawResourceMark(this.tileGraphics, ox + sx, topY, "metal", 1);
+      } else if (tile.terrain === "grass" && (tile.x + tile.y) % 3 === 0) {
+        this.drawGrassTufts(this.tileGraphics, ox + sx, topY, season);
       } else if (tile.terrain === "fertile" && !state.buildings.some((b) => b.x === tile.x && b.y === tile.y)) {
         this.drawFertileTufts(this.tileGraphics, ox + sx, topY);
       }
@@ -406,7 +491,7 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private drawForestCanopy(
+  private drawTree(
     g: Phaser.GameObjects.Graphics,
     x: number,
     y: number,
@@ -417,19 +502,18 @@ export class MainScene extends Phaser.Scene {
     const s = scale;
     const canopy =
       season === "autumn" ? 0x9a6a2a : season === "winter" ? 0x5a6a58 : 0x2f6a28;
-    const canopyLit = shadeColor(canopy, 1.15);
-    // Soft ground shadow
-    g.fillStyle(0x000000, 0.2 * s);
-    g.fillEllipse(x, y + 2, 22 * s, 10 * s);
-    // Trunk
+    const canopyLit = shadeColor(canopy, 1.18);
+    const canopyDeep = shadeColor(canopy, 0.78);
+    g.fillStyle(0x000000, 0.22 * s);
+    g.fillEllipse(x, y + 2, 20 * s, 9 * s);
     g.fillStyle(0x5a3d22, 1);
-    g.fillRect(x - 1.8 * s, y - 6 * s, 3.6 * s, 10 * s);
-    // Layered canopy diamonds (seeded offset so stands feel organic)
+    g.fillRect(x - 1.6 * s, y - 5 * s, 3.2 * s, 9 * s);
     const ox = ((salt * 17) % 5) - 2;
     for (const [dy, hw, col] of [
-      [-22, 11, canopy],
-      [-15, 10, canopyLit],
-      [-9, 8, canopy],
+      [-24, 12, canopyDeep],
+      [-17, 11, canopy],
+      [-11, 9, canopyLit],
+      [-6, 7, canopy],
     ] as const) {
       const d = {
         N: { x: x + ox, y: y + dy * s - hw * 0.5 * s },
@@ -448,15 +532,63 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  /** Dense multi-tree stand so forests read as woodland, not single cones. */
+  private drawForestStand(
+    g: Phaser.GameObjects.Graphics,
+    x: number,
+    y: number,
+    scale: number,
+    season: SeasonId,
+    salt: number,
+  ) {
+    const count = 2 + (salt % 2);
+    const offsets =
+      count === 3
+        ? [
+            [-7, 3, 0.72],
+            [8, 2, 0.78],
+            [0, -2, 1],
+          ]
+        : [
+            [-6, 2, 0.8],
+            [5, -1, 1],
+          ];
+    for (let i = 0; i < offsets.length; i++) {
+      const [dx, dy, sc] = offsets[i];
+      this.drawTree(g, x + dx, y + dy, scale * sc, season, salt + i * 13);
+    }
+  }
+
+  private drawGrassTufts(
+    g: Phaser.GameObjects.Graphics,
+    x: number,
+    y: number,
+    season: SeasonId,
+  ) {
+    const tip =
+      season === "autumn" ? 0xa09040 : season === "winter" ? 0x8a9a88 : 0x7aaf55;
+    g.fillStyle(tip, 0.75);
+    for (const [dx, dy] of [
+      [-5, 1],
+      [3, -2],
+      [6, 2],
+      [-1, -3],
+    ] as const) {
+      g.fillTriangle(x + dx, y + dy - 3.5, x + dx - 1.4, y + dy, x + dx + 1.4, y + dy);
+    }
+  }
+
   private drawFertileTufts(g: Phaser.GameObjects.Graphics, x: number, y: number) {
-    g.fillStyle(0x8fbf4a, 0.85);
+    g.fillStyle(0x8fbf4a, 0.9);
     for (const [dx, dy] of [
       [-6, 0],
       [4, -2],
       [2, 3],
       [-2, -3],
+      [7, 1],
+      [-8, -1],
     ] as const) {
-      g.fillTriangle(x + dx, y + dy - 4, x + dx - 2, y + dy, x + dx + 2, y + dy);
+      g.fillTriangle(x + dx, y + dy - 4.5, x + dx - 2, y + dy, x + dx + 2, y + dy);
     }
   }
 
@@ -558,7 +690,8 @@ export class MainScene extends Phaser.Scene {
     const Wb = { x: cx - hw, y: cy };
 
     if (elev > 0) {
-      g.fillStyle(shadeColor(side, 0.85), alpha);
+      // Cliff faces with stratified banding for depth
+      g.fillStyle(shadeColor(side, 0.78), alpha);
       g.beginPath();
       g.moveTo(W.x, W.y);
       g.lineTo(S.x, S.y);
@@ -567,7 +700,7 @@ export class MainScene extends Phaser.Scene {
       g.closePath();
       g.fillPath();
 
-      g.fillStyle(side, alpha);
+      g.fillStyle(shadeColor(side, 0.95), alpha);
       g.beginPath();
       g.moveTo(S.x, S.y);
       g.lineTo(E.x, E.y);
@@ -575,6 +708,13 @@ export class MainScene extends Phaser.Scene {
       g.lineTo(Sb.x, Sb.y);
       g.closePath();
       g.fillPath();
+
+      if (elev > 5) {
+        g.lineStyle(1, shadeColor(side, 1.15), 0.25 * alpha);
+        const midY = (S.y + Sb.y) * 0.5;
+        g.lineBetween(W.x + 2, (W.y + Wb.y) * 0.5, S.x, midY);
+        g.lineBetween(S.x, midY, E.x - 2, (E.y + Eb.y) * 0.5);
+      }
     }
 
     g.fillStyle(fill, alpha);
@@ -586,15 +726,31 @@ export class MainScene extends Phaser.Scene {
     g.closePath();
     g.fillPath();
 
-    // Water highlight stripe
+    // Water highlight stripe + shore foam
     if (terrain === "water") {
-      g.fillStyle(0xa8d4f0, 0.12 * alpha);
+      g.fillStyle(0xa8d4f0, 0.14 * alpha);
       g.beginPath();
       g.moveTo(N.x, N.y + 4);
       g.lineTo(E.x - 6, E.y);
       g.lineTo(W.x + 6, W.y);
       g.closePath();
       g.fillPath();
+      g.fillStyle(0xffffff, 0.08 * alpha);
+      g.beginPath();
+      g.moveTo(W.x + 8, W.y + 2);
+      g.lineTo(S.x, S.y - 2);
+      g.lineTo(E.x - 10, E.y + 1);
+      g.closePath();
+      g.fillPath();
+      // Soft foam rim
+      g.lineStyle(1.5, 0xd8eef8, 0.28 * alpha);
+      g.beginPath();
+      g.moveTo(N.x, N.y);
+      g.lineTo(E.x, E.y);
+      g.lineTo(S.x, S.y);
+      g.lineTo(W.x, W.y);
+      g.closePath();
+      g.strokePath();
     } else {
       g.fillStyle(0xffffff, 0.07 * alpha);
       g.beginPath();
@@ -603,6 +759,56 @@ export class MainScene extends Phaser.Scene {
       g.lineTo(W.x, W.y);
       g.closePath();
       g.fillPath();
+    }
+
+    // Terrain micro-detail so the map reads less like flat diamonds
+    if (terrain === "grass" || terrain === "fertile") {
+      const seed = Math.abs(Math.round(cx * 7 + cy * 13)) % 5;
+      g.fillStyle(shadeColor(fill, terrain === "fertile" ? 1.22 : 0.78), 0.55 * alpha);
+      for (let i = 0; i < 4; i++) {
+        const t = (seed + i * 1.7) / 5;
+        const px = cx + Math.cos(t * 6.2) * (hw * 0.32);
+        const py = topY + Math.sin(t * 5.1) * (hh * 0.38);
+        g.fillTriangle(px, py - 4, px - 1.8, py + 0.6, px + 1.8, py + 0.6);
+      }
+      // Subtle mottling band
+      g.fillStyle(shadeColor(fill, 0.9), 0.18 * alpha);
+      g.fillEllipse(cx + 4, topY + 2, 10, 5);
+    } else if (terrain === "rock" || terrain === "sand") {
+      const speck = terrain === "rock" ? shadeColor(fill, 1.25) : shadeColor(fill, 0.85);
+      g.fillStyle(speck, 0.55 * alpha);
+      g.fillCircle(cx - 6, topY - 2, 1.8);
+      g.fillCircle(cx + 8, topY + 3, 1.4);
+      g.fillCircle(cx + 2, topY - 5, 2);
+      g.fillCircle(cx - 9, topY + 3, 1.2);
+      if (terrain === "rock") {
+        g.fillStyle(shadeColor(fill, 0.65), 0.45 * alpha);
+        g.fillCircle(cx - 2, topY + 4, 2.8);
+        g.fillStyle(shadeColor(fill, 1.15), 0.35 * alpha);
+        g.fillTriangle(cx + 4, topY - 6, cx + 10, topY, cx + 2, topY + 1);
+      } else {
+        // Sand ripples
+        g.lineStyle(1, shadeColor(fill, 1.15), 0.35 * alpha);
+        g.beginPath();
+        g.moveTo(cx - 10, topY);
+        g.lineTo(cx - 2, topY - 3);
+        g.lineTo(cx + 8, topY + 1);
+        g.strokePath();
+      }
+    } else if (terrain === "forest") {
+      g.fillStyle(0x1a3018, 0.4 * alpha);
+      g.fillEllipse(cx, topY + 2, 18, 8);
+      g.fillStyle(0x243820, 0.25 * alpha);
+      g.fillEllipse(cx - 5, topY, 8, 4);
+    }
+
+    // Soft rim light on NE edge (strategy-map depth cue)
+    if (terrain !== "water") {
+      g.lineStyle(1.25, shadeColor(fill, 1.35), 0.22 * alpha);
+      g.beginPath();
+      g.moveTo(N.x, N.y);
+      g.lineTo(E.x, E.y);
+      g.strokePath();
     }
 
     g.lineStyle(1, terrain === "water" ? 0x1a3a58 : 0x1b2618, alpha * 0.5);

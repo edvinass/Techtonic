@@ -24,7 +24,7 @@ export function PhaserGame() {
       parent: host,
       width: Math.floor(cssW * dpr),
       height: Math.floor(cssH * dpr),
-      backgroundColor: "#1a2218",
+      backgroundColor: "#0c1410",
       scene: [MainScene],
       scale: {
         mode: Phaser.Scale.RESIZE,

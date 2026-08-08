@@ -9,6 +9,7 @@ import { defenceReadiness } from "../sim/pressure";
 import type { PriorityId, ResourceId, Resources } from "../sim/types";
 import { useGameStore } from "../store/gameStore";
 import { putSave } from "../api/client";
+import { BuildingIcon } from "./BuildingIcon";
 import { ResourceIcon } from "./ResourceIcon";
 
 const PRIORITIES: PriorityId[] = [
@@ -194,6 +195,7 @@ export function Hud() {
       )}
       <header className="hud-top">
         <div className="hud-identity">
+          <span className="brand-mark sm" aria-hidden />
           <span className="brand">Techtonic</span>
           <span className="age-pill">{age.name}</span>
           <span
@@ -207,7 +209,7 @@ export function Hud() {
           )}
         </div>
 
-        <div className="resources" role="group" aria-label="Resources">
+        <div className="resource-bar" role="group" aria-label="Resources">
           {RESOURCE_ORDER.map((id) => {
             const amount = state.resources[id];
             const delta = deltas[id];
@@ -219,7 +221,9 @@ export function Hud() {
                 style={{ "--res": `#${RESOURCES[id].hex}` } as CSSProperties}
                 title={RESOURCES[id].label}
               >
-                <ResourceIcon id={id} size={16} />
+                <span className="resource-icon-wrap">
+                  <ResourceIcon id={id} size={18} />
+                </span>
                 <em>{RESOURCES[id].label}</em>
                 <strong>{formatAmount(amount)}</strong>
                 <span
@@ -350,7 +354,7 @@ export function Hud() {
         </div>
 
         {!sideCollapsed && sideTab === "build" && (
-          <section>
+          <section className="chrome-panel">
             <h3>Build</h3>
             <p className="muted panel-hint">Select a building, then click the map.</p>
             <div className="build-list">
@@ -361,25 +365,30 @@ export function Hud() {
                   <button
                     key={id}
                     type="button"
-                    className={`${selectedBuilding === id ? "active" : ""}${affordable ? "" : " unaffordable"}`}
+                    className={`build-card ${selectedBuilding === id ? "active" : ""}${affordable ? "" : " unaffordable"}`}
                     title={def.description}
                     onClick={() => selectBuilding(selectedBuilding === id ? null : id)}
                   >
-                    <strong>{def.name}</strong>
-                    <span className="cost-row">
-                      {(Object.entries(def.cost) as [ResourceId, number][]).map(([k, v]) => {
-                        const short = state.resources[k] < v;
-                        return (
-                          <span
-                            key={k}
-                            className={`cost-item${short ? " short" : ""}`}
-                            title={RESOURCES[k].label}
-                          >
-                            <ResourceIcon id={k} size={12} />
-                            {v}
-                          </span>
-                        );
-                      })}
+                    <span className="build-thumb">
+                      <BuildingIcon id={id} size={40} />
+                    </span>
+                    <span className="build-meta">
+                      <strong>{def.name}</strong>
+                      <span className="cost-row">
+                        {(Object.entries(def.cost) as [ResourceId, number][]).map(([k, v]) => {
+                          const short = state.resources[k] < v;
+                          return (
+                            <span
+                              key={k}
+                              className={`cost-item${short ? " short" : ""}`}
+                              title={RESOURCES[k].label}
+                            >
+                              <ResourceIcon id={k} size={12} />
+                              {v}
+                            </span>
+                          );
+                        })}
+                      </span>
                     </span>
                   </button>
                 );
@@ -389,7 +398,7 @@ export function Hud() {
         )}
 
         {!sideCollapsed && sideTab === "priorities" && (
-          <section>
+          <section className="chrome-panel">
             <h3>Work priorities</h3>
             <p className="muted panel-hint">
               Defence readiness <strong>{defencePct}%</strong> — towers, palisades, and this slider
@@ -417,7 +426,7 @@ export function Hud() {
         )}
 
         {!sideCollapsed && sideTab === "tech" && (
-          <section>
+          <section className="chrome-panel">
             <h3>Technology</h3>
             {state.research.active && (
               <div className="research-progress">
@@ -477,7 +486,7 @@ export function Hud() {
         )}
 
         {!sideCollapsed && sideTab === "age" && nextAge && (
-          <section className="age-up">
+          <section className="age-up chrome-panel">
             <h3>Advance to {nextAge.name}</h3>
             <p className="muted panel-hint">{age.blurb}</p>
             <ul>
@@ -519,7 +528,7 @@ export function Hud() {
         )}
 
         {!sideCollapsed && sideTab === "age" && !nextAge && (
-          <section className="age-up done">
+          <section className="age-up done chrome-panel">
             <h3>{age.name}</h3>
             <p>{age.blurb}</p>
           </section>

@@ -6,7 +6,7 @@ import { mapTextResolution } from "./textRes";
 
 const SKIN = [0xf0c8a0, 0xe8b890, 0xd4a574, 0xc68642, 0x8d5524] as const;
 const HAIR = [0x2a1c10, 0x4a3020, 0x6b4423, 0xc4a060, 0x1a120c] as const;
-const TUNIC = [0x6b8f4e, 0x8a6238, 0x7b6bb5, 0xc4a574, 0x5a7a8a, 0xa67c52] as const;
+const TUNIC = [0x6b8f4e, 0x8a6238, 0x4a5a7a, 0xc4a574, 0x5a7a8a, 0xa67c52] as const;
 const BELT = [0x3a2818, 0x5a3d22, 0x4a3020] as const;
 
 function shade(color: number, factor: number): number {
@@ -155,7 +155,7 @@ function makeHoe(scene: Phaser.Scene): Phaser.GameObjects.Container {
 
 function makeStaff(scene: Phaser.Scene): Phaser.GameObjects.Container {
   const pole = scene.add.rectangle(0, 0, 1.6, 14, 0x5a3d22);
-  const tip = scene.add.circle(0, -8, 2.4, 0x7b6bb5, 0.9);
+  const tip = scene.add.circle(0, -8, 2.4, 0xd4a84b, 0.9);
   tip.setStrokeStyle(1, 0xf2ebe0, 0.5);
   return scene.add.container(0, 0, [pole, tip]);
 }
@@ -214,7 +214,7 @@ export function createCitizenArt(scene: Phaser.Scene, c: Citizen): CitizenNode {
   label.setOrigin(0.5, 1);
   label.setVisible(false);
 
-  const baseScale = 0.92 + (c.id % 5) * 0.04;
+  const baseScale = 1.05 + (c.id % 5) * 0.05;
   const node = scene.add.container(c.x, c.y, [
     shadow,
     legL,

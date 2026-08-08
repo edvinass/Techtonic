@@ -393,8 +393,10 @@ function drawResearchHut(g: GameObjects.Graphics, a: number) {
   // Totem post at east corner
   g.lineStyle(3, 0x5a3d22, a);
   g.lineBetween(base.E.x, base.E.y, base.E.x, base.E.y - 20);
-  g.fillStyle(0x7b6bb5, 0.9 * a);
+  g.fillStyle(0xc9a227, 0.9 * a);
   g.fillCircle(base.E.x, base.E.y - 22, 3.5);
+  g.fillStyle(0xf0e2b0, 0.55 * a);
+  g.fillCircle(base.E.x - 0.5, base.E.y - 23, 1.4);
 }
 
 function drawFarm(g: GameObjects.Graphics, a: number) {

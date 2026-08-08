@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { deleteSave, getSave, listSaves, type SaveMeta } from "../api/client";
 import { useGameStore } from "../store/gameStore";
+import { SettlementArt } from "./SettlementArt";
 
 export function MenuScreen() {
   const token = useGameStore((s) => s.token);
@@ -50,33 +51,45 @@ export function MenuScreen() {
   }
 
   return (
-    <div className="panel-screen">
-      <div className="panel menu-panel">
+    <div className="panel-screen atmosphere">
+      <div className="atmosphere-art" aria-hidden>
+        <SettlementArt />
+      </div>
+      <div className="panel menu-panel chrome-panel">
+        <div className="panel-hero-strip" aria-hidden>
+          <SettlementArt />
+        </div>
         <div className="menu-header">
-          <div>
-            <p className="eyebrow">Techtonic</p>
-            <h1>Your settlements</h1>
-            <p className="lede">Signed in as {email}</p>
+          <div className="brand-lockup">
+            <span className="brand-mark" aria-hidden />
+            <div>
+              <p className="eyebrow">Techtonic</p>
+              <h1>Your settlements</h1>
+              <p className="lede">Signed in as {email}</p>
+            </div>
           </div>
           <button type="button" onClick={logout}>
             Log out
           </button>
         </div>
 
-        <button type="button" className="primary" onClick={newGame}>
+        <button type="button" className="primary new-game-btn" onClick={newGame}>
           New Stone Age game
         </button>
 
-        <h2>Cloud save slots</h2>
-        {loading && <p>Loading saves…</p>}
+        <h2 className="panel-section-title">Cloud save slots</h2>
+        {loading && <p className="muted">Loading saves…</p>}
         {error && <p className="error">{error}</p>}
         <div className="save-grid">
           {saves.map((save) => (
-            <div key={save.slot} className="save-card">
-              <div>
+            <div key={save.slot} className={`save-card${save.empty ? " empty" : ""}`}>
+              <div className="save-card-art" aria-hidden>
+                <SettlementArt />
+              </div>
+              <div className="save-card-body">
                 <strong>Slot {save.slot}</strong>
                 {save.empty ? (
-                  <p>Empty</p>
+                  <p className="muted">Empty — ready for a new camp</p>
                 ) : (
                   <>
                     <p>{save.name}</p>
@@ -89,6 +102,7 @@ export function MenuScreen() {
               <div className="row">
                 <button
                   type="button"
+                  className={save.empty ? "" : "primary"}
                   disabled={save.empty}
                   onClick={() => void onLoad(save.slot)}
                 >

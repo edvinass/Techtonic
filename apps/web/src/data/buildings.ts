@@ -57,7 +57,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     produces: { knowledge: 0.6 },
     ages: ALL_AGES,
     requiresTech: "fire",
-    color: 0x7b6bb5,
+    color: 0xd4a84b,
   },
   watchtower: {
     id: "watchtower",
