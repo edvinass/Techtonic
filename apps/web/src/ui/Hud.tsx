@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { isMuted, play, toggleMute } from "../audio/sfx";
 import { AGES } from "../data/ages";
 import { BUILDINGS } from "../data/buildings";
@@ -125,10 +126,13 @@ export function Hud() {
   const [sideTab, setSideTab] = useState<SideTab>("build");
   const [sideCollapsed, setSideCollapsed] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [saveMenuPos, setSaveMenuPos] = useState<{ top: number; right: number } | null>(null);
   const [soundOff, setSoundOff] = useState(isMuted);
   const prevResources = useRef<Resources | null>(null);
   const [deltas, setDeltas] = useState<Partial<Record<ResourceId, number>>>({});
   const saveMenuRef = useRef<HTMLDivElement>(null);
+  const saveBtnRef = useRef<HTMLButtonElement>(null);
+  const saveDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!state) return;
@@ -171,12 +175,28 @@ export function Hud() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  useLayoutEffect(() => {
+    if (!saveOpen || !saveBtnRef.current) {
+      setSaveMenuPos(null);
+      return;
+    }
+    function updatePos() {
+      const btn = saveBtnRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      setSaveMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    }
+    updatePos();
+    window.addEventListener("resize", updatePos);
+    return () => window.removeEventListener("resize", updatePos);
+  }, [saveOpen]);
+
   useEffect(() => {
     if (!saveOpen) return;
     function onPointer(e: MouseEvent) {
-      if (saveMenuRef.current && !saveMenuRef.current.contains(e.target as Node)) {
-        setSaveOpen(false);
-      }
+      const t = e.target as Node;
+      if (saveMenuRef.current?.contains(t) || saveDropdownRef.current?.contains(t)) return;
+      setSaveOpen(false);
     }
     document.addEventListener("mousedown", onPointer);
     return () => document.removeEventListener("mousedown", onPointer);
@@ -407,6 +427,7 @@ export function Hud() {
           </button>
           <div className="save-menu" ref={saveMenuRef}>
             <button
+              ref={saveBtnRef}
               type="button"
               className={saveOpen ? "active" : ""}
               onClick={() => {
@@ -417,19 +438,6 @@ export function Hud() {
             >
               Save{saveSlot ? ` ${saveSlot}` : ""}
             </button>
-            {saveOpen && (
-              <div className="save-dropdown" role="menu">
-                <button type="button" role="menuitem" onClick={() => void saveToSlot(saveSlot ?? 1)}>
-                  Quick save (slot {saveSlot ?? 1})
-                </button>
-                {[1, 2, 3].map((slot) => (
-                  <button key={slot} type="button" role="menuitem" onClick={() => void saveToSlot(slot)}>
-                    Slot {slot}
-                    {saveSlot === slot ? " · current" : ""}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
           <button type="button" onClick={() => setScreen("menu")}>
             Menu
@@ -488,12 +496,12 @@ export function Hud() {
         </div>
       )}
 
-      {!tutorialDismissed && outcome === "playing" && (
+      {!tutorialDismissed && outcome === "playing" && !inspected && (
         <div className="tutorial">
           <p>
             Forests and ore run out. Winters and raids punish thin Defence — research Fortifications
             for towers and walls. Farms want fertile soil by the river. Pan with WASD / right-drag;
-            pause with P.
+            pause with P. Click a finished building for details.
           </p>
           <button type="button" onClick={dismissTutorial}>
             Got it
@@ -652,9 +660,9 @@ export function Hud() {
               </div>
               <div
                 className="worker-meter"
-                title="Share of houses covered by nearby towers or palisades"
+                title="Share of houses within range of a watchtower or palisade"
               >
-                <span className="worker-meter-label">Homes</span>
+                <span className="worker-meter-label">Coverage</span>
                 <div className="worker-meter-track">
                   <div className="worker-meter-fill cover" style={{ width: `${coverPct}%` }} />
                 </div>
@@ -889,6 +897,28 @@ export function Hud() {
           </>
         )}
       </aside>
+
+      {saveOpen &&
+        saveMenuPos &&
+        createPortal(
+          <div
+            ref={saveDropdownRef}
+            className="save-dropdown"
+            role="menu"
+            style={{ top: saveMenuPos.top, right: saveMenuPos.right }}
+          >
+            <button type="button" role="menuitem" onClick={() => void saveToSlot(saveSlot ?? 1)}>
+              Quick save (slot {saveSlot ?? 1})
+            </button>
+            {[1, 2, 3].map((slot) => (
+              <button key={slot} type="button" role="menuitem" onClick={() => void saveToSlot(slot)}>
+                Slot {slot}
+                {saveSlot === slot ? " · current" : ""}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

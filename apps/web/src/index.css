@@ -442,8 +442,6 @@ input[type="text"] {
 }
 
 .hud-top {
-  position: relative;
-  z-index: 4;
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr);
   align-items: center;
@@ -768,9 +766,7 @@ input[type="text"] {
 }
 
 .save-dropdown {
-  position: absolute;
-  top: calc(100% + 0.3rem);
-  right: 0;
+  position: fixed;
   min-width: 11rem;
   display: grid;
   gap: 0.2rem;
@@ -779,7 +775,8 @@ input[type="text"] {
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: var(--shadow);
-  z-index: 10;
+  z-index: 15;
+  pointer-events: auto;
 }
 
 .save-dropdown button {
@@ -791,7 +788,6 @@ input[type="text"] {
 
 .hud-side {
   position: absolute;
-  z-index: 1;
   top: 4.15rem;
   right: 0.65rem;
   width: min(300px, calc(100vw - 1.3rem));
@@ -1418,6 +1414,8 @@ button.primary.harmony {
   left: 0.85rem;
   top: 4.25rem;
   width: min(320px, calc(100vw - 2rem));
+  max-height: min(70vh, calc(100% - 5.5rem));
+  overflow: auto;
   padding: 0.95rem 1rem 0.85rem;
   border-radius: 14px;
   backdrop-filter: blur(8px);
@@ -1680,14 +1678,16 @@ button.primary.harmony {
     bottom: 6.6rem;
   }
 
-  .tutorial {
+  .tutorial,
+  .building-inspect {
     top: auto;
     bottom: calc(46% + 0.35rem);
     max-height: 28%;
     overflow: auto;
   }
 
-  .hud.side-collapsed .tutorial {
+  .hud.side-collapsed .tutorial,
+  .hud.side-collapsed .building-inspect {
     bottom: 3.6rem;
   }
 }
