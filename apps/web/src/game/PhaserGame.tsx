@@ -7,18 +7,24 @@ export function PhaserGame() {
   const gameRef = useRef<Phaser.Game | null>(null);
 
   useEffect(() => {
-    if (!hostRef.current || gameRef.current) return;
+    const host = hostRef.current;
+    if (!host || gameRef.current) return;
+
+    const width = Math.max(host.clientWidth, 640);
+    const height = Math.max(host.clientHeight, 400);
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,
-      parent: hostRef.current,
-      width: hostRef.current.clientWidth || 960,
-      height: hostRef.current.clientHeight || 640,
+      parent: host,
+      width,
+      height,
       backgroundColor: "#1a2218",
       scene: [MainScene],
       scale: {
         mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH,
+        width,
+        height,
       },
       input: {
         mouse: { preventDefaultWheel: false },
@@ -26,7 +32,17 @@ export function PhaserGame() {
     });
     gameRef.current = game;
 
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry || !gameRef.current) return;
+      const { width: w, height: h } = entry.contentRect;
+      if (w < 32 || h < 32) return;
+      gameRef.current.scale.resize(Math.floor(w), Math.floor(h));
+    });
+    ro.observe(host);
+
     return () => {
+      ro.disconnect();
       game.destroy(true);
       gameRef.current = null;
     };

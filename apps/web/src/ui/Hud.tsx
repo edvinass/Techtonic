@@ -113,9 +113,9 @@ export function Hud() {
       {!tutorialDismissed && (
         <div className="tutorial">
           <p>
-            Place lumber camps on forests, raise houses, set priorities, then research Fire →
-            Farming. Build a Granary and advance when ready. WASD pan, scroll zoom, right-drag
-            pan.
+            Select a building on the right, then left-click a tile to place it (lumber camps need
+            forest dots). Staffed buildings show worker dots and floating +resources. WASD pan,
+            scroll zoom, right-drag pan. Research Fire → Farming, build a Granary, then age up.
           </p>
           <button type="button" onClick={dismissTutorial}>
             Got it
