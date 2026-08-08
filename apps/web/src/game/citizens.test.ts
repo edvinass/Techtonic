@@ -56,4 +56,62 @@ describe("citizen wood gathering", () => {
     ).toBe(true);
     expect(Math.hypot(targetPos.x - campPos.x, targetPos.y - campPos.y)).toBeGreaterThanOrEqual(0);
   });
+
+  it("pulls wood gatherers off trees when all workers are moved to food", () => {
+    let state = createNewGame(22);
+    state.resources.wood = 100;
+    state.population.count = 5;
+    state.priorities = {
+      food: 0,
+      construction: 0,
+      research: 0,
+      production: 5,
+      defence: 0,
+    };
+    const woodTile = state.map.tiles.find((t) => t.deposit === "wood")!;
+    state = placeBuilding(state, "lumber_camp", woodTile.x, woodTile.y);
+    state.buildings.forEach((b) => {
+      if (b.type === "lumber_camp") b.progress = 1;
+    });
+
+    const ox = 400;
+    const oy = 80;
+    const citizens: Citizen[] = [];
+    syncCitizens(citizens, state, ox, oy);
+    for (const c of citizens) {
+      if (c.job.kind === "walk" && c.job.phase === "wander") c.job = { kind: "idle" };
+    }
+    syncCitizens(citizens, state, ox, oy);
+
+    const woodBefore = citizens.filter(
+      (c) =>
+        (c.job.kind === "walk" && c.job.resource === "wood") ||
+        (c.job.kind === "gather" && c.job.resource === "wood"),
+    ).length;
+    expect(woodBefore).toBeGreaterThan(0);
+
+    state.priorities = {
+      food: 5,
+      construction: 0,
+      research: 0,
+      production: 0,
+      defence: 0,
+    };
+    syncCitizens(citizens, state, ox, oy);
+
+    const stillWood = citizens.filter(
+      (c) =>
+        c.carryAmount <= 0 &&
+        ((c.job.kind === "walk" && c.job.resource === "wood") ||
+          (c.job.kind === "gather" && c.job.resource === "wood")),
+    );
+    expect(stillWood.length).toBe(0);
+
+    const foodBound = citizens.filter(
+      (c) =>
+        (c.job.kind === "walk" && c.job.resource === "food") ||
+        (c.job.kind === "gather" && c.job.resource === "food"),
+    );
+    expect(foodBound.length).toBeGreaterThan(0);
+  });
 });

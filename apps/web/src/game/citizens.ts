@@ -60,15 +60,6 @@ function buildingById(state: GameState, id: string): BuildingInstance | undefine
   return state.buildings.find((b) => b.id === id);
 }
 
-function workKindFor(building: BuildingInstance): WorkKind {
-  if (building.progress < 1) return "build";
-  const def = BUILDINGS[building.type];
-  if (def.priority === "research") return "research";
-  if (building.type === "farm") return "farm";
-  if (def.produces) return "gather";
-  return "idle";
-}
-
 interface Assignment {
   buildingId: string;
   work: WorkKind;
@@ -166,35 +157,7 @@ function desiredAssignments(state: GameState): Assignment[] {
     remaining -= 1;
   }
 
-  // Leftover people: prefer open production slots, then research, then farms — not more foraging
-  const fillOrder = state.buildings.filter((b) => b.progress >= 1);
-  fillOrder.sort((a, b) => {
-    const rank = (x: BuildingInstance) => {
-      const p = BUILDINGS[x.type].priority;
-      if (p === "production") return 0;
-      if (p === "research") return 1;
-      if (x.type === "farm") return 2;
-      return 3;
-    };
-    return rank(a) - rank(b);
-  });
-  for (const b of fillOrder) {
-    if (remaining <= 0) break;
-    const def = BUILDINGS[b.type];
-    if (def.workerSlots <= 0) continue;
-    const already = list.filter((a) => a.buildingId === b.id).length;
-    const room = def.workerSlots - already;
-    if (room <= 0) continue;
-    const work = workKindFor(b);
-    const resource = resourceForBuilding(b);
-    if (!resource) continue;
-    const take = Math.min(room, remaining);
-    for (let i = 0; i < take; i++) {
-      list.push({ buildingId: b.id, work, resource });
-    }
-    remaining -= take;
-  }
-
+  // Leave anyone else idle — Work-tab quotas are hard caps, not soft targets.
   return list;
 }
 
@@ -321,27 +284,55 @@ export function syncCitizens(
     }
   }
 
-  const keyOf = (buildingId: string, work: WorkKind) => `${buildingId}:${work}`;
-  const used = new Map<string, number>();
-  for (const c of citizens) {
-    if (!isOnAssignment(c)) continue;
-    if (c.job.kind === "walk" || c.job.kind === "gather" || c.job.kind === "work") {
-      const work = c.job.work;
-      if (work === "idle") continue;
-      used.set(keyOf(c.job.buildingId, work), (used.get(keyOf(c.job.buildingId, work)) ?? 0) + 1);
-    }
-  }
+  // Include resource so wild-wood forage and food forage on the house don't collide.
+  const keyOf = (buildingId: string, work: WorkKind, resource: ResourceId | null) =>
+    `${buildingId}:${work}:${resource ?? "-"}`;
 
-  const open: Assignment[] = [];
+  const needByKey = new Map<string, number>();
   const needCount = new Map<string, Assignment[]>();
   for (const a of assignments) {
-    const k = keyOf(a.buildingId, a.work);
+    const k = keyOf(a.buildingId, a.work, a.resource);
+    needByKey.set(k, (needByKey.get(k) ?? 0) + 1);
     const arr = needCount.get(k) ?? [];
     arr.push(a);
     needCount.set(k, arr);
   }
+
+  const claimed = new Map<string, number>();
+  const jobKey = (c: Citizen): string | null => {
+    if (c.job.kind !== "walk" && c.job.kind !== "gather" && c.job.kind !== "work") return null;
+    if (c.job.work === "idle") return null;
+    const resource =
+      c.job.kind === "gather"
+        ? c.job.resource
+        : c.job.kind === "walk"
+          ? (c.job.resource ?? null)
+          : null;
+    return keyOf(c.job.buildingId, c.job.work, resource);
+  };
+
+  // Keep carriers finishing drop-off; demote everyone else whose job is no longer needed.
+  for (const c of citizens) {
+    if (!isOnAssignment(c)) continue;
+    const k = jobKey(c);
+    if (!k) continue;
+    if (c.carryAmount > 0) {
+      claimed.set(k, (claimed.get(k) ?? 0) + 1);
+      continue;
+    }
+    const have = claimed.get(k) ?? 0;
+    const need = needByKey.get(k) ?? 0;
+    if (have >= need) {
+      c.job = { kind: "idle" };
+      c.carrying = null;
+    } else {
+      claimed.set(k, have + 1);
+    }
+  }
+
+  const open: Assignment[] = [];
   for (const [k, arr] of needCount) {
-    const have = used.get(k) ?? 0;
+    const have = claimed.get(k) ?? 0;
     for (let i = have; i < arr.length; i++) open.push(arr[i]);
   }
 
@@ -422,10 +413,12 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
         onDeposit(res, amount, c.x, c.y);
         c.carryAmount = 0;
         c.carrying = null;
+        // Idle so syncCitizens can reassign from current Work quotas
+        // (avoids restarting wood trips after Gather was set to 0).
         if (work === "build") {
           startBuildTrip(c, state, ox, oy, buildingId);
         } else {
-          startGatherTrip(c, state, ox, oy, buildingId, work, res);
+          c.job = { kind: "idle" };
         }
         continue;
       }

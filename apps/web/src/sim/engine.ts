@@ -350,15 +350,7 @@ function assignWorkers(state: GameState): {
   staff("production", quota("production"));
   staff("defence", quota("defence"));
 
-  // Fill remaining open slots
-  for (const b of complete) {
-    const def = BUILDINGS[b.type];
-    if (def.workerSlots <= 0) continue;
-    const room = def.workerSlots - b.workers;
-    const take = Math.min(room, remaining);
-    b.workers += take;
-    remaining -= take;
-  }
+  // Do not auto-fill leftover people into open slots — Work quotas are hard caps.
 
   const foragers = Math.min(quota("food"), remaining);
 
