@@ -120,13 +120,28 @@ function desiredAssignments(state: GameState): Assignment[] {
     (b) => b.type === "lumber_camp" && b.progress >= 1,
   );
 
-  // Production camps (wood/stone) first
-  for (const b of state.buildings) {
-    if (BUILDINGS[b.type].priority === "production") {
+  // Production camps (wood/stone/metal) — round-robin so a lumber camp
+  // cannot consume the entire Gather quota before a quarry/mine is staffed.
+  const productionCamps = state.buildings.filter((b) => {
+    if (BUILDINGS[b.type].priority !== "production" || b.progress < 1) return false;
+    return resourceForBuilding(b) != null;
+  });
+  const campFilled = new Map<string, number>();
+  while (productionBudget > 0 && remaining > 0) {
+    let assignedAny = false;
+    for (const b of productionCamps) {
+      if (productionBudget <= 0 || remaining <= 0) break;
+      const filled = campFilled.get(b.id) ?? 0;
+      if (filled >= BUILDINGS[b.type].workerSlots) continue;
       const res = resourceForBuilding(b);
       if (!res) continue;
-      productionBudget -= staffBuilding(b, productionBudget, "gather", res);
+      list.push({ buildingId: b.id, work: "gather", resource: res });
+      campFilled.set(b.id, filled + 1);
+      remaining -= 1;
+      productionBudget -= 1;
+      assignedAny = true;
     }
+    if (!assignedAny) break;
   }
 
   // No lumber camp yet: production workers chop wild trees and drop off at the house

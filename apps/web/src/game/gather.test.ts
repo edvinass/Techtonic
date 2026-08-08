@@ -32,6 +32,36 @@ describe("gather rules", () => {
     expect(found?.deposit === "wood" || found?.terrain === "forest").toBe(true);
   });
 
+  it("sends quarry workers only to stone deposits, never barren rock", () => {
+    const state = createNewGame(11);
+    const stoneTile = state.map.tiles.find((t) => t.deposit === "stone")!;
+    // Inject barren rock next to the quarry — old matcher treated this as gatherable
+    const nx = Math.min(state.map.width - 1, stoneTile.x + 1);
+    const ny = stoneTile.y;
+    const barren = state.map.tiles[ny * state.map.width + nx];
+    barren.terrain = "rock";
+    barren.deposit = null;
+    barren.stock = undefined;
+
+    const building = {
+      id: "b-quarry",
+      type: "quarry" as const,
+      x: stoneTile.x,
+      y: stoneTile.y,
+      progress: 1,
+      workers: 2,
+    };
+    expect(resourceForBuilding(building)).toBe("stone");
+
+    for (let i = 0; i < 20; i++) {
+      const tile = findResourceTile(state, building, "stone");
+      expect(tile).toBeTruthy();
+      const found = state.map.tiles.find((t) => t.x === tile!.gx && t.y === tile!.gy);
+      expect(found?.deposit).toBe("stone");
+      expect(found?.stock === undefined || found!.stock! > 0).toBe(true);
+    }
+  });
+
   it("multiplies gather speed by building produces rates", () => {
     const state = createNewGame(11);
     const camp = {

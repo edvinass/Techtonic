@@ -97,14 +97,13 @@ export function findResourceTile(
       candidates.push({ gx: t.x, gy: t.y, score });
     }
   } else if (resource === "stone") {
+    // Only real stone deposits yield via harvestDeposit — barren rock is a no-op.
     for (const t of state.map.tiles) {
-      if (t.deposit === "metal") continue;
-      if (t.deposit !== "stone" && t.terrain !== "rock") continue;
-      if (t.deposit === "stone" && !hasStock(t)) continue;
+      if (t.deposit !== "stone" || !hasStock(t)) continue;
       const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
       if (dist > maxDist) continue;
       let score = dist;
-      if (t.deposit === "stone") score -= 0.5;
+      if ((t.stock ?? 99) < 15) score += 2;
       if (t.x === building.x && t.y === building.y) score += 8;
       score += Math.random() * 1.5;
       candidates.push({ gx: t.x, gy: t.y, score });
@@ -162,9 +161,7 @@ export function findResourceTile(
             ? t.deposit === "metal" && hasStock(t)
             : resource === "wood"
               ? (t.deposit === "wood" && hasStock(t)) || t.terrain === "forest"
-              : (t.deposit === "stone" || t.terrain === "rock") &&
-                t.deposit !== "metal" &&
-                (t.deposit !== "stone" || hasStock(t));
+              : t.deposit === "stone" && hasStock(t);
         if (!match) continue;
         const dist = Math.abs(t.x - building.x) + Math.abs(t.y - building.y);
         if (t.x === building.x && t.y === building.y) continue;

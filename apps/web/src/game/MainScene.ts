@@ -516,8 +516,10 @@ export class MainScene extends Phaser.Scene {
     minY -= padY;
     maxY += padY + 24;
 
-    const cx = Phaser.Math.Clamp(cam.midPoint.x, minX, maxX);
-    const cy = Phaser.Math.Clamp(cam.midPoint.y, minY, maxY);
+    // Derive center from scroll — midPoint is only refreshed in preRender, so using
+    // it here would undo pans applied earlier in the same frame / pointer event.
+    const cx = Phaser.Math.Clamp(cam.scrollX + cam.width * 0.5, minX, maxX);
+    const cy = Phaser.Math.Clamp(cam.scrollY + cam.height * 0.5, minY, maxY);
     cam.centerOn(cx, cy);
   }
 

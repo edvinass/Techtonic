@@ -114,4 +114,48 @@ describe("citizen wood gathering", () => {
     );
     expect(foodBound.length).toBeGreaterThan(0);
   });
+
+  it("splits Gather workers between lumber camp and quarry", () => {
+    let state = createNewGame(23);
+    state.resources.wood = 200;
+    state.resources.stone = 50;
+    state.population.count = 6;
+    state.research.unlocked = ["primitive_tools"];
+    state.priorities = {
+      food: 0,
+      construction: 0,
+      research: 0,
+      production: 4,
+      defence: 0,
+    };
+    const woodTile = state.map.tiles.find((t) => t.deposit === "wood")!;
+    const stoneTile = state.map.tiles.find((t) => t.deposit === "stone")!;
+    state = placeBuilding(state, "lumber_camp", woodTile.x, woodTile.y);
+    state = placeBuilding(state, "quarry", stoneTile.x, stoneTile.y);
+    state.buildings.forEach((b) => {
+      if (b.type === "lumber_camp" || b.type === "quarry") b.progress = 1;
+    });
+
+    const ox = 400;
+    const oy = 80;
+    const citizens: Citizen[] = [];
+    syncCitizens(citizens, state, ox, oy);
+    for (const c of citizens) {
+      if (c.job.kind === "walk" && c.job.phase === "wander") c.job = { kind: "idle" };
+    }
+    syncCitizens(citizens, state, ox, oy);
+
+    const woodBound = citizens.filter(
+      (c) =>
+        (c.job.kind === "walk" && c.job.resource === "wood") ||
+        (c.job.kind === "gather" && c.job.resource === "wood"),
+    );
+    const stoneBound = citizens.filter(
+      (c) =>
+        (c.job.kind === "walk" && c.job.resource === "stone") ||
+        (c.job.kind === "gather" && c.job.resource === "stone"),
+    );
+    expect(woodBound.length).toBeGreaterThan(0);
+    expect(stoneBound.length).toBeGreaterThan(0);
+  });
 });
