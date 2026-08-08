@@ -17,6 +17,26 @@ const TERRAIN_COLORS: Record<TerrainId, number> = {
   water: 0x3a6ea5,
 };
 
+const TERRAIN_SIDE: Record<TerrainId, number> = {
+  grass: 0x3f6a35,
+  forest: 0x2a4a24,
+  rock: 0x555960,
+  water: 0x2a5080,
+};
+
+function shadeColor(color: number, factor: number): number {
+  const r = Math.min(255, Math.max(0, Math.round(((color >> 16) & 0xff) * factor)));
+  const g = Math.min(255, Math.max(0, Math.round(((color >> 8) & 0xff) * factor)));
+  const b = Math.min(255, Math.max(0, Math.round((color & 0xff) * factor)));
+  return (r << 16) | (g << 8) | b;
+}
+
+function tileElev(terrain: TerrainId): number {
+  if (terrain === "rock") return 5;
+  if (terrain === "water") return 0;
+  return 3;
+}
+
 interface Floater {
   x: number;
   y: number;
@@ -31,6 +51,7 @@ export class MainScene extends Phaser.Scene {
   private citizenLayer!: Phaser.GameObjects.Container;
   private fxLayer!: Phaser.GameObjects.Container;
   private ghost!: Phaser.GameObjects.Graphics;
+  private ghostBuilding!: Phaser.GameObjects.Graphics;
   private lastStructureHash = "";
   private floaters: Floater[] = [];
   private centeredOnce = false;
@@ -69,6 +90,8 @@ export class MainScene extends Phaser.Scene {
     this.fxLayer = this.add.container(0, 0);
     this.ghost = this.add.graphics();
     this.ghost.setDepth(50_000);
+    this.ghostBuilding = this.add.graphics();
+    this.ghostBuilding.setDepth(50_001);
 
     this.input.mouse?.disableContextMenu();
 
@@ -267,15 +290,22 @@ export class MainScene extends Phaser.Scene {
 
     const farmingTint = state.age === "farming";
 
-    for (const tile of state.map.tiles) {
+    // Draw back-to-front so south faces of nearer tiles occlude correctly
+    const tiles = [...state.map.tiles].sort((a, b) => a.x + a.y - (b.x + b.y));
+    for (const tile of tiles) {
       const { sx, sy } = gridToScreen(tile.x, tile.y);
       let color = TERRAIN_COLORS[tile.terrain];
-      if (farmingTint && tile.terrain === "grass") color = 0x6fa85a;
-      this.drawDiamond(this.tileGraphics, ox + sx, oy + sy, color, 0x1b2618);
+      let side = TERRAIN_SIDE[tile.terrain];
+      if (farmingTint && tile.terrain === "grass") {
+        color = 0x6fa85a;
+        side = 0x4a7a3a;
+      }
+      const elev = tileElev(tile.terrain);
+      this.drawIsoTile(this.tileGraphics, ox + sx, oy + sy, color, side, elev);
       if (tile.deposit === "wood") {
-        drawResourceMark(this.tileGraphics, ox + sx, oy + sy, "wood", 1);
+        drawResourceMark(this.tileGraphics, ox + sx, oy + sy - elev, "wood", 1);
       } else if (tile.deposit === "stone") {
-        drawResourceMark(this.tileGraphics, ox + sx, oy + sy, "stone", 1);
+        drawResourceMark(this.tileGraphics, ox + sx, oy + sy - elev, "stone", 1);
       }
     }
 
@@ -283,6 +313,8 @@ export class MainScene extends Phaser.Scene {
     for (const b of sorted) {
       const def = BUILDINGS[b.type];
       const { sx, sy } = gridToScreen(b.x, b.y);
+      const tile = state.map.tiles[b.y * state.map.width + b.x];
+      const elev = tile ? tileElev(tile.terrain) : 3;
       const g = this.add.graphics();
       drawBuildingArt(g, b.type, {
         alpha: b.progress < 1 ? 0.7 : 1,
@@ -292,10 +324,10 @@ export class MainScene extends Phaser.Scene {
       });
       if (b.progress >= 1 && def.produces) {
         const res = Object.keys(def.produces)[0] as ResourceId | undefined;
-        if (res) drawResourceMark(g, 14, -38, res, 0.5);
+        if (res) drawResourceMark(g, 16, -34, res, 0.45);
       }
-      g.setPosition(ox + sx, oy + sy);
-      g.setDepth(b.x + b.y);
+      g.setPosition(ox + sx, oy + sy - elev);
+      g.setDepth(b.x + b.y + 0.5);
       this.buildingLayer.add(g);
     }
   }
@@ -355,6 +387,7 @@ export class MainScene extends Phaser.Scene {
     const state = useGameStore.getState().state;
     const selected = useGameStore.getState().selectedBuilding;
     this.ghost.clear();
+    this.ghostBuilding.clear();
     if (!state || !selected || this.isPanning) return;
 
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
@@ -363,33 +396,81 @@ export class MainScene extends Phaser.Scene {
     const { sx, sy } = gridToScreen(x, y);
     const check = canPlaceBuilding(state, selected, x, y);
     const color = check.ok ? 0x8fd18a : 0xd16a6a;
-    this.drawDiamond(this.ghost, ox + sx, oy + sy, color, color, 0.45);
+    const elev = 3;
+    this.drawIsoTile(this.ghost, ox + sx, oy + sy, color, shadeColor(color, 0.7), elev, 0.4);
+    drawBuildingArt(this.ghostBuilding, selected, {
+      alpha: 0.55,
+      age: state.age,
+      progress: 1,
+    });
+    this.ghostBuilding.setPosition(ox + sx, oy + sy - elev);
   }
 
-  private drawDiamond(
+  private drawIsoTile(
     g: Phaser.GameObjects.Graphics,
     cx: number,
     cy: number,
     fill: number,
-    stroke: number,
+    side: number,
+    elev: number,
     alpha = 1,
   ) {
     const hw = TILE_WIDTH / 2;
     const hh = TILE_HEIGHT / 2;
+    const topY = cy - elev;
+    const N = { x: cx, y: topY - hh };
+    const E = { x: cx + hw, y: topY };
+    const S = { x: cx, y: topY + hh };
+    const W = { x: cx - hw, y: topY };
+    const Sb = { x: cx, y: cy + hh };
+    const Eb = { x: cx + hw, y: cy };
+    const Wb = { x: cx - hw, y: cy };
+
+    if (elev > 0) {
+      // Left & right vertical faces for depth
+      g.fillStyle(shadeColor(side, 0.85), alpha);
+      g.beginPath();
+      g.moveTo(W.x, W.y);
+      g.lineTo(S.x, S.y);
+      g.lineTo(Sb.x, Sb.y);
+      g.lineTo(Wb.x, Wb.y);
+      g.closePath();
+      g.fillPath();
+
+      g.fillStyle(side, alpha);
+      g.beginPath();
+      g.moveTo(S.x, S.y);
+      g.lineTo(E.x, E.y);
+      g.lineTo(Eb.x, Eb.y);
+      g.lineTo(Sb.x, Sb.y);
+      g.closePath();
+      g.fillPath();
+    }
+
     g.fillStyle(fill, alpha);
     g.beginPath();
-    g.moveTo(cx, cy - hh);
-    g.lineTo(cx + hw, cy);
-    g.lineTo(cx, cy + hh);
-    g.lineTo(cx - hw, cy);
+    g.moveTo(N.x, N.y);
+    g.lineTo(E.x, E.y);
+    g.lineTo(S.x, S.y);
+    g.lineTo(W.x, W.y);
     g.closePath();
     g.fillPath();
-    g.lineStyle(1, stroke, alpha * 0.85);
+
+    // Subtle top shading: lighter north tip, darker south
+    g.fillStyle(0xffffff, 0.06 * alpha);
     g.beginPath();
-    g.moveTo(cx, cy - hh);
-    g.lineTo(cx + hw, cy);
-    g.lineTo(cx, cy + hh);
-    g.lineTo(cx - hw, cy);
+    g.moveTo(N.x, N.y);
+    g.lineTo(E.x, E.y);
+    g.lineTo(W.x, W.y);
+    g.closePath();
+    g.fillPath();
+
+    g.lineStyle(1, 0x1b2618, alpha * 0.55);
+    g.beginPath();
+    g.moveTo(N.x, N.y);
+    g.lineTo(E.x, E.y);
+    g.lineTo(S.x, S.y);
+    g.lineTo(W.x, W.y);
     g.closePath();
     g.strokePath();
   }

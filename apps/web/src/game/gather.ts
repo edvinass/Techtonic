@@ -28,9 +28,10 @@ export function resourceForBuilding(building: BuildingInstance): ResourceId | nu
   return key ?? null;
 }
 
-export function worldPos(gx: number, gy: number, ox: number, oy: number) {
+/** Match MainScene tile elevation so citizens stand on the tile top face. */
+export function worldPos(gx: number, gy: number, ox: number, oy: number, elev = 3) {
   const { sx, sy } = gridToScreen(gx, gy);
-  return { x: ox + sx, y: oy + sy };
+  return { x: ox + sx, y: oy + sy - elev };
 }
 
 function tileAt(state: GameState, x: number, y: number): Tile | undefined {
