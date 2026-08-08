@@ -917,6 +917,11 @@ export class MainScene extends Phaser.Scene {
       g.closePath();
       g.fillPath();
     }
+    // Lit NE canopy rim — sells volume at strategy-map scale
+    if (remain >= 0.5) {
+      g.lineStyle(1.2 * s, shadeColor(canopyLit, 1.2), 0.45);
+      g.lineBetween(x + ox, y - 24 * s - 6 * s, x + ox + 11 * s, y - 17 * s);
+    }
   }
 
   /** Dense multi-tree stand; thins to stumps as wood stock falls. */
@@ -1306,6 +1311,14 @@ export class MainScene extends Phaser.Scene {
     g.lineTo(W.x, W.y);
     g.closePath();
     g.fillPath();
+
+    // Soft NE rim on land — separates tiles without a hard grid
+    if (terrain && terrain !== "water") {
+      g.lineStyle(1, shadeColor(fill, 1.22), 0.18 * alpha);
+      g.lineBetween(N.x, N.y, E.x, E.y);
+      g.lineStyle(1, shadeColor(fill, 0.55), 0.12 * alpha);
+      g.lineBetween(W.x, W.y, S.x, S.y);
+    }
 
     if (terrain === "water") {
       const salt = opts?.salt ?? 0;

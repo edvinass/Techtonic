@@ -296,20 +296,34 @@ export function drawResourceMark(
   switch (id) {
     case "wood": {
       const lean = ((salt * 17) % 5) - 2;
-      const shadow = diamond(x + lean * 0.3 * s, y + 2 * s, 10 * s, 5 * s);
-      fillPoly(g, [shadow.N, shadow.E, shadow.S, shadow.W], 0x000000, 0.18);
-      g.fillStyle(0x5a3d22, 1);
-      g.fillRect(x - 1.6 * s + lean * 0.15 * s, y - 4 * s, 3.2 * s, 8 * s);
+      const shadow = diamond(x + lean * 0.3 * s, y + 2 * s, 11 * s, 5.5 * s);
+      fillPoly(g, [shadow.N, shadow.E, shadow.S, shadow.W], 0x000000, 0.2);
+      // Trunk with slight taper
+      g.fillStyle(0x4a3220, 1);
+      g.fillRect(x - 1.8 * s + lean * 0.15 * s, y - 5 * s, 3.6 * s, 9 * s);
+      g.fillStyle(0x6b4a2a, 1);
+      g.fillRect(x - 1.2 * s + lean * 0.15 * s, y - 5 * s, 1.4 * s, 9 * s);
 
-      const canopyTint = shade(color, 0.94 + (salt % 5) * 0.03);
+      const deep = shade(0x2a4a24, 0.95 + ((salt * 3) % 4) * 0.03);
+      const mid = shade(color, 0.94 + (salt % 5) * 0.03);
+      const lit = shade(0x5a8f4d, 0.98 + ((salt * 5) % 3) * 0.03);
       for (const [dy, hw, col] of [
-        [-18, 9, shade(0x2f5a28, 0.95 + ((salt * 3) % 4) * 0.03)],
-        [-12, 8, canopyTint],
-        [-6, 6.5, shade(0x4a6f35, 0.96 + ((salt * 5) % 3) * 0.03)],
+        [-22, 10, deep],
+        [-16, 9.5, mid],
+        [-10, 8, lit],
+        [-5, 6, shade(mid, 1.08)],
       ] as const) {
         const canopy = diamond(x + lean * s * 0.35, y + dy * s, hw * s, (hw * s) / 2);
         fillPoly(g, [canopy.N, canopy.E, canopy.S, canopy.W], col, 1);
       }
+      // Canopy rim highlight
+      g.lineStyle(1, shade(lit, 1.25), 0.4);
+      g.lineBetween(
+        x + lean * s * 0.35,
+        y - 22 * s - 5 * s,
+        x + lean * s * 0.35 + 9 * s,
+        y - 16 * s,
+      );
       break;
     }
     case "stone": {
@@ -317,13 +331,29 @@ export function drawResourceMark(
       break;
     }
     case "food": {
-      const spread = 1 + ((salt % 3) - 1) * 0.15;
-      g.fillStyle(shade(color, 0.95 + (salt % 4) * 0.03), 1);
-      g.fillCircle(x - 3 * s * spread, y - 2 * s, 2.6 * s);
-      g.fillCircle(x + 3 * s * spread, y - 3 * s, 2.3 * s);
-      g.fillCircle(x + ((salt % 3) - 1) * s, y + 2 * s, 2.8 * s);
-      g.lineStyle(1.2 * s, 0x5a4a20, 1);
-      g.lineBetween(x, y - 7 * s, x, y - 3 * s);
+      // Berry bush — foliage mound + fruit clusters
+      const shadow = diamond(x, y + 2 * s, 10 * s, 4.5 * s);
+      fillPoly(g, [shadow.N, shadow.E, shadow.S, shadow.W], 0x000000, 0.16);
+      g.fillStyle(shade(0x3a6a28, 0.95), 1);
+      g.fillEllipse(x, y - 1 * s, 16 * s, 9 * s);
+      g.fillStyle(shade(0x4a8f3a, 1.05), 1);
+      g.fillEllipse(x - 2 * s, y - 3 * s, 12 * s, 7 * s);
+      g.fillStyle(shade(0x5a9a48, 1.1), 0.85);
+      g.fillEllipse(x + 3 * s, y - 2 * s, 8 * s, 5 * s);
+      // Berries / grain heads
+      const berry = shade(color, 1.05);
+      g.fillStyle(berry, 1);
+      for (const [bx, by, r] of [
+        [-4, -2, 1.8],
+        [2, -4, 1.6],
+        [5, -1, 1.5],
+        [-1, 1, 1.7],
+        [3, 2, 1.4],
+      ] as const) {
+        g.fillCircle(x + bx * s, y + by * s, r * s);
+      }
+      g.fillStyle(0xf0e080, 0.55);
+      g.fillCircle(x + 2 * s, y - 4.5 * s, 0.8 * s);
       break;
     }
     case "metal": {
@@ -331,13 +361,18 @@ export function drawResourceMark(
       break;
     }
     case "knowledge": {
-      g.fillStyle(color, 1);
-      g.fillTriangle(x, y - 9 * s, x - 2.2 * s, y - 1 * s, x + 2.2 * s, y - 1 * s);
-      g.fillTriangle(x, y + 7 * s, x - 2.2 * s, y - 1 * s, x + 2.2 * s, y - 1 * s);
-      g.fillTriangle(x - 8 * s, y - 1 * s, x - 1 * s, y - 2.5 * s, x - 1 * s, y + 0.5 * s);
-      g.fillTriangle(x + 8 * s, y - 1 * s, x + 1 * s, y - 2.5 * s, x + 1 * s, y + 0.5 * s);
-      g.fillStyle(0xf2ebe0, 0.9);
-      g.fillCircle(x, y - 1 * s, 1.6 * s);
+      // Soft glow under a faceted star
+      g.fillStyle(color, 0.22);
+      g.fillCircle(x, y - 1 * s, 9 * s);
+      g.fillStyle(shade(color, 0.92), 1);
+      g.fillTriangle(x, y - 10 * s, x - 2.4 * s, y - 1 * s, x + 2.4 * s, y - 1 * s);
+      g.fillTriangle(x, y + 8 * s, x - 2.4 * s, y - 1 * s, x + 2.4 * s, y - 1 * s);
+      g.fillTriangle(x - 9 * s, y - 1 * s, x - 1 * s, y - 2.8 * s, x - 1 * s, y + 0.6 * s);
+      g.fillTriangle(x + 9 * s, y - 1 * s, x + 1 * s, y - 2.8 * s, x + 1 * s, y + 0.6 * s);
+      g.fillStyle(0xfff8e8, 0.95);
+      g.fillCircle(x, y - 1 * s, 2 * s);
+      g.fillStyle(0xffffff, 0.55);
+      g.fillCircle(x - 0.5 * s, y - 1.8 * s, 0.8 * s);
       break;
     }
   }
