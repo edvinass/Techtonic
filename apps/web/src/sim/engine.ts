@@ -1,4 +1,13 @@
 import { AGES, HOUSE_AGE_BONUS, ageReached } from "../data/ages";
+import {
+  FOOD_PER_CITIZEN,
+  GROWTH_FOOD_BUFFER,
+  GROWTH_FOOD_COST,
+  GROWTH_INTERVAL,
+  STARVE_DEATH_TICKS,
+  foodAgeMultiplier,
+  knowledgeTrickle,
+} from "../data/balance";
 import { BUILDINGS } from "../data/buildings";
 import { TECHS } from "../data/techs";
 import { DEPOSIT_STOCK, generateMap } from "./mapgen";
@@ -22,9 +31,6 @@ import type {
 } from "./types";
 
 const MAP_SIZE = 36;
-const FOOD_PER_CITIZEN = 0.22;
-const GROWTH_FOOD_BUFFER = 8;
-const STARVE_DEATH_TICKS = 18;
 let nextBuildingSeq = 1;
 
 function defaultPriorities(): Priorities {
@@ -86,7 +92,7 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
     schemaVersion: 4,
     tick: 0,
     age: "stone",
-    resources: { food: 28, wood: 32, stone: 12, metal: 0, knowledge: 5 },
+    resources: { food: 48, wood: 40, stone: 16, metal: 0, knowledge: 4 },
     priorities: defaultPriorities(),
     map: { width: MAP_SIZE, height: MAP_SIZE, tiles },
     buildings: [
@@ -415,11 +421,15 @@ export function tick(state: GameState): GameState {
   // Wood / stone / food / knowledge from gather buildings are delivered by
   // workers walking to resource tiles and depositing carry loads (see game/citizens).
   // Keep a tiny knowledge trickle so Fire can be started before a research hut.
-  next.resources.knowledge += 0.03 + next.population.count * 0.01;
+  next.resources.knowledge += knowledgeTrickle(next.population.count);
 
   const storage = foodStorageMultiplier(next);
   const foodUse =
-    next.population.count * FOOD_PER_CITIZEN * seasonFoodMultiplier(next) * storage;
+    next.population.count *
+    FOOD_PER_CITIZEN *
+    foodAgeMultiplier(next.age) *
+    seasonFoodMultiplier(next) *
+    storage;
   next.resources.food -= foodUse;
   const starving = next.resources.food < 0;
   if (starving) {
@@ -470,10 +480,10 @@ export function tick(state: GameState): GameState {
     !starving &&
     next.resources.food >= GROWTH_FOOD_BUFFER &&
     next.population.count < next.population.housingCap &&
-    next.tick % 10 === 0
+    next.tick % GROWTH_INTERVAL === 0
   ) {
     next.population.count += 1;
-    next.resources.food -= 3;
+    next.resources.food -= GROWTH_FOOD_COST;
   }
 
   next.stats.peakPop = Math.max(next.stats.peakPop, next.population.count);

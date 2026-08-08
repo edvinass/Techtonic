@@ -3,7 +3,7 @@ import type { Resources } from "../sim/types";
 export type SeasonId = "spring" | "summer" | "autumn" | "winter";
 
 export const SEASON_ORDER: SeasonId[] = ["spring", "summer", "autumn", "winter"];
-export const SEASON_LENGTH = 36; // ticks per season
+export const SEASON_LENGTH = 90; // ticks per season (~6 min year)
 
 export const SEASON_INFO: Record<
   SeasonId,
@@ -11,8 +11,8 @@ export const SEASON_INFO: Record<
 > = {
   spring: { label: "Spring", blurb: "Mud and hope. Forests slowly reclaim clearings.", foodMult: 1.05 },
   summer: { label: "Summer", blurb: "Long days — but mouths still need filling.", foodMult: 1 },
-  autumn: { label: "Autumn", blurb: "Harvest ease — less hunger for a while.", foodMult: 0.85 },
-  winter: { label: "Winter", blurb: "Frost bites hard. Food drains fast without stores.", foodMult: 1.65 },
+  autumn: { label: "Autumn", blurb: "Harvest ease — less hunger for a while.", foodMult: 0.88 },
+  winter: { label: "Winter", blurb: "Frost bites hard. Food drains fast without stores.", foodMult: 1.75 },
 };
 
 export type EventEffect = {

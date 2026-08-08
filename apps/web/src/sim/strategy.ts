@@ -95,9 +95,9 @@ export type HarmonyRequirements = {
   strain: number;
 };
 
-const HARMONY_MIN_POP = 28;
-const HARMONY_MIN_FOREST = 0.22;
-const HARMONY_MAX_STRAIN = 28;
+const HARMONY_MIN_POP = 48;
+const HARMONY_MIN_FOREST = 0.3;
+const HARMONY_MAX_STRAIN = 20;
 
 export function harmonyRequirements(state: GameState): HarmonyRequirements {
   const forestCover = forestCoverRatio(state);

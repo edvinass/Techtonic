@@ -53,9 +53,9 @@ describe("gather rules", () => {
     const campRate = gatherRateFor(state, camp, "wood", { hasTools: false });
     const wildRate = gatherRateFor(state, null, "wood", { hasTools: false, wild: true });
     const farmRate = gatherRateFor(state, farm, "food", { hasTools: false });
-    expect(campRate).toBeCloseTo(GATHER_PER_SEC.wood * 1.2, 5);
+    expect(campRate).toBeCloseTo(GATHER_PER_SEC.wood * 1.15, 5);
     expect(wildRate).toBeLessThan(campRate);
-    expect(farmRate).toBeCloseTo(GATHER_PER_SEC.food * 1.8, 5);
+    expect(farmRate).toBeCloseTo(GATHER_PER_SEC.food * 1.2, 5);
   });
 
   it("applies clearcutting wood doctrine to gather rate", () => {

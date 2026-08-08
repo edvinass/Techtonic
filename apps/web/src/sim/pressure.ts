@@ -10,10 +10,11 @@ export function defaultPressure(seed: number): GameState["pressure"] {
   return {
     season: "spring",
     seasonTick: 0,
-    nextRaidAt: 40 + (seed % 28),
+    // First raid after the opening settlement has some footing
+    nextRaidAt: 110 + (seed % 50),
     raidWarningTicks: 0,
     pendingEventId: null,
-    eventCooldown: 28,
+    eventCooldown: 55,
     growthHaltTicks: 0,
     foodMult: 1,
     foodMultTicks: 0,
@@ -146,7 +147,7 @@ export function resolveEventChoice(state: GameState, choiceIndex: 0 | 1): GameSt
   }
 
   next.pressure.pendingEventId = null;
-  next.pressure.eventCooldown = 38 + Math.floor(ready * 25);
+  next.pressure.eventCooldown = 70 + Math.floor(ready * 35);
   next.paused = next.outcome !== "playing" ? true : false;
   return next;
 }
@@ -181,23 +182,24 @@ export function tickPressure(state: GameState): void {
     p.lastBanner = `${SEASON_INFO[p.season].label} arrives. ${SEASON_INFO[p.season].blurb}`;
   }
 
-  // Raid schedule: warn for several ticks, then resolve when the counter hits 0
+  // Raid schedule: warn for several ticks, then resolve when the counter hits 0.
+  // Interval shrinks and damage rises with age — late game is much less forgiving.
   if (p.raidWarningTicks > 0) {
     p.raidWarningTicks -= 1;
     if (p.raidWarningTicks === 0) {
       resolveRaid(state);
       const rng = createRng(state.rngSeed + state.tick * 17);
-      const ageScale = 55 - ageIndex(state.age) * 4;
-      p.nextRaidAt = state.tick + ageScale + Math.floor(rng() * 35);
+      const ageScale = 100 - ageIndex(state.age) * 12;
+      p.nextRaidAt = state.tick + Math.max(28, ageScale) + Math.floor(rng() * 40);
     }
   } else if (state.tick >= p.nextRaidAt) {
-    p.raidWarningTicks = 7;
+    p.raidWarningTicks = 10;
     p.lastBanner = "Scouts spot a raiding pack approaching… raise Defence and man the towers!";
   }
 
   // Challenge events — more frequent as ages advance; strained lands invite wildfire
-  const eventChance = 0.28 + ageIndex(state.age) * 0.03 + (state.strain >= 55 ? 0.12 : 0);
-  if (p.eventCooldown <= 0 && state.tick > 18 && state.tick % 6 === 0) {
+  const eventChance = 0.16 + ageIndex(state.age) * 0.065 + (state.strain >= 55 ? 0.14 : 0);
+  if (p.eventCooldown <= 0 && state.tick > 40 && state.tick % 8 === 0) {
     const rng = createRng(state.rngSeed + state.tick * 31);
     if (rng() < eventChance) {
       let pool = CHALLENGE_EVENTS;
@@ -229,31 +231,31 @@ function resolveRaid(state: GameState): void {
   const ready = defenceReadiness(state);
   const rng = createRng(state.rngSeed + state.tick * 13);
   const coverage = housingDefenceCoverage(state);
-  const ageHarsh = 1 + ageIndex(state.age) * 0.18;
+  const ageHarsh = 1 + ageIndex(state.age) * 0.28;
   const harsh = ageHarsh * strainRaidMultiplier(state.strain) * (1.25 - coverage * 0.45);
 
-  if (ready >= 0.28) {
-    const spoils = 2 + Math.floor(rng() * 4);
+  if (ready >= 0.3) {
+    const spoils = 2 + Math.floor(rng() * 3);
     state.resources.food += spoils;
     state.stats.raidsSurvived += 1;
     const coverNote = coverage >= 0.7 ? " Covered homes held firm." : "";
     state.pressure.lastBanner = `Raiders driven off! Scavenged +${spoils} food. Defences held.${coverNote}`;
-  } else if (ready >= 0.16) {
-    const foodLoss = Math.floor((14 + Math.floor(rng() * 10)) * harsh);
-    const woodLoss = Math.floor((8 + Math.floor(rng() * 8)) * harsh);
+  } else if (ready >= 0.18) {
+    const foodLoss = Math.floor((16 + Math.floor(rng() * 12)) * harsh);
+    const woodLoss = Math.floor((10 + Math.floor(rng() * 10)) * harsh);
     state.resources.food = Math.max(0, state.resources.food - foodLoss);
     state.resources.wood = Math.max(0, state.resources.wood - woodLoss);
     state.stats.raidsFailed += 1;
     state.pressure.lastBanner = `Raid blunted but costly (−${foodLoss} food, −${woodLoss} wood).`;
   } else {
-    const foodLoss = Math.floor((24 + Math.floor(rng() * 14)) * harsh);
-    const woodLoss = Math.floor((16 + Math.floor(rng() * 12)) * harsh);
+    const foodLoss = Math.floor((28 + Math.floor(rng() * 16)) * harsh);
+    const woodLoss = Math.floor((18 + Math.floor(rng() * 14)) * harsh);
     state.resources.food = Math.max(0, state.resources.food - foodLoss);
     state.resources.wood = Math.max(0, state.resources.wood - woodLoss);
     state.stats.raidsFailed += 1;
-    const popChance = coverage < 0.35 ? 0.7 : 0.45;
+    const popChance = coverage < 0.35 ? 0.78 : 0.52;
     if (state.population.count > 3 && rng() < popChance) {
-      const lost = rng() < 0.3 && state.population.count > 5 ? 2 : 1;
+      const lost = rng() < 0.35 && state.population.count > 5 ? 2 : 1;
       state.population.count -= lost;
       state.pressure.lastBanner = `Brutal raid! −${foodLoss} food, −${woodLoss} wood, and ${lost} villager${lost > 1 ? "s" : ""} lost.`;
     } else {

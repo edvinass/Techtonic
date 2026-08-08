@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { play } from "../audio/sfx";
 import { AGES } from "../data/ages";
 import {
   advanceAge,
@@ -101,6 +102,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   newGame: () => {
+    play("new_game");
     set({
       state: createNewGame(),
       screen: "game",
@@ -114,6 +116,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   loadGame: (payload, slot) => {
+    play("load_game");
     set({
       state: deserialize(payload),
       screen: "game",
@@ -124,13 +127,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  selectBuilding: (id) => set({ selectedBuilding: id }),
+  selectBuilding: (id) => {
+    if (id) play("ui");
+    set({ selectedBuilding: id });
+  },
 
   placeAt: (x, y) => {
     const { state, selectedBuilding } = get();
     if (!state || !selectedBuilding) return "Select a building first";
     const next = placeBuilding(state, selectedBuilding, x, y);
-    if (next === state) return "Cannot place here";
+    if (next === state) {
+      play("place_fail");
+      return "Cannot place here";
+    }
+    play("place");
     set({ state: next, statusMessage: `Placed ${selectedBuilding.replace("_", " ")}` });
     return null;
   },
@@ -138,6 +148,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   updatePriorities: (p) => {
     const { state } = get();
     if (!state) return;
+    play("ui");
     set({ state: setPriorities(state, p) });
   },
 
@@ -146,9 +157,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!state) return;
     const next = startResearch(state, techId);
     if (next === state) {
+      play("place_fail");
       set({ statusMessage: "Cannot start that research" });
       return;
     }
+    play("research_start");
     set({ state: next, statusMessage: `Researching ${techId}` });
   },
 
@@ -159,6 +172,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (next === state) return false;
     const ageName = AGES[next.age]?.name ?? next.age;
     const won = next.outcome === "victory";
+    if (won) play("victory_ascent");
+    else play("age_up");
     set({
       state: next,
       statusMessage: won
@@ -173,6 +188,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!state) return false;
     const next = claimHarmonyVictory(state);
     if (next === state) return false;
+    play("victory_harmony");
     set({
       state: next,
       statusMessage: "Harmony victory — the living world endures!",
@@ -183,16 +199,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
   togglePause: () => {
     const { state } = get();
     if (!state) return;
+    play(state.paused ? "resume" : "pause");
     set({ state: setPaused(state, !state.paused) });
   },
 
   stepTick: () => {
     const { state } = get();
     if (!state || state.pressure.pendingEventId || state.outcome !== "playing") return;
+    const prev = state;
     const next = tick(state);
     const banner = next.pressure.lastBanner;
     if (banner) next.pressure.lastBanner = null;
     let status = banner;
+    playTickSfx(prev, next, banner);
     if (next.outcome === "victory") {
       status =
         next.stats.victoryKind === "harmony"
@@ -237,6 +256,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   resolveEvent: (choiceIndex) => {
     const { state } = get();
     if (!state?.pressure.pendingEventId) return;
+    play("ui");
     const next = resolveEventChoice(state, choiceIndex);
     const banner = next.pressure.lastBanner;
     if (banner) next.pressure.lastBanner = null;
@@ -246,3 +266,56 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 }));
+
+/** Diff tick transitions and fire one-shot SFX (keeps sim/ pure). */
+function playTickSfx(prev: GameState, next: GameState, banner: string | null): void {
+  if (next.outcome === "defeat" && prev.outcome === "playing") {
+    play("defeat");
+    return;
+  }
+  if (next.outcome === "victory" && prev.outcome === "playing") {
+    play(next.stats.victoryKind === "harmony" ? "victory_harmony" : "victory_ascent");
+    return;
+  }
+
+  if (next.pressure.pendingEventId && !prev.pressure.pendingEventId) {
+    play("event");
+  }
+
+  if (
+    prev.pressure.raidWarningTicks === 0 &&
+    next.pressure.raidWarningTicks > 0
+  ) {
+    play("raid_warn");
+  }
+
+  if (
+    prev.pressure.raidWarningTicks > 0 &&
+    next.pressure.raidWarningTicks === 0 &&
+    banner
+  ) {
+    const win = /driven off|Scavenged/i.test(banner);
+    play(win ? "raid_win" : "raid_lose");
+  }
+
+  if (next.pressure.season !== prev.pressure.season) {
+    play("season");
+  }
+
+  if (next.population.count > prev.population.count) {
+    play("pop_grow");
+  }
+
+  if (next.research.unlocked.length > prev.research.unlocked.length) {
+    play("research_done");
+  }
+
+  const prevBuilding = new Map(prev.buildings.map((b) => [b.id, b.progress]));
+  for (const b of next.buildings) {
+    const before = prevBuilding.get(b.id);
+    if (before != null && before < 1 && b.progress >= 1) {
+      play("building_done");
+      break;
+    }
+  }
+}

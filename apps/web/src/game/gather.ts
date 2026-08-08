@@ -14,11 +14,11 @@ export const CARRY_CAPACITY: Record<ResourceId, number> = {
 
 /** Gather rate while standing on a resource tile (units per second). */
 export const GATHER_PER_SEC: Record<ResourceId, number> = {
-  food: 2.6,
-  wood: 2.1,
-  stone: 1.7,
-  metal: 1.45,
-  knowledge: 1.2,
+  food: 1.85,
+  wood: 1.45,
+  stone: 1.15,
+  metal: 0.95,
+  knowledge: 0.7,
 };
 
 export function resourceForBuilding(building: BuildingInstance): ResourceId | null {

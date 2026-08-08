@@ -60,7 +60,8 @@ describe("sim engine", () => {
     state.pressure.nextRaidAt = 9999;
     state = startResearch(state, "fire");
     expect(state.research.active?.techId).toBe("fire");
-    state = runTicks(state, 80);
+    // Fire is 36 researchTicks at base rate 0.4 → 90 ticks with no research workers
+    state = runTicks(state, 120);
     expect(state.research.unlocked).toContain("fire");
     expect(state.research.active).toBeNull();
   });
@@ -87,8 +88,8 @@ describe("sim engine", () => {
   it("advances to farming age when gates are met", () => {
     let state = createNewGame(9);
     state.research.unlocked = ["fire", "farming"];
-    state.population.count = 14;
-    state.resources = { food: 100, wood: 100, stone: 100, metal: 0, knowledge: 10 };
+    state.population.count = 18;
+    state.resources = { food: 120, wood: 100, stone: 80, metal: 0, knowledge: 10 };
     state.buildings.push({
       id: "b99",
       type: "granary",
@@ -119,8 +120,8 @@ describe("sim engine", () => {
 
     state.age = "farming";
     state.research.unlocked = ["fire", "primitive_tools", "farming", "metallurgy"];
-    state.population.count = 22;
-    state.resources = { food: 200, wood: 200, stone: 200, metal: 200, knowledge: 80 };
+    state.population.count = 32;
+    state.resources = { food: 400, wood: 400, stone: 400, metal: 400, knowledge: 400 };
     state.buildings.push({
       id: "b100",
       type: "forge",
@@ -134,8 +135,8 @@ describe("sim engine", () => {
     expect(state.age).toBe("metal");
 
     state.research.unlocked.push("steam_power");
-    state.population.count = 30;
-    state.resources = { food: 200, wood: 200, stone: 200, metal: 200, knowledge: 80 };
+    state.population.count = 45;
+    state.resources = { food: 400, wood: 400, stone: 400, metal: 400, knowledge: 400 };
     state.buildings.push({
       id: "b101",
       type: "factory",
@@ -148,8 +149,8 @@ describe("sim engine", () => {
     expect(state.age).toBe("industrial");
 
     state.research.unlocked.push("electricity", "atomic_theory");
-    state.population.count = 40;
-    state.resources = { food: 200, wood: 200, stone: 200, metal: 200, knowledge: 80 };
+    state.population.count = 58;
+    state.resources = { food: 400, wood: 400, stone: 400, metal: 400, knowledge: 400 };
     state.buildings.push({
       id: "b102",
       type: "reactor",
@@ -162,8 +163,8 @@ describe("sim engine", () => {
     expect(state.age).toBe("atomic");
 
     state.research.unlocked.push("rocketry");
-    state.population.count = 50;
-    state.resources = { food: 200, wood: 200, stone: 200, metal: 200, knowledge: 100 };
+    state.population.count = 72;
+    state.resources = { food: 400, wood: 400, stone: 400, metal: 400, knowledge: 400 };
     state.buildings.push({
       id: "b103",
       type: "launch_pad",

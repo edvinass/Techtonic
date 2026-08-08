@@ -20,6 +20,8 @@ function runTicks(state: ReturnType<typeof createNewGame>, n: number) {
 describe("pressure systems", () => {
   it("advances seasons after SEASON_LENGTH ticks", () => {
     let state = createNewGame(11);
+    state.pressure.eventCooldown = 9999;
+    state.pressure.nextRaidAt = 9999;
     expect(state.pressure.season).toBe("spring");
     state = runTicks(state, SEASON_LENGTH);
     expect(state.pressure.season).toBe("summer");
@@ -45,8 +47,8 @@ describe("pressure systems", () => {
     state.pressure.eventCooldown = 999;
     state.pressure.pendingEventId = null;
 
-    // Warning window is 6 ticks; raid resolves when warning hits 1
-    state = runTicks(state, 10);
+    // Warning window is 10 ticks; allow time for warning + resolve + reschedule
+    state = runTicks(state, 16);
     expect(state.resources.food).toBeLessThan(80);
     expect(state.pressure.nextRaidAt).toBeGreaterThan(state.tick);
   });
@@ -56,7 +58,7 @@ describe("pressure systems", () => {
     state.resources.food = 40;
     state.resources.wood = 40;
     state.priorities = { food: 10, construction: 10, research: 10, production: 10, defence: 60 };
-    expect(defenceReadiness(state)).toBeGreaterThan(0.28);
+    expect(defenceReadiness(state)).toBeGreaterThan(0.3);
     state.pressure.nextRaidAt = state.tick + 999;
     state.pressure.raidWarningTicks = 1;
     state.pressure.eventCooldown = 999;

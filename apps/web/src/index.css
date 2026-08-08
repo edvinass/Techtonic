@@ -754,6 +754,12 @@ input[type="text"] {
   color: #f0e2b0;
 }
 
+.mute-btn.is-muted {
+  border-color: rgba(160, 160, 170, 0.45);
+  background: rgba(120, 120, 130, 0.14);
+  color: var(--muted);
+}
+
 .save-menu {
   position: relative;
 }

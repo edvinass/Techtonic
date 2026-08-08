@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { isMuted, play, toggleMute } from "../audio/sfx";
 import { AGES } from "../data/ages";
 import { BUILDINGS } from "../data/buildings";
 import { SEASON_INFO } from "../data/events";
@@ -70,6 +71,7 @@ export function Hud() {
   const [sideTab, setSideTab] = useState<SideTab>("build");
   const [sideCollapsed, setSideCollapsed] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [soundOff, setSoundOff] = useState(isMuted);
   const prevResources = useRef<Resources | null>(null);
   const [deltas, setDeltas] = useState<Partial<Record<ResourceId, number>>>({});
   const saveMenuRef = useRef<HTMLDivElement>(null);
@@ -292,11 +294,28 @@ export function Hud() {
           >
             {state.paused ? "Resume" : "Pause"}
           </button>
+          <button
+            type="button"
+            className={`mute-btn${soundOff ? " is-muted" : ""}`}
+            onClick={() => {
+              const next = toggleMute();
+              setSoundOff(next);
+              if (!next) play("ui");
+            }}
+            title={soundOff ? "Unmute sound" : "Mute sound"}
+            aria-pressed={soundOff}
+            aria-label={soundOff ? "Unmute sound" : "Mute sound"}
+          >
+            {soundOff ? "Sound off" : "Sound"}
+          </button>
           <div className="save-menu" ref={saveMenuRef}>
             <button
               type="button"
               className={saveOpen ? "active" : ""}
-              onClick={() => setSaveOpen((o) => !o)}
+              onClick={() => {
+                play("ui");
+                setSaveOpen((o) => !o);
+              }}
               title="Save game"
             >
               Save{saveSlot ? ` ${saveSlot}` : ""}

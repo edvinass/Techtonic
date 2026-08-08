@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { play } from "../audio/sfx";
 import { BUILDINGS } from "../data/buildings";
 import { RESOURCES } from "../data/resources";
 import { canPlaceBuilding } from "../sim/engine";
@@ -35,6 +36,19 @@ const SEASON_GRASS: Record<SeasonId, { top: number; side: number }> = {
   autumn: { top: 0x8a8a3a, side: 0x6a6a28 },
   winter: { top: 0x8a9a88, side: 0x6a7a68 },
 };
+
+/** Labels for hover hints; null means skip (plain grass is noise). */
+const TERRAIN_HINT: Record<TerrainId, string | null> = {
+  grass: null,
+  forest: "Forest",
+  rock: "Rock",
+  water: "Water",
+  sand: "Sand",
+  fertile: "Fertile land",
+};
+
+/** Dwell time before a map object hint appears. */
+const HOVER_HINT_DELAY_MS = 1200;
 
 function shadeColor(color: number, factor: number): number {
   const r = Math.min(255, Math.max(0, Math.round(((color >> 16) & 0xff) * factor)));
@@ -85,6 +99,13 @@ export class MainScene extends Phaser.Scene {
   /** Zoom relative to 1 CSS-pixel world unit (camera.zoom = dpr * userZoom). */
   private userZoom = 1.25;
 
+  private hoverHint!: Phaser.GameObjects.Text;
+  private hoverTargetKey = "";
+  private hoverTargetLabel = "";
+  private hoverAccum = 0;
+  private hoverPtrX = 0;
+  private hoverPtrY = 0;
+
   private panKeys!: {
     w: Phaser.Input.Keyboard.Key;
     a: Phaser.Input.Keyboard.Key;
@@ -133,6 +154,22 @@ export class MainScene extends Phaser.Scene {
     this.ghostBuilding = this.add.graphics();
     this.ghostBuilding.setDepth(50_001);
 
+    this.hoverHint = this.add.text(0, 0, "", {
+      fontFamily: "DM Sans, sans-serif",
+      fontSize: "13px",
+      color: "#e8f0e4",
+      backgroundColor: "#142017",
+      padding: { x: 8, y: 5 },
+      stroke: "#0a120c",
+      strokeThickness: 2,
+      resolution: mapTextResolution(this.dpr(), this.userZoom),
+    });
+    this.hoverHint.setScrollFactor(0);
+    this.hoverHint.setDepth(60_000);
+    this.hoverHint.setOrigin(0, 1);
+    this.hoverHint.setVisible(false);
+    this.hoverHint.setAlpha(0.94);
+
     this.input.mouse?.disableContextMenu();
 
     const keyboard = this.input.keyboard;
@@ -177,6 +214,7 @@ export class MainScene extends Phaser.Scene {
         this.lastPanY = pointer.y;
       }
       this.drawGhost(pointer);
+      this.trackHover(pointer);
     });
 
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
@@ -239,6 +277,7 @@ export class MainScene extends Phaser.Scene {
 
     this.handleKeyboardPan(delta);
     this.handleEdgePan(delta);
+    this.tickHover(delta);
     this.waterPulse += delta;
 
     const { ox, oy } = this.mapOrigin();
@@ -266,6 +305,7 @@ export class MainScene extends Phaser.Scene {
         oy,
         onDeposit: (resource, amount, wx, wy) => {
           useGameStore.getState().depositResources(resource, amount);
+          play("deposit");
           this.floaters.push({
             x: wx,
             y: wy - 28,
@@ -295,6 +335,118 @@ export class MainScene extends Phaser.Scene {
     // Left-drag pans when not in build mode
     if (pointer.leftButtonDown() && !useGameStore.getState().selectedBuilding) return true;
     return false;
+  }
+
+  private resolveHoverTarget(
+    state: GameState,
+    gx: number,
+    gy: number,
+  ): { key: string; label: string } | null {
+    if (gx < 0 || gy < 0 || gx >= state.map.width || gy >= state.map.height) return null;
+
+    const building = state.buildings.find((b) => b.x === gx && b.y === gy);
+    if (building) {
+      const name = BUILDINGS[building.type]?.name ?? building.type;
+      const label = building.progress < 1 ? `${name} (building…)` : name;
+      return { key: `b:${building.id}`, label };
+    }
+
+    const tile = state.map.tiles[gy * state.map.width + gx];
+    if (!tile) return null;
+
+    if (tile.deposit) {
+      const name = RESOURCES[tile.deposit].label;
+      const stock = Math.round(tile.stock ?? 0);
+      const label =
+        stock <= 0 ? `${name} deposit (depleted)` : `${name} deposit · ${stock}`;
+      return { key: `d:${gx},${gy}:${tile.deposit}`, label };
+    }
+
+    const terrainLabel = TERRAIN_HINT[tile.terrain];
+    if (!terrainLabel) return null;
+    return { key: `t:${gx},${gy}:${tile.terrain}`, label: terrainLabel };
+  }
+
+  private clearHover() {
+    this.hoverTargetKey = "";
+    this.hoverTargetLabel = "";
+    this.hoverAccum = 0;
+    this.hoverHint.setVisible(false);
+  }
+
+  private trackHover(pointer: Phaser.Input.Pointer) {
+    this.hoverPtrX = pointer.x;
+    this.hoverPtrY = pointer.y;
+
+    if (this.isPanning || useGameStore.getState().selectedBuilding) {
+      this.clearHover();
+      return;
+    }
+
+    const state = useGameStore.getState().state;
+    if (!state) {
+      this.clearHover();
+      return;
+    }
+
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const { ox, oy } = this.mapOrigin();
+    const { x, y } = screenToGrid(world.x - ox, world.y - oy);
+    const target = this.resolveHoverTarget(state, x, y);
+
+    if (!target) {
+      this.clearHover();
+      return;
+    }
+
+    if (target.key !== this.hoverTargetKey) {
+      this.hoverTargetKey = target.key;
+      this.hoverTargetLabel = target.label;
+      this.hoverAccum = 0;
+      this.hoverHint.setVisible(false);
+    } else {
+      this.hoverTargetLabel = target.label;
+      if (this.hoverHint.visible) {
+        if (this.hoverHint.text !== target.label) this.hoverHint.setText(target.label);
+        this.placeHoverHint();
+      }
+    }
+  }
+
+  private tickHover(delta: number) {
+    const ptr = this.input.activePointer;
+    if (ptr) this.trackHover(ptr);
+
+    if (!this.hoverTargetKey || !this.hoverTargetLabel) return;
+    if (this.isPanning || useGameStore.getState().selectedBuilding) {
+      this.clearHover();
+      return;
+    }
+
+    this.hoverAccum += delta;
+    if (this.hoverAccum < HOVER_HINT_DELAY_MS) return;
+
+    if (!this.hoverHint.visible || this.hoverHint.text !== this.hoverTargetLabel) {
+      this.hoverHint.setText(this.hoverTargetLabel);
+      this.hoverHint.setResolution(mapTextResolution(this.dpr(), this.userZoom));
+      this.hoverHint.setVisible(true);
+    }
+    this.placeHoverHint();
+  }
+
+  private placeHoverHint() {
+    const pad = 12;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const tw = this.hoverHint.width;
+    const th = this.hoverHint.height;
+    let x = this.hoverPtrX + 14;
+    let y = this.hoverPtrY - 10;
+    if (x + tw > w - pad) x = this.hoverPtrX - tw - 10;
+    if (y - th < pad) y = this.hoverPtrY + th + 18;
+    if (y > h - pad) y = h - pad;
+    if (x < pad) x = pad;
+    this.hoverHint.setPosition(x, y);
   }
 
   private handleKeyboardPan(delta: number) {

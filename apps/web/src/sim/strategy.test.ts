@@ -69,7 +69,7 @@ describe("strategy depth", () => {
     let state = createNewGame(15);
     state.age = "farming";
     state.research.unlocked = ["fire", "selective_cuts", "farming", "stewardship"];
-    state.population.count = 30;
+    state.population.count = 48;
     state.strain = 10;
     state.buildings.push({
       id: "b200",
@@ -87,7 +87,7 @@ describe("strategy depth", () => {
         t.stock = 40;
       }
     }
-    expect(forestCoverRatio(state)).toBeGreaterThanOrEqual(0.22);
+    expect(forestCoverRatio(state)).toBeGreaterThanOrEqual(0.3);
     const req = harmonyRequirements(state);
     expect(req.ready).toBe(true);
     state = claimHarmonyVictory(state);

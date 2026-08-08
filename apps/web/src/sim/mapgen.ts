@@ -1,11 +1,11 @@
 import type { DepositId, TerrainId, Tile } from "./types";
 import { createRng } from "./rng";
 
-/** Default stock for a fresh deposit of each type. */
+/** Default stock for a fresh deposit of each type (sized for ~2h playthroughs). */
 export const DEPOSIT_STOCK: Record<DepositId, number> = {
-  wood: 55,
-  stone: 70,
-  metal: 45,
+  wood: 95,
+  stone: 120,
+  metal: 180,
 };
 
 function hash2(x: number, y: number, seed: number): number {
@@ -294,10 +294,10 @@ export function generateMap(width: number, height: number, seed: number): Tile[]
     const fy = 3 + Math.floor(rng() * (height - 6));
     paintBlob(tiles, width, height, fx, fy, 2 + rng() * 2.2, "forest", "wood", 1);
   }
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     const rx = 4 + Math.floor(rng() * (width - 8));
     const ry = 4 + Math.floor(rng() * (height - 8));
-    const metal = rng() < 0.4;
+    const metal = rng() < 0.55;
     paintBlob(
       tiles,
       width,
@@ -337,6 +337,14 @@ export function generateMap(width: number, height: number, seed: number): Tile[]
   ensureDepositNear(tiles, width, height, cx, cy, 3, -2, "wood", "forest");
   ensureDepositNear(tiles, width, height, cx, cy, 0, 4, "stone", "rock");
   ensureDepositNear(tiles, width, height, cx, cy, -4, 1, "metal", "rock");
+  // Extra ore rings — Ascent burns through metal across a long campaign
+  ensureDepositNear(tiles, width, height, cx, cy, 7, -5, "metal", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, -6, 6, "metal", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, 8, 4, "metal", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, -7, -3, "metal", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, 9, -8, "metal", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, -9, 2, "metal", "rock");
+  ensureDepositNear(tiles, width, height, cx, cy, 5, 7, "stone", "rock");
   // Second wood clump a bit farther — forces expansion
   ensureDepositNear(tiles, width, height, cx, cy, 6, 3, "wood", "forest");
 
