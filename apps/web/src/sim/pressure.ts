@@ -2,8 +2,14 @@ import { CHALLENGE_EVENTS, getEventDef, SEASON_INFO, SEASON_LENGTH, SEASON_ORDER
 import type { EventEffect } from "../data/events";
 import { BUILDINGS } from "../data/buildings";
 import { ageIndex } from "../data/ages";
+import {
+  applyRaidOutcome,
+  pickRaidSource,
+  raidSourceMultiplier,
+} from "./diplomacy";
+import { NEIGHBOURS } from "../data/neighbours";
 import { createRng } from "./rng";
-import { housingDefenceCoverage, strainRaidMultiplier } from "./strategy";
+import { housingDefenceCoverage, strainRaidMultiplier, techModifiers } from "./strategy";
 import type { GameState, Priorities } from "./types";
 
 export function defaultPressure(seed: number): GameState["pressure"] {
@@ -19,6 +25,7 @@ export function defaultPressure(seed: number): GameState["pressure"] {
     foodMult: 1,
     foodMultTicks: 0,
     lastBanner: null,
+    raidSource: null,
   };
 }
 
@@ -44,6 +51,8 @@ export function defenceReadiness(state: GameState | Priorities): number {
   ready += towerStaff * 0.04;
   // Coverage of houses by nearby walls/towers — placement matters
   ready += housingDefenceCoverage(gs) * 0.14;
+  // Border Watch hardens the marches; Caravan Charter thins them
+  ready *= techModifiers(gs).defenceMult;
   return Math.min(1, ready);
 }
 
@@ -158,7 +167,7 @@ export function tickPressure(state: GameState): void {
   if (state.outcome !== "playing") return;
 
   // Don't stack systems while a choice is open
-  if (p.pendingEventId) {
+  if (p.pendingEventId || state.diplomacy.demand) {
     state.paused = true;
     return;
   }
@@ -189,16 +198,20 @@ export function tickPressure(state: GameState): void {
     p.raidWarningTicks -= 1;
     if (p.raidWarningTicks === 0) {
       resolveRaid(state);
-      const rng = createRng(state.rngSeed + state.tick * 17);
-      const ageScale = 240 - ageIndex(state.age) * 28;
-      const earlyBonus =
-        ageIndex(state.age) === 0 ? 110 : ageIndex(state.age) === 1 ? 50 : 0;
-      p.nextRaidAt =
-        state.tick + Math.max(56, ageScale + earlyBonus) + Math.floor(rng() * 90);
+      scheduleNextRaid(state);
     }
   } else if (state.tick >= p.nextRaidAt) {
-    p.raidWarningTicks = 10;
-    p.lastBanner = "Scouts spot a raiding pack approaching… raise Defence and man the towers!";
+    // Raids have a return address now: whichever people resent you most.
+    const source = pickRaidSource(state);
+    if (!source) {
+      // Nobody is willing to march — the valley stays quiet for a long while
+      p.raidSource = null;
+      p.nextRaidAt = state.tick + 240;
+    } else {
+      p.raidSource = source;
+      p.raidWarningTicks = 10;
+      p.lastBanner = `${NEIGHBOURS[source].name} warbands are on the move… raise Defence and man the towers!`;
+    }
   }
 
   // Challenge events — more frequent as ages advance; strained lands invite wildfire
@@ -231,26 +244,46 @@ export function tickPressure(state: GameState): void {
   }
 }
 
+function scheduleNextRaid(state: GameState): void {
+  const rng = createRng(state.rngSeed + state.tick * 17);
+  const ageScale = 240 - ageIndex(state.age) * 28;
+  const earlyBonus = ageIndex(state.age) === 0 ? 110 : ageIndex(state.age) === 1 ? 50 : 0;
+  state.pressure.nextRaidAt =
+    state.tick + Math.max(56, ageScale + earlyBonus) + Math.floor(rng() * 90);
+}
+
 function resolveRaid(state: GameState): void {
   const ready = defenceReadiness(state);
   const rng = createRng(state.rngSeed + state.tick * 13);
   const coverage = housingDefenceCoverage(state);
+  const source = state.pressure.raidSource;
+  const attacker = source ? NEIGHBOURS[source].name : "Raiders";
   const ageHarsh = 1 + ageIndex(state.age) * 0.28;
-  const harsh = ageHarsh * strainRaidMultiplier(state.strain) * (1.25 - coverage * 0.45);
+  const harsh =
+    ageHarsh *
+    strainRaidMultiplier(state.strain) *
+    raidSourceMultiplier(state, source) *
+    (1.25 - coverage * 0.45);
 
   if (ready >= 0.3) {
     const spoils = 2 + Math.floor(rng() * 3);
     state.resources.food += spoils;
     state.stats.raidsSurvived += 1;
+    applyRaidOutcome(state, source, true);
     const coverNote = coverage >= 0.7 ? " Covered homes held firm." : "";
-    state.pressure.lastBanner = `Raiders driven off! Scavenged +${spoils} food. Defences held.${coverNote}`;
-  } else if (ready >= 0.18) {
+    state.pressure.lastBanner = `${attacker} driven off! Scavenged +${spoils} food. Defences held.${coverNote}`;
+    return;
+  }
+
+  applyRaidOutcome(state, source, false);
+
+  if (ready >= 0.18) {
     const foodLoss = Math.floor((16 + Math.floor(rng() * 12)) * harsh);
     const woodLoss = Math.floor((10 + Math.floor(rng() * 10)) * harsh);
     state.resources.food = Math.max(0, state.resources.food - foodLoss);
     state.resources.wood = Math.max(0, state.resources.wood - woodLoss);
     state.stats.raidsFailed += 1;
-    state.pressure.lastBanner = `Raid blunted but costly (−${foodLoss} food, −${woodLoss} wood).`;
+    state.pressure.lastBanner = `${attacker} blunted but costly (−${foodLoss} food, −${woodLoss} wood).`;
   } else {
     const foodLoss = Math.floor((28 + Math.floor(rng() * 16)) * harsh);
     const woodLoss = Math.floor((18 + Math.floor(rng() * 14)) * harsh);
@@ -261,9 +294,9 @@ function resolveRaid(state: GameState): void {
     if (state.population.count > 3 && rng() < popChance) {
       const lost = rng() < 0.35 && state.population.count > 5 ? 2 : 1;
       state.population.count -= lost;
-      state.pressure.lastBanner = `Brutal raid! −${foodLoss} food, −${woodLoss} wood, and ${lost} villager${lost > 1 ? "s" : ""} lost.`;
+      state.pressure.lastBanner = `${attacker} tear the camp apart! −${foodLoss} food, −${woodLoss} wood, and ${lost} villager${lost > 1 ? "s" : ""} lost.`;
     } else {
-      state.pressure.lastBanner = `Raid tears through camp (−${foodLoss} food, −${woodLoss} wood). Fortify near homes!`;
+      state.pressure.lastBanner = `${attacker} tear through camp (−${foodLoss} food, −${woodLoss} wood). Fortify near homes!`;
     }
   }
 }

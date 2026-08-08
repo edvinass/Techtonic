@@ -1,6 +1,8 @@
+import { stanceFor } from "../sim/diplomacy";
 import { AGE_ORDER, AGES } from "./ages";
 import { BUILDING_LIST } from "./buildings";
 import { CHALLENGE_EVENTS, SEASON_INFO, SEASON_ORDER } from "./events";
+import { NEIGHBOUR_LIST, STANCE_INFO } from "./neighbours";
 import { RESOURCE_ORDER, RESOURCES } from "./resources";
 import { TECH_LIST } from "./techs";
 
@@ -12,6 +14,7 @@ export type LibraryCategoryId =
   | "tech"
   | "ages"
   | "pressure"
+  | "neighbours"
   | "events";
 
 export interface LibraryCategory {
@@ -67,6 +70,11 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
     blurb: "Winter, raids, Land Strain, and map terrain.",
   },
   {
+    id: "neighbours",
+    label: "The valley",
+    blurb: "Neighbouring peoples, caravan trade, tribute, and the Concord path.",
+  },
+  {
     id: "events",
     label: "Challenges",
     blurb: "Random crises that pause the game until you choose.",
@@ -107,14 +115,14 @@ const BASICS: LibraryEntry[] = [
     category: "basics",
     title: "Food & starvation",
     summary: "Empty food while people remain will end the run.",
-    body: "People eat every tick. Early on, Food workers forage — especially on fertile ground. Later, Farms produce reliably and Granaries / Storehouses cut winter and event food drain. If food hits zero with population still alive, starvation ticks accumulate until defeat. Keep Food workers high before winter.",
+    body: "People eat every tick. Early on, Food workers forage — especially on fertile ground. Farms are steadier than foraging but still need staffing and prefer fertile soil; hunger also climbs each age. Granaries / Storehouses cut winter and event food drain. If food hits zero with population still alive, starvation ticks accumulate until defeat. Keep Food workers high before winter.",
   },
 ];
 
 const RESOURCE_BLURBS: Record<string, { summary: string; body: string }> = {
   food: {
     summary: "Keeps people alive. Drains harder in winter.",
-    body: "Produced by foragers (Food workers) and later by Farms. Winter multiplies hunger; Granaries and Storehouses reduce that drain. Running out while people remain causes starvation defeat.",
+    body: "Produced by foragers (Food workers) and later by Farms. Farms help, but each age eats more per person. Winter multiplies hunger; Granaries and Storehouses reduce that drain. Running out while people remain causes starvation defeat.",
   },
   wood: {
     summary: "Main building material from finite forests.",
@@ -147,7 +155,7 @@ const WORKERS: LibraryEntry[] = [
     category: "workers",
     title: "Food workers",
     summary: "Forage early; staff Farms when unlocked.",
-    body: "Without farms, Food workers forage the land — fertile river soil is best. With Farms built and staffed, production becomes steadier. Always raise Food before winter.",
+    body: "Without farms, Food workers forage the land — fertile river soil is best. Farms are steadier and shorter hauls, but weaker on grass and never fully remove the need to staff Food as the settlement grows. Always raise Food before winter.",
   },
   {
     id: "workers-build",
@@ -162,6 +170,13 @@ const WORKERS: LibraryEntry[] = [
     title: "Research workers",
     summary: "Spend Knowledge on the Tech tab; huts speed the work.",
     body: "Pick a tech on the Tech tab (costs Knowledge). Research workers advance it over time. Without a Research Hut they study slowly at home — build the hut after Fire for a real pace.",
+  },
+  {
+    id: "workers-trade",
+    category: "workers",
+    title: "Trade workers",
+    summary: "Staff the Trade Post or your caravans crawl.",
+    body: "Trade workers man the Trade Post and walk the caravan roads. Route rates scale with how fully your trade buildings are staffed, so a route with nobody on it moves almost nothing. Assign Trade only once a route is open — until then those people are better used elsewhere.",
   },
   {
     id: "workers-defence",
@@ -210,6 +225,44 @@ const PRESSURE: LibraryEntry[] = [
   },
 ];
 
+const DIPLOMACY: LibraryEntry[] = [
+  {
+    id: "diplomacy-overview",
+    category: "neighbours",
+    title: "Standing & stance",
+    summary: "Every people keeps a −100 to 100 opinion of you.",
+    body: "Three peoples share the valley. Each holds a standing from −100 (blood feud) to 100 (sworn allies), shown on the Valley tab, which settles toward what your behaviour deserves: open trade routes, gifts of what they want, an Envoy Hall, and the Diplomacy doctrine all pull it up; heavy Land Strain, refused tribute, and closed routes pull it down. Stance — Hostile, Wary, Neutral, Cordial, Allied — is just a band of that number, and it decides who raids you and who trades with you.",
+  },
+  {
+    id: "diplomacy-trade",
+    category: "neighbours",
+    title: "Caravan routes",
+    summary: "Send a surplus, receive what you cannot dig up yourself.",
+    body: "Research Trade and build a Trade Post — each post hosts a route, and Caravan Charter adds more. A route sends one resource out and brings another back on a round trip whose length depends on how far the camp is. Rates depend on the goods traded (they pay well for what they want), the volume tier you set, your standing, and how many Trade workers you have assigned; understaffed routes crawl, and a route that cannot pay its export suspends itself. Every delivery also nudges standing up, so trade is the cheapest road to peace.",
+  },
+  {
+    id: "diplomacy-gifts",
+    category: "neighbours",
+    title: "Gifts",
+    summary: "A direct payment of goodwill, on a cooldown.",
+    body: "Gifting a people something they want raises standing immediately, then puts that people on a cooldown before another gift lands. Gifts are the fastest way to pull someone off a raid footing, but they are pure cost — trade routes buy the same goodwill while paying for themselves.",
+  },
+  {
+    id: "diplomacy-demands",
+    category: "neighbours",
+    title: "Tribute demands",
+    summary: "Hostile neighbours ask for goods before they take them.",
+    body: "As grievance builds, a hostile or wary people sends an ultimatum and the game pauses. Paying costs real resources but raises standing, drains most of their grievance, and buys a long quiet. Refusing keeps the goods and sends their grievance to full — a warband arrives shortly after. Refusing is a reasonable play behind towers and walls; it is a disaster on an open camp.",
+  },
+  {
+    id: "diplomacy-raids",
+    category: "neighbours",
+    title: "Who raids you",
+    summary: "Raids now belong to a people, and results feed back.",
+    body: "Raids are launched by a specific neighbour — usually the angriest one — and their might scales the damage. Beating off a raid drains their grievance but costs standing on both sides; being overrun emboldens them. Border Watch improves your defence against everyone, but the durable fix is that nobody wants to raid a trading partner.",
+  },
+];
+
 const AGES_VICTORY: LibraryEntry[] = [
   {
     id: "victory-ascent",
@@ -224,6 +277,13 @@ const AGES_VICTORY: LibraryEntry[] = [
     title: "Harmony victory",
     summary: "Steward the woods instead of leaving them.",
     body: "Research Selective Cuts, then Stewardship. Build the Grove Sanctuary. Reach population ≥ 48, keep forest cover ≥ 30%, and Land Strain ≤ 20, then Claim Harmony on the Age tab. You do not need the Launch Pad.",
+  },
+  {
+    id: "victory-concord",
+    category: "ages",
+    title: "Concord victory",
+    summary: "Win the valley over instead of leaving it or out-living it.",
+    body: "Research Diplomacy then Concord, and build the Assembly Hall. Every neighbouring people must stand at Cordial or better, you need enough population to matter, and enough goods must have moved along your caravan routes to prove the peace is real, not bought yesterday. Then Claim Concord on the Age tab. It is the slowest path — trade and gifts take time to move standing — but it needs no rocket and no pristine forest.",
   },
 ];
 
@@ -356,6 +416,20 @@ function eventEntries(): LibraryEntry[] {
   });
 }
 
+function neighbourEntries(): LibraryEntry[] {
+  return NEIGHBOUR_LIST.map((n) => {
+    const spares = n.surplus.map((r) => RESOURCES[r].label).join(" and ");
+    const wants = n.wants.map((r) => RESOURCES[r].label).join(" and ");
+    return {
+      id: `neighbour-${n.id}`,
+      category: "neighbours" as const,
+      title: n.name,
+      summary: n.epithet,
+      body: `${n.blurb} They can spare ${spares} and will pay well for ${wants}. They start out ${STANCE_INFO[stanceFor(n.standingStart)].label.toLowerCase()} toward you.`,
+    };
+  });
+}
+
 export const LIBRARY_ENTRIES: LibraryEntry[] = [
   ...BASICS,
   ...resourceEntries(),
@@ -365,6 +439,8 @@ export const LIBRARY_ENTRIES: LibraryEntry[] = [
   ...AGES_VICTORY,
   ...ageEntries(),
   ...PRESSURE,
+  ...DIPLOMACY,
+  ...neighbourEntries(),
   ...seasonEntries(),
   ...eventEntries(),
 ];

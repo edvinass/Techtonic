@@ -10,6 +10,12 @@ import {
 } from "../data/balance";
 import { BUILDINGS } from "../data/buildings";
 import { TECHS } from "../data/techs";
+import {
+  concordRequirements,
+  createDiplomacy,
+  isNeighbourGround,
+  tickDiplomacy,
+} from "./diplomacy";
 import { DEPOSIT_STOCK, FERTILE_STOCK, generateMap } from "./mapgen";
 import { defaultPressure, seasonFoodMultiplier, tickPressure } from "./pressure";
 import { normalizePriorities, workerQuota } from "./priorities";
@@ -44,6 +50,7 @@ function defaultPriorities(): Priorities {
     construction: 1,
     research: 0,
     defence: 0,
+    trade: 0,
   };
 }
 
@@ -132,7 +139,7 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
   const cy = Math.floor(MAP_SIZE / 2);
 
   const state: GameState = {
-    schemaVersion: 5,
+    schemaVersion: 7,
     tick: 0,
     age: "stone",
     resources: { food: 96, wood: 80, stone: 32, metal: 0, knowledge: 8 },
@@ -151,11 +158,19 @@ export function createNewGame(seed = Date.now() % 1_000_000): GameState {
     population: { count: 5, housingCap: 8 },
     research: { unlocked: [], active: null },
     pressure: defaultPressure(seed),
+    diplomacy: createDiplomacy({ width: MAP_SIZE, height: MAP_SIZE, tiles }),
     rngSeed: seed,
     paused: false,
     outcome: "playing",
     starvationTicks: 0,
-    stats: { peakPop: 5, raidsSurvived: 0, raidsFailed: 0, woodHarvested: 0 },
+    stats: {
+      peakPop: 5,
+      raidsSurvived: 0,
+      raidsFailed: 0,
+      woodHarvested: 0,
+      goodsTraded: 0,
+      tributesPaid: 0,
+    },
     strain: 0,
   };
 
@@ -224,6 +239,9 @@ export function canPlaceBuilding(
   if (!tile) return { ok: false, reason: "Out of bounds" };
   if (tile.terrain === "water") return { ok: false, reason: "Cannot build on water" };
   if (occupied(state, x, y)) return { ok: false, reason: "Tile occupied" };
+  if (isNeighbourGround(state, x, y)) {
+    return { ok: false, reason: "That ground belongs to a neighbour" };
+  }
   if (def.requiresDeposit && tile.deposit !== def.requiresDeposit) {
     return { ok: false, reason: `Needs ${def.requiresDeposit} deposit` };
   }
@@ -365,6 +383,19 @@ export function claimHarmonyVictory(state: GameState): GameState {
   return next;
 }
 
+/** Claim Concord victory once every people in the valley stands with you. */
+export function claimConcordVictory(state: GameState): GameState {
+  if (state.outcome !== "playing") return state;
+  if (!concordRequirements(state).ready) return state;
+  const next = cloneState(state);
+  next.outcome = "victory";
+  next.paused = true;
+  next.stats.victoryKind = "concord";
+  next.pressure.lastBanner =
+    "Concord — three peoples sit at one table and the valley belongs to all of them.";
+  return next;
+}
+
 /** Reduce deposit / fertile stock; clear terrain when exhausted. Mutates `state`. */
 export function harvestDeposit(state: GameState, gx: number, gy: number, amount: number): number {
   const tile = tileAt(state, gx, gy);
@@ -464,6 +495,7 @@ function assignWorkers(state: GameState): {
   staff("stone", quota("stone"));
   staff("metal", quota("metal"));
   staff("defence", quota("defence"));
+  staff("trade", quota("trade"));
 
   // Do not auto-fill leftover people into open slots — Work quotas are hard caps.
 
@@ -580,6 +612,7 @@ export function tick(state: GameState): GameState {
 
   next.stats.peakPop = Math.max(next.stats.peakPop, next.population.count);
   tickRegrowth(next);
+  tickDiplomacy(next);
   tickPressure(next);
   return next;
 }

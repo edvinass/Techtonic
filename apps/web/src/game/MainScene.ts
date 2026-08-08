@@ -1,7 +1,9 @@
 import Phaser from "phaser";
 import { play } from "../audio/sfx";
 import { BUILDINGS } from "../data/buildings";
+import { NEIGHBOURS } from "../data/neighbours";
 import { RESOURCES } from "../data/resources";
+import { stanceFor } from "../sim/diplomacy";
 import { canPlaceBuilding } from "../sim/engine";
 import { tileRemainingPct } from "../sim/mapgen";
 import type { GameState, ResourceId, SeasonId, TerrainId, Tile } from "../sim/types";
@@ -20,7 +22,9 @@ import {
   syncCitizens,
   type Citizen,
 } from "./citizens";
+import { stepCaravans, type Caravan } from "./caravans";
 import { gridToScreen, screenToGrid, TILE_HEIGHT, TILE_WIDTH } from "./iso";
+import { drawCaravan, drawNeighbourCamp, stanceLabel } from "./neighbourArt";
 import {
   createRaiderArt,
   isRaiderArtCurrent,
@@ -125,6 +129,9 @@ export class MainScene extends Phaser.Scene {
   /** Visual-only raiding pack while `raidWarningTicks` is active. */
   private raiderGang: RaiderGang | null = null;
   private raiderGfx = new Map<number, RaiderNode>();
+  /** Visual-only trade carts mirroring live route progress. */
+  private caravans: Caravan[] = [];
+  private caravanGfx!: Phaser.GameObjects.Graphics;
   /** Saved roster waiting for a stable map origin before hydrate */
   private pendingCitizenHydrate: ReturnType<typeof snapshotCitizens> | null = null;
   private waterPulse = 0;
@@ -188,6 +195,8 @@ export class MainScene extends Phaser.Scene {
     this.buildingLayer = this.add.container(0, 0);
     this.citizenLayer = this.add.container(0, 0);
     this.raiderLayer = this.add.container(0, 0);
+    this.caravanGfx = this.add.graphics();
+    this.caravanGfx.setDepth(20_000);
     this.fxLayer = this.add.container(0, 0);
     this.ghost = this.add.graphics();
     this.ghost.setDepth(50_000);
@@ -391,6 +400,8 @@ export class MainScene extends Phaser.Scene {
     const mapSig = `${forestN}:${stockBuckets}`;
     const structureHash = `${state.age}:${state.pressure.season}:${state.buildings
       .map((b) => `${b.id}:${b.type}:${b.progress.toFixed(2)}:${b.x},${b.y}`)
+      .join("|")}:${state.diplomacy.neighbours
+      .map((n) => `${n.id}:${n.x},${n.y}:${stanceFor(n.standing)}`)
       .join("|")}:${this.scale.width}:${Math.floor(this.waterPulse / 480)}`;
     if (structureHash !== this.lastStructureHash || mapSig !== this.lastMapSig) {
       this.redrawStructure(state);
@@ -424,8 +435,10 @@ export class MainScene extends Phaser.Scene {
       }
     }
     this.raiderGang = stepRaiderGang(this.raiderGang, state, delta, ox, oy);
+    this.caravans = stepCaravans(this.caravans, state, delta, ox, oy);
     this.renderCitizens();
     this.renderRaiders();
+    this.renderCaravans();
     this.updateFloaters(delta);
 
     // Clear stale placement ghosts when not building (pointermove alone can leave them)
@@ -460,6 +473,16 @@ export class MainScene extends Phaser.Scene {
           ? `${name} (building… · click to cancel)`
           : `${name} · click for details`;
       return { key: `b:${building.id}`, label };
+    }
+
+    const camp = state.diplomacy.neighbours.find((n) => n.x === gx && n.y === gy);
+    if (camp) {
+      const def = NEIGHBOURS[camp.id];
+      const stance = stanceFor(camp.standing);
+      return {
+        key: `n:${camp.id}:${stance}`,
+        label: `${def?.name ?? camp.id} · ${stanceLabel(stance)} · open the Valley tab`,
+      };
     }
 
     const tile = state.map.tiles[gy * state.map.width + gx];
@@ -854,6 +877,35 @@ export class MainScene extends Phaser.Scene {
       g.setPosition(ox + sx, oy + sy - elev);
       g.setDepth(b.x + b.y + 0.5);
       this.buildingLayer.add(g);
+    }
+
+    for (const n of state.diplomacy.neighbours) {
+      const def = NEIGHBOURS[n.id];
+      if (!def) continue;
+      const { sx, sy } = gridToScreen(n.x, n.y);
+      const tile = state.map.tiles[n.y * state.map.width + n.x];
+      const elev = tile ? tileElevPx(tile) : 3;
+      const g = this.add.graphics();
+      drawNeighbourCamp(g, def, stanceFor(n.standing), this.waterPulse * 0.003);
+      g.setPosition(ox + sx, oy + sy - elev);
+      g.setDepth(n.x + n.y + 0.6);
+      this.buildingLayer.add(g);
+    }
+  }
+
+  private renderCaravans() {
+    this.caravanGfx.clear();
+    for (const cart of this.caravans) {
+      const def = NEIGHBOURS[cart.neighbourId];
+      if (!def) continue;
+      drawCaravan(this.caravanGfx, {
+        x: cart.x,
+        y: cart.y,
+        facingDx: cart.facingDx,
+        bobPhase: cart.bobPhase,
+        resource: cart.resource,
+        color: def.color,
+      });
     }
   }
 

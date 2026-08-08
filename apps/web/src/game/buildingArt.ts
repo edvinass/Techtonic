@@ -276,6 +276,15 @@ export function drawBuildingArt(
     case "grove_sanctuary":
       drawGroveSanctuary(g, alpha);
       break;
+    case "trade_post":
+      drawTradePost(g, alpha);
+      break;
+    case "envoy_hall":
+      drawEnvoyHall(g, alpha);
+      break;
+    case "assembly_hall":
+      drawAssemblyHall(g, alpha);
+      break;
   }
 
   if (progress < 1) {
@@ -284,7 +293,8 @@ export function drawBuildingArt(
       type === "factory" ||
       type === "reactor" ||
       type === "launch_pad" ||
-      type === "grove_sanctuary";
+      type === "grove_sanctuary" ||
+      type === "assembly_hall";
     const scaffoldH = tall ? 36 : 28;
     scaffold(g, alpha, scaffoldH);
     progressBar(g, progress, scaffoldH);
@@ -933,4 +943,97 @@ function drawGroveSanctuary(g: GameObjects.Graphics, a: number) {
   g.fillCircle(0, -8, 2.8);
   g.fillStyle(0xfff3c4, 0.35 * a);
   g.fillCircle(0, -9, 1.2);
+}
+
+function drawTradePost(g: GameObjects.Graphics, a: number) {
+  // Open-fronted counter with goods stacked either side and a signal pennant
+  const { base, top } = isoBox(g, 0, 2, HW - 8, HH - 4, 13, 0xd08a4a, a, {
+    top: 0xe0a060,
+  });
+  isoGableRoof(g, top, 8, 0x8a5a30, a);
+  isoWindow(g, base, 13, a, { ox: -9, oy: -7, w: 6, h: 5 });
+
+  // Bales and crates waiting for the next caravan
+  isoBox(g, -13, 8, 4, 2.2, 5, 0x6b8f4e, a, { top: 0x7fa85e, stroke: false });
+  isoBox(g, -10, 11, 3.4, 1.8, 4, 0x5a7a40, a, { top: 0x6b8f4e, stroke: false });
+  isoBox(g, 13, 8, 4, 2.2, 5, 0x8a8f98, a, { top: 0xa0a6ae, stroke: false });
+
+  // Pennant so traders can be spotted from across the valley
+  g.fillStyle(0x5a3d22, a);
+  g.fillRect(-1, -30, 2, 12);
+  fillPoly(
+    g,
+    [
+      { x: 1, y: -30 },
+      { x: 12, y: -26.5 },
+      { x: 1, y: -23 },
+    ],
+    0xe8a860,
+    0.95 * a,
+  );
+}
+
+function drawEnvoyHall(g: GameObjects.Graphics, a: number) {
+  const { base, top } = isoBox(g, 0, 2, HW - 5, HH - 3, 16, 0xc4a8e0, a, {
+    top: 0xd8c0f0,
+  });
+  isoGableRoof(g, top, 9, 0x8a7ab8, a);
+  isoWindow(g, base, 16, a, { ox: -12, oy: -9, w: 4.5, h: 6 });
+  isoWindow(g, base, 16, a, { ox: -4, oy: -9, w: 4.5, h: 6 });
+
+  // Colonnade across the open front
+  for (const x of [-11, -4, 3, 10]) {
+    isoBox(g, x, 10, 1.8, 1, 11, 0xe8e0f4, a, { top: 0xffffff, stroke: false });
+  }
+  // Guest banners, one per people of the valley
+  const banners = [0x9a6a4a, 0x5a9a8a, 0x7a6aaa];
+  banners.forEach((color, i) => {
+    const x = -9 + i * 9;
+    g.fillStyle(color, 0.85 * a);
+    g.fillRect(x, -30, 3.2, 9);
+  });
+  g.fillStyle(0xc9a227, 0.7 * a);
+  g.fillCircle(0, -34, 3);
+}
+
+function drawAssemblyHall(g: GameObjects.Graphics, a: number) {
+  // Wide stepped plinth — the table everyone can reach
+  const plinth = diamond(0, 4, HW - 2, HH - 1);
+  fillPoly(g, [plinth.N, plinth.E, plinth.S, plinth.W], 0x6a5a3a, 0.55 * a);
+  isoBox(g, 0, 3, HW - 6, HH - 3, 5, 0xb8a468, a, { top: 0xd0bc80, stroke: false });
+
+  const { top } = isoBox(g, 0, -2, HW - 11, HH - 6, 15, 0xe0c46a, a, {
+    top: 0xf0d888,
+  });
+  isoGableRoof(g, top, 10, 0xc9a227, a);
+
+  for (const x of [-13, -6.5, 0, 6.5, 13]) {
+    isoBox(g, x, 4, 1.9, 1, 13, 0xf2ebe0, a, { top: 0xffffff, stroke: false });
+  }
+
+  // Council dome and lantern
+  g.fillStyle(0xd8bc70, a);
+  g.fillCircle(0, -32, 8);
+  g.fillStyle(0xf0d888, 0.85 * a);
+  g.fillCircle(-2, -34, 5);
+  g.fillStyle(0xfff3c4, 0.5 * a);
+  g.fillCircle(0, -41, 2.6);
+
+  // Three pennants for three peoples
+  const banners = [0x9a6a4a, 0x5a9a8a, 0x7a6aaa];
+  banners.forEach((color, i) => {
+    const x = -12 + i * 12;
+    g.fillStyle(0x5a3d22, a);
+    g.fillRect(x, -26, 1.6, 10);
+    fillPoly(
+      g,
+      [
+        { x: x + 1.6, y: -26 },
+        { x: x + 8, y: -23.5 },
+        { x: x + 1.6, y: -21 },
+      ],
+      color,
+      0.9 * a,
+    );
+  });
 }

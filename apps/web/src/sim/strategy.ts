@@ -7,20 +7,44 @@ export interface TechModifiers {
   strainGainMult: number;
   woodGatherMult: number;
   regrowthMult: number;
+  tradeRateMult: number;
+  defenceMult: number;
+  standingDriftMult: number;
+  giftPowerMult: number;
+  extraRoutesPerPost: number;
 }
 
 export function techModifiers(state: GameState): TechModifiers {
   let strainGainMult = 1;
   let woodGatherMult = 1;
   let regrowthMult = 1;
+  let tradeRateMult = 1;
+  let defenceMult = 1;
+  let standingDriftMult = 1;
+  let giftPowerMult = 1;
+  let extraRoutesPerPost = 0;
   for (const id of state.research.unlocked) {
     const m = TECHS[id]?.modifiers;
     if (!m) continue;
     if (m.strainGainMult != null) strainGainMult *= m.strainGainMult;
     if (m.woodGatherMult != null) woodGatherMult *= m.woodGatherMult;
     if (m.regrowthMult != null) regrowthMult *= m.regrowthMult;
+    if (m.tradeRateMult != null) tradeRateMult *= m.tradeRateMult;
+    if (m.defenceMult != null) defenceMult *= m.defenceMult;
+    if (m.standingDriftMult != null) standingDriftMult *= m.standingDriftMult;
+    if (m.giftPowerMult != null) giftPowerMult *= m.giftPowerMult;
+    if (m.extraRoutesPerPost != null) extraRoutesPerPost += m.extraRoutesPerPost;
   }
-  return { strainGainMult, woodGatherMult, regrowthMult };
+  return {
+    strainGainMult,
+    woodGatherMult,
+    regrowthMult,
+    tradeRateMult,
+    defenceMult,
+    standingDriftMult,
+    giftPowerMult,
+    extraRoutesPerPost,
+  };
 }
 
 /** Share of non-water tiles that are living forest (or wood deposits). */

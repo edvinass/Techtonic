@@ -9,7 +9,8 @@ export type PriorityId =
   | "metal"
   | "construction"
   | "research"
-  | "defence";
+  | "defence"
+  | "trade";
 
 export type TerrainId = "grass" | "forest" | "rock" | "water" | "sand" | "fertile";
 
@@ -34,7 +35,10 @@ export type BuildingId =
   | "watchtower"
   | "palisade"
   | "storehouse"
-  | "grove_sanctuary";
+  | "grove_sanctuary"
+  | "trade_post"
+  | "envoy_hall"
+  | "assembly_hall";
 
 export type TechId =
   | "fire"
@@ -48,9 +52,14 @@ export type TechId =
   | "rocketry"
   | "selective_cuts"
   | "clearcutting"
-  | "stewardship";
+  | "stewardship"
+  | "trade"
+  | "caravan_charter"
+  | "border_watch"
+  | "diplomacy"
+  | "concord";
 
-export type VictoryKind = "ascent" | "harmony";
+export type VictoryKind = "ascent" | "harmony" | "concord";
 
 export type SeasonId = "spring" | "summer" | "autumn" | "winter";
 
@@ -72,6 +81,85 @@ export interface PressureState {
   foodMult: number;
   foodMultTicks: number;
   lastBanner: string | null;
+  /** Which neighbour sent the incoming / most recent raid */
+  raidSource: NeighbourId | null;
+}
+
+export type NeighbourId = "ridgeback" | "reed_folk" | "ash_wardens";
+
+/** How a neighbour currently regards the settlement. */
+export type StanceId = "hostile" | "wary" | "neutral" | "cordial" | "allied";
+
+export interface NeighbourDef {
+  id: NeighbourId;
+  name: string;
+  epithet: string;
+  blurb: string;
+  /** Direction from map centre used to site their camp */
+  dir: { dx: number; dy: number };
+  /** Goods they can spare — these are what you can import */
+  surplus: ResourceId[];
+  /** Goods they are short of — exporting these earns better rates */
+  wants: ResourceId[];
+  standingStart: number;
+  /** How quickly grievance builds while they dislike you (per tick) */
+  aggressionRate: number;
+  /** How much your Land Strain offends them (0–1) */
+  strainSensitivity: number;
+  /** Raid weight — how hard their warbands hit */
+  might: number;
+  color: number;
+}
+
+export interface NeighbourState {
+  id: NeighbourId;
+  /** −100 (blood feud) … 100 (sworn allies) */
+  standing: number;
+  /** 0–1 grievance; drives tribute demands and raids */
+  aggression: number;
+  /** Ticks before they will demand or raid again */
+  patience: number;
+  /** Ticks before another gift will move them */
+  giftCooldown: number;
+  /** Total goods delivered along routes with this neighbour */
+  traded: number;
+  /** Camp location on the map */
+  x: number;
+  y: number;
+}
+
+export interface TradeRoute {
+  id: string;
+  neighbourId: NeighbourId;
+  /** Resource you send out each tick */
+  give: ResourceId;
+  /** Resource their caravan brings back */
+  take: ResourceId;
+  /** Volume tier 1–3 */
+  weight: number;
+  /** Import accumulated so far, delivered when the caravan arrives */
+  pending: number;
+  /** 0–1 progress through the current caravan round trip */
+  progress: number;
+  /** Consecutive ticks the export could not be paid */
+  starvedTicks: number;
+  suspended: boolean;
+}
+
+export interface TributeDemand {
+  neighbourId: NeighbourId;
+  cost: Partial<Resources>;
+  /** Flavour line shown in the modal */
+  text: string;
+}
+
+export interface DiplomacyState {
+  neighbours: NeighbourState[];
+  routes: TradeRoute[];
+  /** Pending tribute ultimatum — pauses the game until answered */
+  demand: TributeDemand | null;
+  nextRouteSeq: number;
+  lastEnvoy: string | null;
 }
 
 export interface Tile {
@@ -105,11 +193,15 @@ export interface RunStats {
   raidsSurvived: number;
   raidsFailed: number;
   woodHarvested: number;
+  /** Total goods delivered by caravans in both directions */
+  goodsTraded: number;
+  /** Tribute demands paid rather than refused */
+  tributesPaid: number;
   victoryKind?: VictoryKind;
 }
 
 export interface GameState {
-  schemaVersion: 4 | 5 | 6;
+  schemaVersion: 4 | 5 | 6 | 7;
   tick: number;
   age: AgeId;
   resources: Resources;
@@ -129,6 +221,7 @@ export interface GameState {
     active: ActiveResearch | null;
   };
   pressure: PressureState;
+  diplomacy: DiplomacyState;
   rngSeed: number;
   paused: boolean;
   outcome: OutcomeId;
@@ -166,6 +259,10 @@ export interface BuildingDef {
   foodStorageBonus?: number;
   /** Gatherers deliver carried resources here (not at the work camp) */
   acceptsDropoff?: boolean;
+  /** Trade routes this building can host when complete */
+  routeSlots?: number;
+  /** Flat bonus to every neighbour's standing drift while complete */
+  envoyBonus?: number;
   color: number;
 }
 
@@ -176,6 +273,16 @@ export interface TechModifiersDef {
   woodGatherMult?: number;
   /** Multiplier on forest regrowth / strain ease */
   regrowthMult?: number;
+  /** Multiplier on goods received from trade routes */
+  tradeRateMult?: number;
+  /** Multiplier on defence readiness */
+  defenceMult?: number;
+  /** Multiplier on how fast standing improves over time */
+  standingDriftMult?: number;
+  /** Multiplier on standing gained from gifts */
+  giftPowerMult?: number;
+  /** Extra trade routes each Trade Post supports */
+  extraRoutesPerPost?: number;
 }
 
 export interface TechDef {

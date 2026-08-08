@@ -256,6 +256,43 @@ export function BuildingIcon({ id, size = 36, className }: Props) {
           <circle cx="18" cy="21" r="1.8" fill="#c9a227" />
         </svg>
       );
+    case "trade_post":
+      return (
+        <svg {...common}>
+          {ground}
+          {iso(18, 25, 10, 5, 7, hex, shade(hex, 0.72), shade(hex, 0.9))}
+          <path d="M7 17 L18 10 L29 17 L18 21 Z" fill="#8a5a30" />
+          <rect x="9" y="19" width="6" height="4" rx="0.5" fill="#6b8f4e" />
+          <rect x="21" y="19" width="6" height="4" rx="0.5" fill="#8a8f98" />
+          <rect x="17" y="6" width="2" height="6" rx="0.3" fill="#5a3d22" />
+          <path d="M19 6 L26 8 L19 10 Z" fill="#e8a860" />
+        </svg>
+      );
+    case "envoy_hall":
+      return (
+        <svg {...common}>
+          {ground}
+          {iso(18, 26, 11, 5.5, 8, hex, shade(hex, 0.72), shade(hex, 0.9))}
+          <path d="M6 17 L18 8 L30 17 L18 22 Z" fill="#8a7ab8" />
+          {[11, 15, 19, 23].map((x) => (
+            <rect key={x} x={x} y="17" width="2.2" height="7" rx="0.3" fill="#e8e0f4" />
+          ))}
+          <circle cx="18" cy="6" r="2.2" fill="#c9a227" />
+        </svg>
+      );
+    case "assembly_hall":
+      return (
+        <svg {...common}>
+          {ground}
+          {iso(18, 28, 12, 6, 6, hex, shade(hex, 0.72), shade(hex, 0.9))}
+          <path d="M5 18 L18 7 L31 18 L18 23 Z" fill="#c9a227" />
+          {[10, 14.5, 19, 23.5].map((x) => (
+            <rect key={x} x={x} y="18" width="2.4" height="8" rx="0.3" fill="#f2ebe0" />
+          ))}
+          <circle cx="18" cy="12" r="3.4" fill="#e8d488" />
+          <circle cx="18" cy="12" r="1.4" fill="#8a6a2a" />
+        </svg>
+      );
     default:
       return (
         <svg {...common}>

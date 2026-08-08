@@ -55,6 +55,7 @@ describe("pressure systems", () => {
       construction: 20,
       research: 20,
       defence: 0,
+      trade: 0,
     };
     state.pressure.nextRaidAt = state.tick + 1;
     state.pressure.raidWarningTicks = 0;
@@ -79,6 +80,7 @@ describe("pressure systems", () => {
       construction: 10,
       research: 10,
       defence: 60,
+      trade: 0,
     };
     expect(defenceReadiness(state)).toBeGreaterThan(0.3);
     state.pressure.nextRaidAt = state.tick + 999;
@@ -113,6 +115,7 @@ describe("pressure systems", () => {
       construction: 20,
       research: 20,
       defence: 40,
+      trade: 0,
     };
     state.pressure.pendingEventId = "wolves";
     state = resolveEventChoice(state, 0);

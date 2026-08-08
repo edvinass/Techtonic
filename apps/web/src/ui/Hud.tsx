@@ -16,8 +16,21 @@ import {
   housingDefenceCoverage,
   isTechExcluded,
 } from "../sim/strategy";
+import {
+  CONCORD_THRESHOLDS,
+  concordRequirements,
+  stanceFor,
+} from "../sim/diplomacy";
+import { STANCE_INFO } from "../data/neighbours";
+import { NeighboursPanel } from "./NeighboursPanel";
 import { applyWorkerCount, PRIORITY_IDS, workerTargets } from "../sim/priorities";
-import type { BuildingDef, PriorityId, ResourceId, Resources } from "../sim/types";
+import type {
+  BuildingDef,
+  PriorityId,
+  ResourceId,
+  Resources,
+  VictoryKind,
+} from "../sim/types";
 import { useGameStore } from "../store/gameStore";
 import { putSave } from "../api/client";
 import { BuildingIcon } from "./BuildingIcon";
@@ -32,6 +45,7 @@ const PRIORITY_LABELS: Record<PriorityId, string> = {
   construction: "Build",
   research: "Research",
   defence: "Defence",
+  trade: "Trade",
 };
 
 function buildingDetailRows(
@@ -88,7 +102,19 @@ function buildingDetailRows(
   return rows;
 }
 
-type SideTab = "build" | "priorities" | "tech" | "age";
+type SideTab = "build" | "priorities" | "tech" | "neighbours" | "age";
+
+const VICTORY_TITLES: Record<VictoryKind, string> = {
+  ascent: "Ascent",
+  harmony: "Harmony",
+  concord: "Concord",
+};
+
+const VICTORY_BLURBS: Record<VictoryKind, string> = {
+  ascent: "The launch succeeds. Your people leave the cradle of earth behind.",
+  harmony: "The woods endure. Your people choose the living world over the void.",
+  concord: "Three peoples sit at one table. Nobody had to lose the valley to win it.",
+};
 
 function canPay(resources: Resources, cost: Partial<Resources>): boolean {
   return (Object.keys(cost) as ResourceId[]).every((k) => resources[k] >= (cost[k] ?? 0));
@@ -111,6 +137,7 @@ export function Hud() {
   const research = useGameStore((s) => s.research);
   const tryAgeUp = useGameStore((s) => s.tryAgeUp);
   const tryHarmonyVictory = useGameStore((s) => s.tryHarmonyVictory);
+  const tryConcordVictory = useGameStore((s) => s.tryConcordVictory);
   const togglePause = useGameStore((s) => s.togglePause);
   const statusMessage = useGameStore((s) => s.statusMessage);
   const token = useGameStore((s) => s.token);
@@ -240,6 +267,11 @@ export function Hud() {
   const buildable = getBuildableTypes(state);
   const ageReq = ageUpRequirements(state);
   const harmonyReq = harmonyRequirements(state);
+  const concordReq = concordRequirements(state);
+  const worstNeighbour = state.diplomacy.neighbours.reduce(
+    (worst, n) => (n.standing < worst.standing ? n : worst),
+    state.diplomacy.neighbours[0],
+  );
   const defencePct = Math.round(defenceReadiness(state) * 100);
   const coverPct = Math.round(housingDefenceCoverage(state) * 100);
   const forestPct = Math.round(forestCoverRatio(state) * 100);
@@ -302,6 +334,11 @@ export function Hud() {
     { id: "priorities", label: "Work" },
     { id: "tech", label: "Tech", badge: state.research.active ? "…" : undefined },
     {
+      id: "neighbours",
+      label: "Valley",
+      badge: state.diplomacy.demand ? "!" : undefined,
+    },
+    {
       id: "age",
       label: "Age",
       badge: ageReq.ready ? "!" : undefined,
@@ -313,18 +350,10 @@ export function Hud() {
       {outcome !== "playing" && (
         <div className={`outcome-overlay ${outcome}`}>
           <div className="outcome-card">
-            <h2>
-              {outcome === "victory"
-                ? victoryKind === "harmony"
-                  ? "Harmony"
-                  : "Ascent"
-                : "Defeat"}
-            </h2>
+            <h2>{outcome === "victory" ? VICTORY_TITLES[victoryKind ?? "ascent"] : "Defeat"}</h2>
             <p>
               {outcome === "victory"
-                ? victoryKind === "harmony"
-                  ? "The woods endure. Your people choose the living world over the void."
-                  : "The launch succeeds. Your people leave the cradle of earth behind."
+                ? VICTORY_BLURBS[victoryKind ?? "ascent"]
                 : "Hunger and hardship empty the camp. The long climb ends here."}
             </p>
             <ul className="outcome-stats">
@@ -339,6 +368,12 @@ export function Hud() {
               </li>
               <li>
                 Wood harvested <strong>{Math.floor(state.stats.woodHarvested)}</strong>
+              </li>
+              <li>
+                Goods traded <strong>{Math.floor(state.stats.goodsTraded)}</strong>
+              </li>
+              <li>
+                Tributes paid <strong>{state.stats.tributesPaid}</strong>
               </li>
               <li>
                 Peak Land Strain <strong>{strain}</strong>
@@ -385,6 +420,17 @@ export function Hud() {
           >
             Strain {strain}
           </button>
+          {worstNeighbour && (
+            <button
+              type="button"
+              className="valley-pill as-button"
+              style={{ color: STANCE_INFO[stanceFor(worstNeighbour.standing)].color }}
+              title="Your coldest neighbour. Click for the Library on standing and tribute."
+              onClick={() => openLibrary("diplomacy-overview")}
+            >
+              Valley · {STANCE_INFO[stanceFor(worstNeighbour.standing)].label}
+            </button>
+          )}
         </div>
 
         <div className="resource-bar" role="group" aria-label="Resources">
@@ -927,6 +973,8 @@ export function Hud() {
           </section>
         )}
 
+        {!sideCollapsed && sideTab === "neighbours" && <NeighboursPanel state={state} />}
+
         {!sideCollapsed && sideTab === "age" && (
           <>
             {nextAge && (
@@ -1018,6 +1066,47 @@ export function Hud() {
                 }}
               >
                 Claim Harmony
+              </button>
+            </section>
+
+            <section className="age-up chrome-panel concord-panel">
+              <h3>Concord path</h3>
+              <p className="muted panel-hint">
+                Alternate victory: win the whole valley over instead of leaving it. Lowest
+                standing <strong>{Math.round(concordReq.lowestStanding)}</strong> · Goods traded{" "}
+                <strong>{Math.floor(concordReq.goodsTraded)}</strong>.{" "}
+                <button
+                  type="button"
+                  className="text-link"
+                  onClick={() => openLibrary("victory-concord")}
+                >
+                  How Concord works
+                </button>
+              </p>
+              <ul>
+                <li className={concordReq.hasTech ? "ok" : ""}>Research Concord</li>
+                <li className={concordReq.hasLandmark ? "ok" : ""}>Build Assembly Hall</li>
+                <li className={concordReq.hasPopulation ? "ok" : ""}>
+                  Population ≥ {CONCORD_THRESHOLDS.minPopulation}
+                </li>
+                <li className={concordReq.allCordial ? "ok" : ""}>
+                  Every people at standing ≥ {CONCORD_THRESHOLDS.minStanding}
+                </li>
+                <li className={concordReq.tradedEnough ? "ok" : ""}>
+                  Trade {CONCORD_THRESHOLDS.minTrade} goods along caravan routes
+                </li>
+              </ul>
+              <button
+                type="button"
+                className="primary concord"
+                disabled={!concordReq.ready}
+                onClick={() => {
+                  if (tryConcordVictory() && token) {
+                    void saveToSlot(saveSlot ?? 1);
+                  }
+                }}
+              >
+                Claim Concord
               </button>
             </section>
           </>

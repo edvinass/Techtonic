@@ -5,21 +5,25 @@ import type { Citizen, WorkKind } from "./citizens";
 import { mapTextResolution } from "./textRes";
 
 /** Bump when CitizenParts shape changes so MainScene can rebuild stale sprites (HMR-safe). */
-export const CITIZEN_ART_VERSION = 9;
+export const CITIZEN_ART_VERSION = 12;
 
-const SKIN = [0xf0c8a0, 0xe8b890, 0xd4a574, 0xc68642, 0x8d5524] as const;
-const HAIR = [0x2a1c10, 0x4a3020, 0x6b4423, 0xc4a060, 0x1a120c] as const;
-const TUNIC = [0x6b8f4e, 0x8a6238, 0x4a5a7a, 0xc4a574, 0x5a7a8a, 0xa67c52] as const;
-const BELT = [0x3a2818, 0x5a3d22, 0x4a3020] as const;
-const BOOT = [0x2a1c10, 0x3a2818, 0x1a120c] as const;
+const SKIN = [0xf4d4b0, 0xefc49a, 0xdcb07e, 0xc99258, 0x9a6640] as const;
+/** Mix of soft crops and warm tones — less “dark hooded” than raiders. */
+const HAIR = [0x3d2a18, 0x6a4a28, 0xa07840, 0xc8a868, 0x5a3c28, 0x8a6040] as const;
+/** Fresh village cloth — linen, sage, sky, rose — not muddy leather browns. */
+const TUNIC = [0x8fb86a, 0xe8d4b0, 0x6a8fb8, 0xd4a070, 0x7a9aa8, 0xc47878] as const;
+const BELT = [0x8a6a40, 0xa08050, 0x6a8a5a] as const;
+const BOOT = [0x6a4a30, 0x7a5a38, 0x5a4030] as const;
+/** Light apron wash for civilians (woven cloth, not armor). */
+const APRON = [0xf2e6d0, 0xe8e0c8, 0xd8c8a8] as const;
 
 const RESEARCH_ROBE = 0xf0f3f6;
 const RESEARCH_SASH = 0x5a8ab8;
 
-/** Leather + iron — readable as a watchman without looking like fantasy plate. */
-const GUARD_TUNIC = 0x4a3a2e;
-const GUARD_SASH = 0x8a6a3a;
-const GUARD_HELM = 0x5a4a3a;
+/** Village watch — teal sash + soft leather, distinct from raider crimson. */
+const GUARD_TUNIC = 0x5a6a58;
+const GUARD_SASH = 0xc4a050;
+const GUARD_HELM = 0x6a7a68;
 
 type OutfitMode = "civilian" | "research" | "guard";
 
@@ -51,6 +55,7 @@ export interface CitizenParts {
   outfitShoulders: Phaser.GameObjects.Ellipse;
   outfitSash: Phaser.GameObjects.Rectangle;
   outfitFold: Phaser.GameObjects.Rectangle;
+  outfitApron: Phaser.GameObjects.Rectangle;
   sleeveL: Phaser.GameObjects.Rectangle;
   sleeveR: Phaser.GameObjects.Rectangle;
   wrapL: Phaser.GameObjects.Rectangle;
@@ -78,6 +83,7 @@ export interface CitizenParts {
   skin: number;
   baseTunic: number;
   baseBelt: number;
+  baseApron: number;
   outfitMode: OutfitMode;
   blinkUntil: number;
   /** +1 faces screen-right, -1 faces screen-left; persists after walking stops. */
@@ -133,6 +139,7 @@ function makeBody(
   scene: Phaser.Scene,
   tunic: number,
   belt: number,
+  apron: number,
 ): {
   body: Phaser.GameObjects.Container;
   hem: Phaser.GameObjects.Ellipse;
@@ -140,15 +147,20 @@ function makeBody(
   shoulders: Phaser.GameObjects.Ellipse;
   sash: Phaser.GameObjects.Rectangle;
   fold: Phaser.GameObjects.Rectangle;
+  apronShape: Phaser.GameObjects.Rectangle;
 } {
-  const hem = scene.add.ellipse(0.4, 0.2, 9.5, 5, shade(tunic, 0.84));
-  const torso = scene.add.rectangle(0.3, -7, 7.5, 10, tunic);
-  torso.setStrokeStyle(1, shade(tunic, 0.55), 0.35);
-  const shoulders = scene.add.ellipse(0.2, -12.2, 9, 4.8, shade(tunic, 1.06));
-  const sash = scene.add.rectangle(0.3, -4.2, 8.2, 2, belt);
-  const fold = scene.add.rectangle(-1.4, -8.5, 1.2, 7, shade(tunic, 0.78), 0.45);
-  const body = scene.add.container(0, 0, [hem, torso, shoulders, sash, fold]);
-  return { body, hem, torso, shoulders, sash, fold };
+  const hem = scene.add.ellipse(0.4, 0.2, 10, 5.4, shade(tunic, 0.88));
+  const torso = scene.add.rectangle(0.3, -7, 7.6, 10.2, tunic);
+  torso.setStrokeStyle(1, shade(tunic, 0.72), 0.28);
+  const shoulders = scene.add.ellipse(0.2, -12.2, 9.2, 5, shade(tunic, 1.08));
+  // Soft woven sash — thinner, brighter than raider leather belts
+  const sash = scene.add.rectangle(0.3, -4, 8, 1.6, belt);
+  const fold = scene.add.rectangle(-1.5, -8.5, 1, 6.5, shade(tunic, 0.86), 0.35);
+  // Cloth apron front — reads as settler / craftsfolk
+  const apronShape = scene.add.rectangle(1.1, -5.2, 4.2, 7.2, apron, 0.88);
+  apronShape.setStrokeStyle(1, shade(apron, 0.78), 0.25);
+  const body = scene.add.container(0, 0, [hem, torso, shoulders, apronShape, sash, fold]);
+  return { body, hem, torso, shoulders, sash, fold, apronShape };
 }
 
 /** Soft white cowl — readable as scholar without a tall hat. */
@@ -162,14 +174,13 @@ function makeResearchHood(scene: Phaser.Scene): Phaser.GameObjects.Container {
   return hood;
 }
 
-/** Low leather cap — army-readable without covering the face. */
+/** Soft felt watch-cap — village militia, not raider hood. */
 function makeGuardHelm(scene: Phaser.Scene): Phaser.GameObjects.Container {
-  const brim = scene.add.ellipse(0.2, -20.2, 9.2, 3.2, shade(GUARD_HELM, 0.78));
-  const dome = scene.add.ellipse(0.1, -22.2, 8.2, 5.2, GUARD_HELM);
-  dome.setStrokeStyle(1, shade(GUARD_HELM, 0.55), 0.55);
-  const ridge = scene.add.rectangle(0.1, -23.4, 1.4, 3.2, shade(GUARD_SASH, 0.85));
-  const cheek = scene.add.ellipse(-3.2, -18.6, 2.4, 3.4, shade(GUARD_HELM, 0.9), 0.9);
-  const helm = scene.add.container(0, 0, [brim, dome, ridge, cheek]);
+  const brim = scene.add.ellipse(0.2, -20, 8.8, 2.8, shade(GUARD_HELM, 0.85));
+  const dome = scene.add.ellipse(0.1, -22, 7.6, 4.8, GUARD_HELM);
+  dome.setStrokeStyle(1, shade(GUARD_SASH, 0.9), 0.45);
+  const band = scene.add.rectangle(0.1, -20.4, 6.2, 1.1, GUARD_SASH, 0.9);
+  const helm = scene.add.container(0, 0, [brim, dome, band]);
   helm.setVisible(false);
   return helm;
 }
@@ -177,6 +188,7 @@ function makeGuardHelm(scene: Phaser.Scene): Phaser.GameObjects.Container {
 /**
  * Clean side-view head facing local +X.
  * Whole citizen flips via scale.x for the other direction.
+ * Hair stays on crown/back only so the eye sits in open face, not through a hair disc.
  */
 function makeHead(
   scene: Phaser.Scene,
@@ -193,47 +205,51 @@ function makeHead(
   pupil: Phaser.GameObjects.Arc;
   mouth: Phaser.GameObjects.Ellipse;
 } {
-  const neck = scene.add.rectangle(0, -13.5, 2.8, 3.2, shade(skin, 0.9));
-  const ear = scene.add.ellipse(-3.8, -18, 2, 2.6, shade(skin, 0.88));
-  const skull = scene.add.circle(0.6, -18.2, 5, skin);
-  skull.setStrokeStyle(1, shade(skin, 0.65), 0.3);
+  const neck = scene.add.rectangle(0, -13.5, 2.8, 3.2, shade(skin, 0.92));
+  const ear = scene.add.ellipse(-3.6, -18, 2, 2.6, shade(skin, 0.9));
+  const skull = scene.add.circle(0.4, -18.2, 5, skin);
+  skull.setStrokeStyle(1, shade(skin, 0.72), 0.22);
 
-  // Single visible eye looking forward (+X)
-  const eyeWhite = scene.add.ellipse(1.6, -18.4, 2.2, 1.9, 0xfff8f0);
-  const eye = scene.add.circle(1.8, -18.4, 0.85, 0x2a1c10);
-  const pupil = scene.add.circle(2.1, -18.55, 0.35, 0xfff8e8, 0.9);
-  const brow = scene.add.ellipse(1.5, -19.6, 2.4, 0.8, shade(hairColor, 0.9), 0.85);
-  const nose = scene.add.ellipse(4.0, -17.6, 2.2, 1.8, shade(skin, 0.86));
-  const mouth = scene.add.ellipse(1.8, -15.4, 1.8, 0.9, shade(skin, 0.72), 0.7);
-  const cheek = scene.add.circle(2.4, -16.4, 1.1, shade(skin, 0.8), 0.28);
+  // Profile socket: small eye between mid-face and nose (not a big cheek disc)
+  const eyeWhite = scene.add.ellipse(2.1, -18.9, 1.35, 1.15, 0xfffaf4);
+  const eye = scene.add.circle(2.2, -18.9, 0.42, 0x2e2218);
+  const pupil = scene.add.circle(2.32, -19.0, 0.16, 0xfff8e8, 0.9);
+  const brow = scene.add.ellipse(2.0, -19.7, 1.5, 0.4, shade(hairColor, 0.9), 0.45);
+  const nose = scene.add.ellipse(4.0, -17.8, 1.7, 1.5, shade(skin, 0.9));
+  const mouth = scene.add.ellipse(2.0, -15.5, 1.5, 0.75, shade(skin, 0.78), 0.7);
+  const cheek = scene.add.circle(1.4, -16.6, 0.9, shade(0xe88a78, 1), 0.16);
 
   const face = scene.add.container(0, 0, [cheek, eyeWhite, brow, eye, pupil, nose, mouth]);
 
-  const hair = scene.add.circle(-0.4, -20.6, 5.1, hairColor);
+  // Crown cap only — bottom clears the brow (~-19.5) so the eye never sits in hair
+  const hair = scene.add.ellipse(-1.2, -22.4, 7.4, 4, hairColor);
   const hairExtras = scene.add.container(0, 0);
-  const hairStyle = style % 3;
+  const hairStyle = style % 4;
 
   if (hairStyle === 0) {
-    // Short crop
-    hairExtras.add(scene.add.ellipse(-3.8, -18.5, 2.4, 3.5, hairColor));
-    hairExtras.add(scene.add.ellipse(0, -22.8, 4.5, 2.6, shade(hairColor, 1.08)));
+    // Soft short crop — back + crown
+    hairExtras.add(scene.add.ellipse(-3.9, -19.4, 2.4, 3.2, hairColor));
+    hairExtras.add(scene.add.ellipse(-0.6, -23.6, 5, 2.4, shade(hairColor, 1.1)));
   } else if (hairStyle === 1) {
-    // Longer hair down the back
-    hairExtras.add(scene.add.ellipse(-3.5, -16, 3.5, 5.5, hairColor));
-    hairExtras.add(scene.add.ellipse(-2, -14, 3, 4, shade(hairColor, 0.95)));
-    hairExtras.add(scene.add.ellipse(0.5, -22.5, 4.2, 2.8, shade(hairColor, 1.1)));
+    // Shoulder-length down the back only
+    hairExtras.add(scene.add.ellipse(-3.9, -17.2, 2.8, 5.2, hairColor));
+    hairExtras.add(scene.add.ellipse(-2.8, -14.6, 2.4, 3.6, shade(hairColor, 0.96)));
+    hairExtras.add(scene.add.ellipse(-0.8, -23.4, 4.8, 2.4, shade(hairColor, 1.1)));
+  } else if (hairStyle === 2) {
+    // Neat bun
+    hairExtras.add(scene.add.ellipse(-3.7, -19.6, 2.2, 2.8, hairColor));
+    hairExtras.add(scene.add.circle(-1.6, -24.6, 2, hairColor));
+    hairExtras.add(scene.add.ellipse(-1.4, -23, 2.6, 1.5, shade(hairColor, 1.12)));
   } else {
-    // Bun
-    hairExtras.add(scene.add.ellipse(-3.6, -18.8, 2.2, 3, hairColor));
-    hairExtras.add(scene.add.circle(-1, -24.5, 2.3, hairColor));
-    hairExtras.add(scene.add.ellipse(-1, -22.8, 2.8, 1.8, shade(hairColor, 1.1)));
+    // Kerchief on crown + tidy back hair (no frontal fringe over the eye)
+    hairExtras.add(scene.add.ellipse(-3.7, -19.4, 2.2, 2.8, hairColor));
+    const kerchief = scene.add.ellipse(-1, -22.6, 6.8, 3, 0xe8dcc8, 0.9);
+    hairExtras.add(kerchief);
+    hairExtras.add(scene.add.ellipse(-0.6, -23.6, 4.2, 2, shade(0xe8dcc8, 1.05), 0.85));
   }
 
-  if (style % 5 === 2) {
-    hairExtras.add(scene.add.ellipse(1.2, -14.2, 3.8, 2.8, shade(hairColor, 0.9)));
-  }
-
-  const head = scene.add.container(0, 0, [neck, ear, skull, hair, hairExtras, face]);
+  // Back hair under skull; crown over skull; face last so the eye sits on open skin
+  const head = scene.add.container(0, 0, [neck, hairExtras, ear, skull, hair, face]);
   return { head, skull, hair, hairExtras, face, eye, pupil, mouth };
 }
 
@@ -274,20 +290,20 @@ function makeStaff(scene: Phaser.Scene): {
 }
 
 function makeSpear(scene: Phaser.Scene): Phaser.GameObjects.Container {
-  const shaft = scene.add.rectangle(0, 1, 1.35, 18, 0x6b4a2a);
-  const wrap = scene.add.rectangle(0, -4.5, 2.1, 2.2, GUARD_SASH);
-  const tip = scene.add.triangle(0, -9.5, 0, -5.5, 2.6, 0.5, -2.6, 0.5, 0xb0b6be);
-  tip.setStrokeStyle(1, 0x5a5f68, 0.55);
+  const shaft = scene.add.rectangle(0, 1, 1.3, 17, 0x8a6a40);
+  const wrap = scene.add.rectangle(0, -4.5, 2, 2, GUARD_SASH);
+  const tip = scene.add.triangle(0, -9.2, 0, -5, 2.4, 0.4, -2.4, 0.4, 0xc0c6ce);
+  tip.setStrokeStyle(1, 0x6a7078, 0.45);
   return scene.add.container(0, 0, [shaft, wrap, tip]);
 }
 
 function makeShield(scene: Phaser.Scene): Phaser.GameObjects.Container {
-  const disc = scene.add.ellipse(0, 0, 8.5, 9.5, 0x6b4a2a);
-  disc.setStrokeStyle(1.2, 0x3a2818, 0.7);
-  const face = scene.add.ellipse(0.2, -0.2, 6.2, 7, shade(0x8a6238, 1.05));
-  const boss = scene.add.circle(0.2, 0, 1.6, GUARD_SASH);
-  boss.setStrokeStyle(1, shade(GUARD_SASH, 0.65), 0.6);
-  const strap = scene.add.rectangle(-0.8, 0.5, 1.2, 4.5, 0x3a2818, 0.45);
+  const disc = scene.add.ellipse(0, 0, 8.2, 9, 0x7a8a70);
+  disc.setStrokeStyle(1.2, 0x4a5a40, 0.55);
+  const face = scene.add.ellipse(0.2, -0.2, 5.8, 6.6, shade(0xa8b890, 1.05));
+  const boss = scene.add.circle(0.2, 0, 1.5, GUARD_SASH);
+  boss.setStrokeStyle(1, shade(GUARD_SASH, 0.7), 0.5);
+  const strap = scene.add.rectangle(-0.8, 0.5, 1.1, 4.2, 0x5a4a30, 0.35);
   return scene.add.container(0, 0, [disc, face, strap, boss]);
 }
 
@@ -340,9 +356,10 @@ export function createCitizenArt(scene: Phaser.Scene, c: Citizen): CitizenNode {
   const tunic = TUNIC[c.id % TUNIC.length];
   const belt = BELT[c.id % BELT.length];
   const boot = BOOT[c.id % BOOT.length];
-  const sleeveColor = shade(tunic, 0.92);
+  const apron = APRON[c.id % APRON.length];
+  const sleeveColor = shade(tunic, 0.94);
 
-  const shadow = scene.add.ellipse(0, 3, 14, 5.5, 0x000000, 0.28);
+  const shadow = scene.add.ellipse(0, 3, 14, 5.5, 0x000000, 0.22);
 
   // Side view facing +X: legL/armL = back, legR/armR = front
   const { leg: legL, wrap: wrapL } = makeLeg(scene, -1.6, tunic, boot, true);
@@ -354,7 +371,8 @@ export function createCitizenArt(scene: Phaser.Scene, c: Citizen): CitizenNode {
     shoulders: outfitShoulders,
     sash: outfitSash,
     fold: outfitFold,
-  } = makeBody(scene, tunic, belt);
+    apronShape: outfitApron,
+  } = makeBody(scene, tunic, belt, apron);
   const { arm: armL, sleeve: sleeveL } = makeArm(scene, -3.2, skin, sleeveColor, true);
   const { arm: armR, sleeve: sleeveR } = makeArm(scene, 3.4, skin, sleeveColor, false);
   const { head, skull, hair, hairExtras, face, eye, pupil, mouth } = makeHead(
@@ -446,6 +464,7 @@ export function createCitizenArt(scene: Phaser.Scene, c: Citizen): CitizenNode {
     outfitShoulders,
     outfitSash,
     outfitFold,
+    outfitApron,
     sleeveL,
     sleeveR,
     wrapL,
@@ -473,6 +492,7 @@ export function createCitizenArt(scene: Phaser.Scene, c: Citizen): CitizenNode {
     skin,
     baseTunic: tunic,
     baseBelt: belt,
+    baseApron: apron,
     outfitMode: "civilian",
     blinkUntil: 0,
     lastFacing: 1,
@@ -489,23 +509,28 @@ function applyOutfit(parts: CitizenParts, mode: OutfitMode): void {
   const guard = mode === "guard";
   const tunic = research ? RESEARCH_ROBE : guard ? GUARD_TUNIC : parts.baseTunic;
   const belt = research ? RESEARCH_SASH : guard ? GUARD_SASH : parts.baseBelt;
-  const sleeve = shade(tunic, research ? 0.98 : guard ? 0.88 : 0.92);
+  const sleeve = shade(tunic, research ? 0.98 : guard ? 0.9 : 0.94);
 
-  parts.outfitHem.setFillStyle(shade(tunic, 0.84));
+  parts.outfitHem.setFillStyle(shade(tunic, research ? 0.9 : guard ? 0.82 : 0.88));
   parts.outfitTorso.setFillStyle(tunic);
   parts.outfitTorso.setStrokeStyle(
     1,
-    shade(tunic, research ? 0.7 : guard ? 0.5 : 0.55),
-    research ? 0.5 : guard ? 0.55 : 0.35,
+    shade(tunic, research ? 0.74 : guard ? 0.62 : 0.72),
+    research ? 0.45 : guard ? 0.4 : 0.28,
   );
-  parts.outfitShoulders.setFillStyle(shade(tunic, guard ? 0.95 : 1.06));
+  parts.outfitShoulders.setFillStyle(shade(tunic, guard ? 0.98 : 1.08));
   parts.outfitSash.setFillStyle(belt);
-  parts.outfitFold.setFillStyle(shade(tunic, 0.78), 0.45);
+  parts.outfitFold.setFillStyle(shade(tunic, 0.86), research ? 0.3 : 0.35);
+  // Apron only for civilians — robes/armor hide it
+  parts.outfitApron.setVisible(!research && !guard);
+  if (!research && !guard) {
+    parts.outfitApron.setFillStyle(parts.baseApron, 0.88);
+  }
 
   parts.sleeveL.setFillStyle(sleeve);
   parts.sleeveR.setFillStyle(sleeve);
-  parts.wrapL.setFillStyle(shade(tunic, 0.7));
-  parts.wrapR.setFillStyle(shade(tunic, 0.7));
+  parts.wrapL.setFillStyle(shade(tunic, 0.78));
+  parts.wrapR.setFillStyle(shade(tunic, 0.78));
 
   parts.researchHood.setVisible(research);
   parts.guardHelm.setVisible(guard);

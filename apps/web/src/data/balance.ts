@@ -23,10 +23,10 @@ export const STARVE_DEATH_TICKS = 22;
 
 /**
  * Age hunger curve — late ages demand more food per mouth.
- * Stone 1.00 → Space 1.60
+ * Stone 1.00 → Space 1.80 (keeps farms from trivializing mid/late food).
  */
 export function foodAgeMultiplier(age: AgeId): number {
-  return 1 + ageIndex(age) * 0.12;
+  return 1 + ageIndex(age) * 0.16;
 }
 
 /** Passive knowledge drip before research buildings are staffed. */

@@ -60,6 +60,7 @@ describe("strategy depth", () => {
       construction: 20,
       research: 20,
       defence: 20,
+      trade: 0,
     };
 
     const covered = createNewGame(9);

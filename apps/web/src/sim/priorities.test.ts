@@ -11,6 +11,7 @@ describe("worker priorities", () => {
       construction: 1,
       research: 0,
       defence: 0,
+      trade: 0,
     };
     expect(workerQuota(priorities, 5, "food")).toBe(2);
     expect(workerQuota(priorities, 5, "research")).toBe(0);
@@ -26,6 +27,7 @@ describe("worker priorities", () => {
       construction: 0,
       research: 0,
       defence: 0,
+      trade: 0,
     };
     expect(workerQuota(priorities, 5, "wood")).toBe(5);
     expect(workerQuota(priorities, 5, "food")).toBe(0);
@@ -40,6 +42,7 @@ describe("worker priorities", () => {
       construction: 1,
       research: 0,
       defence: 0,
+      trade: 0,
     };
     const next = applyWorkerCount(priorities, 5, "defence", 3);
     expect(next.defence).toBe(0);
@@ -54,6 +57,7 @@ describe("worker priorities", () => {
       construction: 1,
       research: 0,
       defence: 1,
+      trade: 0,
     });
   });
 });

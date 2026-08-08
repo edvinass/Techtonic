@@ -23,6 +23,7 @@ describe("citizen wood gathering", () => {
       construction: 5,
       research: 5,
       defence: 5,
+      trade: 0,
     };
     const woodTile = state.map.tiles.find((t) => t.deposit === "wood")!;
     state = placeBuilding(state, "lumber_camp", woodTile.x, woodTile.y);
@@ -79,6 +80,7 @@ describe("citizen wood gathering", () => {
       construction: 0,
       research: 0,
       defence: 0,
+      trade: 0,
     };
     const woodTile = state.map.tiles.find((t) => t.deposit === "wood")!;
     state = placeBuilding(state, "lumber_camp", woodTile.x, woodTile.y);
@@ -110,6 +112,7 @@ describe("citizen wood gathering", () => {
       construction: 0,
       research: 0,
       defence: 0,
+      trade: 0,
     };
     syncCitizens(citizens, state, ox, oy);
 
@@ -143,6 +146,7 @@ describe("citizen wood gathering", () => {
       construction: 0,
       research: 0,
       defence: 0,
+      trade: 0,
     };
     const woodTile = state.map.tiles.find((t) => t.deposit === "wood")!;
     const stoneTile = state.map.tiles.find((t) => t.deposit === "stone")!;
@@ -189,6 +193,7 @@ describe("citizen wood gathering", () => {
       construction: 0,
       research: 3,
       defence: 0,
+      trade: 0,
     };
     const house = state.buildings.find((b) => b.type === "house")!;
     state = placeBuilding(state, "research_hut", house.x + 2, house.y);
@@ -228,6 +233,7 @@ describe("citizen wood gathering", () => {
       construction: 0,
       research: 2,
       defence: 0,
+      trade: 0,
     };
 
     const ox = 400;
@@ -261,6 +267,7 @@ describe("citizen wood gathering", () => {
       construction: 0,
       research: 0,
       defence: 3,
+      trade: 0,
     };
     const house = state.buildings.find((b) => b.type === "house")!;
     state = placeBuilding(state, "watchtower", house.x + 2, house.y);
@@ -303,6 +310,7 @@ describe("citizen wood gathering", () => {
       construction: 0,
       research: 0,
       defence: 0,
+      trade: 0,
     };
     state.buildings.push({
       id: "b_scaffold",
@@ -342,6 +350,7 @@ describe("citizen wood gathering", () => {
       construction: 5,
       research: 0,
       defence: 0,
+      trade: 0,
     };
 
     // Stone clump with a reachable corner scaffold on rock
@@ -418,6 +427,7 @@ describe("citizen wood gathering", () => {
       construction: 0,
       research: 0,
       defence: 0,
+      trade: 0,
     };
 
     const bx = 20;
@@ -541,6 +551,7 @@ describe("citizen wood gathering", () => {
       construction: 0,
       research: 0,
       defence: 0,
+      trade: 0,
     };
     const woodTile = state.map.tiles.find((t) => t.deposit === "wood")!;
     state = placeBuilding(state, "lumber_camp", woodTile.x, woodTile.y);

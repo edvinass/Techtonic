@@ -24,6 +24,7 @@ export type WorkKind =
   | "farm"
   | "forage"
   | "defend"
+  | "trade"
   | "idle";
 
 const RESOURCES: ResourceId[] = ["food", "wood", "stone", "metal", "knowledge"];
@@ -34,8 +35,12 @@ const WORK_KINDS: WorkKind[] = [
   "farm",
   "forage",
   "defend",
+  "trade",
   "idle",
 ];
+
+/** Jobs where the worker stands a post rather than hauling goods. */
+const POST_WORK: WorkKind[] = ["defend", "trade"];
 
 export type CitizenJob =
   | { kind: "idle" }
@@ -444,6 +449,7 @@ function desiredAssignments(state: GameState): Assignment[] {
   let stoneBudget = quota(state, "stone");
   let metalBudget = quota(state, "metal");
   let defenceBudget = quota(state, "defence");
+  let tradeBudget = quota(state, "trade");
 
   const home = state.buildings.find((b) => b.type === "house") ?? state.buildings[0];
   const hasLumberCamp = state.buildings.some(
@@ -501,6 +507,13 @@ function desiredAssignments(state: GameState): Assignment[] {
   for (const b of state.buildings) {
     if (b.type === "watchtower") {
       defenceBudget -= staffBuilding(b, defenceBudget, "defend", null);
+    }
+  }
+
+  // Caravan crews staff trade buildings — an empty post ships nothing
+  for (const b of state.buildings) {
+    if (BUILDINGS[b.type].priority === "trade") {
+      tradeBudget -= staffBuilding(b, tradeBudget, "trade", null);
     }
   }
 
@@ -623,16 +636,17 @@ function startBuildTrip(
   };
 }
 
-/** Send a guard to stand watch near a completed tower. */
-function startDefendTrip(
+/** Send someone to stand a post — a tower watch or a trade post counter. */
+function startPostTrip(
   c: Citizen,
   state: GameState,
   ox: number,
   oy: number,
   buildingId: string,
+  work: WorkKind,
 ): void {
   const building = buildingById(state, buildingId);
-  if (!building || building.progress < 1 || building.type !== "watchtower") {
+  if (!building || building.progress < 1 || !isPostBuilding(building, work)) {
     c.job = { kind: "idle" };
     return;
   }
@@ -658,9 +672,15 @@ function startDefendTrip(
     kind: "walk",
     ...routed,
     buildingId,
-    work: "defend",
+    work,
     phase: "toSite",
   };
+}
+
+function isPostBuilding(building: BuildingInstance, work: WorkKind): boolean {
+  if (work === "defend") return building.type === "watchtower";
+  if (work === "trade") return BUILDINGS[building.type]?.priority === "trade";
+  return false;
 }
 
 export function syncCitizens(
@@ -801,13 +821,15 @@ export function syncCitizens(
         ? 0
         : x.work === "defend"
           ? 1
-          : x.work === "gather"
+          : x.work === "trade"
             ? 2
-            : x.work === "farm"
+            : x.work === "gather"
               ? 3
-              : x.work === "build"
+              : x.work === "farm"
                 ? 4
-                : 5;
+                : x.work === "build"
+                  ? 5
+                  : 6;
     return rank(a) - rank(b);
   });
 
@@ -818,8 +840,8 @@ export function syncCitizens(
     if (!a) break;
     if (a.work === "build") {
       startBuildTrip(c, state, ox, oy, a.buildingId);
-    } else if (a.work === "defend") {
-      startDefendTrip(c, state, ox, oy, a.buildingId);
+    } else if (POST_WORK.includes(a.work)) {
+      startPostTrip(c, state, ox, oy, a.buildingId, a.work);
     } else if (a.resource) {
       startGatherTrip(c, state, ox, oy, a.buildingId, a.work, a.resource);
     }
@@ -920,11 +942,11 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
       }
 
       if (c.job.phase === "toSite") {
-        if (c.job.work === "defend") {
+        if (POST_WORK.includes(c.job.work)) {
           c.job = {
             kind: "work",
             buildingId: c.job.buildingId,
-            work: "defend",
+            work: c.job.work,
             timer: 4200 + Math.random() * 2800,
           };
         } else {
@@ -952,7 +974,8 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
         c.job.resource === "food" && c.job.work === "farm"
           ? (() => {
               const t = state.map.tiles[c.job.tile.gy * state.map.width + c.job.tile.gx];
-              return t?.terrain === "fertile" ? 1.15 : 1;
+              // Fertile plots farm well; grass plots lag wild forage on rate alone.
+              return t?.terrain === "fertile" ? 1.15 : 0.85;
             })()
           : 1;
       // Forage jobs are anchored to a house — don't use house produce rates
@@ -1014,17 +1037,18 @@ export function stepCitizens(citizens: Citizen[], dt: number, ctx: CitizenStepCo
     if (c.job.kind === "work") {
       const building = buildingById(state, c.job.buildingId);
 
-      if (c.job.work === "defend") {
-        if (!building || building.progress < 1 || building.type !== "watchtower") {
+      if (POST_WORK.includes(c.job.work)) {
+        const work = c.job.work;
+        if (!building || building.progress < 1 || !isPostBuilding(building, work)) {
           c.job = { kind: "idle" };
           continue;
         }
-        // Slow watch-post sway; periodically re-post around the tower
+        // Slow post sway; periodically shuffle around the building
         c.x += Math.sin(c.bobPhase * 0.18) * 0.018;
         c.y += Math.cos(c.bobPhase * 0.16) * 0.01;
         c.job.timer -= dt;
         if (c.job.timer <= 0) {
-          startDefendTrip(c, state, ox, oy, building.id);
+          startPostTrip(c, state, ox, oy, building.id, work);
         }
         continue;
       }

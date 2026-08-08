@@ -1,7 +1,9 @@
+import { createDiplomacy } from "./diplomacy";
 import { DEPOSIT_STOCK, FERTILE_STOCK } from "./mapgen";
 import { defaultPressure } from "./pressure";
 import { normalizePriorities } from "./priorities";
 import type {
+  DiplomacyState,
   GameState,
   Priorities,
   PressureState,
@@ -34,7 +36,7 @@ export interface SavedCitizen {
 }
 
 export interface SavedGamePayload {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   tick: number;
   age: GameState["age"];
   resources: GameState["resources"];
@@ -44,6 +46,8 @@ export interface SavedGamePayload {
   population: GameState["population"];
   research: GameState["research"];
   pressure?: PressureState;
+  /** Neighbours, caravan routes, and pending ultimatums (schema v7+) */
+  diplomacy?: DiplomacyState;
   rngSeed: number;
   outcome?: GameState["outcome"];
   starvationTicks?: number;
@@ -82,7 +86,7 @@ function migrateTiles(tiles: Tile[]): Tile[] {
 
 export function serialize(state: GameState): SavedGamePayload {
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     tick: state.tick,
     age: state.age,
     resources: state.resources,
@@ -92,6 +96,7 @@ export function serialize(state: GameState): SavedGamePayload {
     population: state.population,
     research: state.research,
     pressure: state.pressure,
+    diplomacy: state.diplomacy,
     rngSeed: state.rngSeed,
     outcome: state.outcome,
     starvationTicks: state.starvationTicks,
@@ -100,41 +105,63 @@ export function serialize(state: GameState): SavedGamePayload {
   };
 }
 
+const SUPPORTED_SCHEMAS = [1, 2, 3, 4, 5, 6, 7];
+
+/** Fill in neighbours / routes for saves written before the Neighbours update. */
+function migrateDiplomacy(
+  payload: SavedGamePayload,
+  map: GameState["map"],
+): DiplomacyState {
+  const fresh = createDiplomacy(map);
+  const saved = payload.diplomacy;
+  if (!saved?.neighbours?.length) return fresh;
+  return {
+    // Keep freshly-sited camps for any people missing from an older blob
+    neighbours: fresh.neighbours.map((base) => {
+      const prior = saved.neighbours.find((n) => n.id === base.id);
+      return prior ? { ...base, ...prior } : base;
+    }),
+    routes: saved.routes ?? [],
+    demand: saved.demand ?? null,
+    nextRouteSeq: saved.nextRouteSeq ?? (saved.routes?.length ?? 0) + 1,
+    lastEnvoy: saved.lastEnvoy ?? null,
+  };
+}
+
 export function deserialize(payload: SavedGamePayload): GameState {
-  if (
-    payload.schemaVersion !== 1 &&
-    payload.schemaVersion !== 2 &&
-    payload.schemaVersion !== 3 &&
-    payload.schemaVersion !== 4 &&
-    payload.schemaVersion !== 5 &&
-    payload.schemaVersion !== 6
-  ) {
+  if (!SUPPORTED_SCHEMAS.includes(payload.schemaVersion)) {
     throw new Error(`Unsupported save schema version: ${payload.schemaVersion}`);
   }
+  const map = {
+    width: payload.map.width,
+    height: payload.map.height,
+    tiles: migrateTiles(payload.map.tiles),
+  };
+  const pressure = payload.pressure ?? defaultPressure(payload.rngSeed);
   const state: GameState = {
-    schemaVersion: 5,
+    schemaVersion: 7,
     tick: payload.tick,
     age: payload.age,
     resources: payload.resources,
     priorities: normalizePriorities(payload.priorities),
-    map: {
-      width: payload.map.width,
-      height: payload.map.height,
-      tiles: migrateTiles(payload.map.tiles),
-    },
+    map,
     buildings: payload.buildings,
     population: payload.population,
     research: payload.research,
-    pressure: payload.pressure ?? defaultPressure(payload.rngSeed),
+    pressure: { ...pressure, raidSource: pressure.raidSource ?? null },
+    diplomacy: migrateDiplomacy(payload, map),
     rngSeed: payload.rngSeed,
     paused: false,
     outcome: payload.outcome ?? "playing",
     starvationTicks: payload.starvationTicks ?? 0,
-    stats: payload.stats ?? {
-      peakPop: payload.population.count,
-      raidsSurvived: 0,
-      raidsFailed: 0,
-      woodHarvested: 0,
+    stats: {
+      peakPop: payload.stats?.peakPop ?? payload.population.count,
+      raidsSurvived: payload.stats?.raidsSurvived ?? 0,
+      raidsFailed: payload.stats?.raidsFailed ?? 0,
+      woodHarvested: payload.stats?.woodHarvested ?? 0,
+      goodsTraded: payload.stats?.goodsTraded ?? 0,
+      tributesPaid: payload.stats?.tributesPaid ?? 0,
+      ...(payload.stats?.victoryKind ? { victoryKind: payload.stats.victoryKind } : {}),
     },
     strain: payload.strain ?? 0,
   };

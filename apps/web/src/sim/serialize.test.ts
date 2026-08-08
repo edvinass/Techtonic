@@ -26,7 +26,7 @@ describe("serialize", () => {
       pressure: undefined,
     };
     const restored = deserialize(v1);
-    expect(restored.schemaVersion).toBe(5);
+    expect(restored.schemaVersion).toBe(7);
     expect(restored.strain).toBe(0);
     expect(restored.pressure.season).toBe("spring");
     expect(restored.pressure.nextRaidAt).toBeGreaterThan(0);
@@ -60,7 +60,7 @@ describe("serialize", () => {
   it("preserves citizen snapshots on the save payload", () => {
     const state = createNewGame(12);
     const payload = serialize(state);
-    expect(payload.schemaVersion).toBe(6);
+    expect(payload.schemaVersion).toBe(7);
     payload.citizens = [
       {
         id: 0,
@@ -79,6 +79,49 @@ describe("serialize", () => {
     expect(payload.citizens?.[0].ly).toBe(80);
   });
 
+  it("seeds diplomacy when loading a save from before the neighbours", () => {
+    const state = createNewGame(31);
+    const payload = serialize(state);
+    const legacy = {
+      ...payload,
+      schemaVersion: 6 as const,
+      diplomacy: undefined,
+    };
+    const restored = deserialize(legacy);
+    expect(restored.diplomacy.neighbours.length).toBeGreaterThan(0);
+    expect(restored.diplomacy.routes).toEqual([]);
+    expect(restored.diplomacy.demand).toBeNull();
+    expect(restored.stats.goodsTraded).toBe(0);
+    expect(restored.stats.tributesPaid).toBe(0);
+    expect(restored.priorities.trade).toBe(0);
+    // Camps must land on real, non-water ground or citizens can never reach them
+    for (const n of restored.diplomacy.neighbours) {
+      const tile = restored.map.tiles[n.y * restored.map.width + n.x];
+      expect(tile).toBeDefined();
+      expect(tile.terrain).not.toBe("water");
+    }
+  });
+
+  it("round-trips live trade routes and standing", () => {
+    let state = createNewGame(32);
+    state.diplomacy.neighbours[0].standing = 42;
+    state.diplomacy.routes.push({
+      id: "r1",
+      neighbourId: state.diplomacy.neighbours[0].id,
+      give: "wood",
+      take: "stone",
+      weight: 2,
+      pending: 3.5,
+      progress: 0.25,
+      starvedTicks: 0,
+      suspended: false,
+    });
+    state = tick(state);
+    const restored = deserialize(serialize(state));
+    expect(restored.diplomacy.routes).toEqual(state.diplomacy.routes);
+    expect(restored.diplomacy.neighbours).toEqual(state.diplomacy.neighbours);
+  });
+
   it("migrates legacy Gather (production) priority into wood", () => {
     const state = createNewGame(12);
     const payload = serialize(state);
@@ -91,6 +134,7 @@ describe("serialize", () => {
         research: 0,
         production: 3,
         defence: 0,
+        trade: 0,
       },
     };
     const restored = deserialize(legacy);

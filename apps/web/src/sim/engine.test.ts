@@ -46,6 +46,7 @@ describe("sim engine", () => {
       construction: 0,
       research: 0,
       defence: 0,
+      trade: 0,
     };
     state = runTicks(state, 2);
     const camp = state.buildings.find((b) => b.type === "lumber_camp");
@@ -141,6 +142,7 @@ describe("sim engine", () => {
       construction: 0,
       research: 0,
       defence: 0,
+      trade: 0,
     };
     state.population.count = 5;
     const before = state.buildings.find((b) => b.id === "b50")!.progress;

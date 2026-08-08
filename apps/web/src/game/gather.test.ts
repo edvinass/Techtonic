@@ -181,7 +181,7 @@ describe("gather rules", () => {
     const farmRate = gatherRateFor(state, farm, "food", { hasTools: false });
     expect(campRate).toBeCloseTo(GATHER_PER_SEC.wood * 1.15, 5);
     expect(wildRate).toBeLessThan(campRate);
-    expect(farmRate).toBeCloseTo(GATHER_PER_SEC.food * 1.0, 5);
+    expect(farmRate).toBeCloseTo(GATHER_PER_SEC.food * 0.7, 5);
   });
 
   it("applies clearcutting wood doctrine to gather rate", () => {

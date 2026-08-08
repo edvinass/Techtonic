@@ -3,6 +3,7 @@ import { putSave } from "../api/client";
 import { PhaserGame } from "../game/PhaserGame";
 import { AGES } from "../data/ages";
 import { useGameStore } from "../store/gameStore";
+import { DemandModal } from "./DemandModal";
 import { EventModal } from "./EventModal";
 import { Hud } from "./Hud";
 
@@ -62,6 +63,7 @@ export function GameScreen() {
       <PhaserGame />
       <Hud />
       <EventModal />
+      <DemandModal />
     </div>
   );
 }

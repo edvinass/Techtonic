@@ -52,6 +52,16 @@ export function PriorityIcon({ id, size = 22, className }: Props) {
           <path d="M5.5 8 L7.2 9.7 L10.8 5.8" fill="none" stroke="#f2ebe0" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
+    case "trade":
+      return (
+        <svg {...common}>
+          <path d="M2 6.5 L8 2 L14 6.5 V13 H2 Z" fill="#d08a4a" opacity="0.35" />
+          <path d="M2.5 9 H10.5" stroke="#e8a860" strokeWidth="1.5" strokeLinecap="round" />
+          <path d="M9 6.8 L11.5 9 L9 11.2" fill="none" stroke="#e8a860" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="4.5" cy="12.4" r="1.5" fill="#8a5a30" />
+          <circle cx="11" cy="12.4" r="1.5" fill="#8a5a30" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -65,4 +75,5 @@ export const PRIORITY_ACCENT: Record<PriorityId, string> = {
   construction: "#c9a227",
   research: "#7eb8e8",
   defence: "#6fa85a",
+  trade: "#d08a4a",
 };

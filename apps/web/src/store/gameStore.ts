@@ -5,6 +5,7 @@ import {
   advanceAge,
   applyConstructionProgress,
   cancelConstruction,
+  claimConcordVictory,
   claimHarmonyVictory,
   createNewGame,
   harvestDeposit,
@@ -14,6 +15,14 @@ import {
   startResearch,
   tick,
 } from "../sim/engine";
+import {
+  closeRoute,
+  openRoute,
+  resolveDemand,
+  sendGift,
+  setRouteWeight,
+} from "../sim/diplomacy";
+import { NEIGHBOURS } from "../data/neighbours";
 import { resolveEventChoice } from "../sim/pressure";
 import {
   deserialize,
@@ -21,7 +30,14 @@ import {
   type SavedCitizen,
   type SavedGamePayload,
 } from "../sim/serialize";
-import type { BuildingId, GameState, Priorities, ResourceId, TechId } from "../sim/types";
+import type {
+  BuildingId,
+  GameState,
+  NeighbourId,
+  Priorities,
+  ResourceId,
+  TechId,
+} from "../sim/types";
 
 export type Screen = "auth" | "menu" | "game";
 
@@ -58,6 +74,20 @@ interface GameStore {
   research: (techId: TechId) => void;
   tryAgeUp: () => boolean;
   tryHarmonyVictory: () => boolean;
+  tryConcordVictory: () => boolean;
+  /** Open a caravan route with a neighbour. */
+  openTradeRoute: (
+    id: NeighbourId,
+    give: ResourceId,
+    take: ResourceId,
+    weight: number,
+  ) => void;
+  closeTradeRoute: (routeId: string) => void;
+  setTradeRouteWeight: (routeId: string, weight: number) => void;
+  /** Send a parcel of goods to buy standing. */
+  giftNeighbour: (id: NeighbourId, resource: ResourceId) => void;
+  /** Answer a pending tribute ultimatum. */
+  answerDemand: (pay: boolean) => void;
   togglePause: () => void;
   stepTick: () => void;
   setSaveMeta: (slot: number, at: number) => void;
@@ -84,6 +114,12 @@ interface GameStore {
 
 const TOKEN_KEY = "techtonic_token";
 const EMAIL_KEY = "techtonic_email";
+
+const VICTORY_STATUS: Record<NonNullable<GameState["stats"]["victoryKind"]>, string> = {
+  ascent: "Ascent victory — your people reach the stars!",
+  harmony: "Harmony victory — the living world endures!",
+  concord: "Concord victory — the whole valley stands with you!",
+};
 
 function readStoredAuth(): { token: string | null; email: string | null } {
   try {
@@ -251,6 +287,73 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return true;
   },
 
+  tryConcordVictory: () => {
+    const { state } = get();
+    if (!state) return false;
+    const next = claimConcordVictory(state);
+    if (next === state) return false;
+    play("victory_harmony");
+    set({
+      state: next,
+      statusMessage: "Concord victory — the whole valley stands with you!",
+    });
+    return true;
+  },
+
+  openTradeRoute: (id, give, take, weight) => {
+    const { state } = get();
+    if (!state) return;
+    const next = openRoute(state, id, give, take, weight);
+    if (next === state) {
+      play("place_fail");
+      set({ statusMessage: "Cannot open that route" });
+      return;
+    }
+    play("place");
+    set({ state: next, statusMessage: next.diplomacy.lastEnvoy });
+  },
+
+  closeTradeRoute: (routeId) => {
+    const { state } = get();
+    if (!state) return;
+    const next = closeRoute(state, routeId);
+    if (next === state) return;
+    play("ui");
+    set({ state: next, statusMessage: next.diplomacy.lastEnvoy });
+  },
+
+  setTradeRouteWeight: (routeId, weight) => {
+    const { state } = get();
+    if (!state) return;
+    const next = setRouteWeight(state, routeId, weight);
+    if (next === state) return;
+    play("ui");
+    set({ state: next });
+  },
+
+  giftNeighbour: (id, resource) => {
+    const { state } = get();
+    if (!state) return;
+    const next = sendGift(state, id, resource);
+    if (next === state) {
+      play("place_fail");
+      set({ statusMessage: `The ${NEIGHBOURS[id].name} will not hear you yet` });
+      return;
+    }
+    play("research_done");
+    set({ state: next, statusMessage: next.diplomacy.lastEnvoy });
+  },
+
+  answerDemand: (pay) => {
+    const { state } = get();
+    if (!state?.diplomacy.demand) return;
+    play("ui");
+    const next = resolveDemand(state, pay);
+    const banner = next.pressure.lastBanner;
+    if (banner) next.pressure.lastBanner = null;
+    set({ state: next, statusMessage: banner ?? "The envoys ride out." });
+  },
+
   togglePause: () => {
     const { state } = get();
     if (!state) return;
@@ -260,7 +363,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   stepTick: () => {
     const { state } = get();
-    if (!state || state.pressure.pendingEventId || state.outcome !== "playing") return;
+    if (
+      !state ||
+      state.pressure.pendingEventId ||
+      state.diplomacy.demand ||
+      state.outcome !== "playing"
+    ) {
+      return;
+    }
     const prev = state;
     const next = tick(state);
     const banner = next.pressure.lastBanner;
@@ -268,10 +378,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let status = banner;
     playTickSfx(prev, next, banner);
     if (next.outcome === "victory") {
-      status =
-        next.stats.victoryKind === "harmony"
-          ? "Harmony victory — the living world endures!"
-          : "Ascent victory — your people reach the stars!";
+      status = VICTORY_STATUS[next.stats.victoryKind ?? "ascent"];
     }
     if (next.outcome === "defeat") status = "Defeat — the settlement has fallen.";
     set({
@@ -370,8 +477,12 @@ function playTickSfx(prev: GameState, next: GameState, banner: string | null): v
     return;
   }
   if (next.outcome === "victory" && prev.outcome === "playing") {
-    play(next.stats.victoryKind === "harmony" ? "victory_harmony" : "victory_ascent");
+    play(next.stats.victoryKind === "ascent" ? "victory_ascent" : "victory_harmony");
     return;
+  }
+
+  if (next.diplomacy.demand && !prev.diplomacy.demand) {
+    play("event");
   }
 
   if (next.pressure.pendingEventId && !prev.pressure.pendingEventId) {
