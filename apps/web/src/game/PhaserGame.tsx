@@ -27,10 +27,20 @@ export function PhaserGame() {
         height,
       },
       input: {
-        mouse: { preventDefaultWheel: false },
+        mouse: {
+          preventDefaultWheel: false,
+        },
+      },
+      render: {
+        antialias: true,
+        roundPixels: false,
       },
     });
     gameRef.current = game;
+
+    // Prevent browser context menu so right-drag pan works
+    const blockMenu = (e: Event) => e.preventDefault();
+    host.addEventListener("contextmenu", blockMenu);
 
     const ro = new ResizeObserver((entries) => {
       const entry = entries[0];
@@ -42,6 +52,7 @@ export function PhaserGame() {
     ro.observe(host);
 
     return () => {
+      host.removeEventListener("contextmenu", blockMenu);
       ro.disconnect();
       game.destroy(true);
       gameRef.current = null;

@@ -113,9 +113,9 @@ export function Hud() {
       {!tutorialDismissed && (
         <div className="tutorial">
           <p>
-            Select a building on the right, then left-click a tile to place it (lumber camps need
-            forest dots). Staffed buildings show worker dots and floating +resources. WASD pan,
-            scroll zoom, right-drag pan. Research Fire → Farming, build a Granary, then age up.
+            Drag to pan (right/middle mouse, or left-drag when not building). WASD/arrows and
+            screen-edge also pan. Scroll to zoom. Select a building, then left-click to place —
+            citizens walk to jobs and work. Research Fire → Farming, build a Granary, age up.
           </p>
           <button type="button" onClick={dismissTutorial}>
             Got it
