@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createNewGame } from "../sim/engine";
 import type { GameState } from "../sim/types";
-import { findPath, isWalkable, nearestWalkable } from "./pathfinding";
+import { findPath, isWalkable, nearestWalkable, walkableFlood } from "./pathfinding";
 
 function paint(state: GameState, x: number, y: number, terrain: "water" | "rock" | "grass") {
   const t = state.map.tiles[y * state.map.width + x];
@@ -82,5 +82,20 @@ describe("pathfinding", () => {
     }
     paint(state, 41, 40, "grass");
     expect(nearestWalkable(state, { x: 40, y: 40 })).toEqual({ x: 41, y: 40 });
+  });
+
+  it("walkableFlood excludes lake islets", () => {
+    const state = createNewGame(6);
+    const home = state.buildings.find((b) => b.type === "house")!;
+    // Lake with a grass speck
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        paint(state, 10 + dx, 10 + dy, "water");
+      }
+    }
+    paint(state, 10, 10, "grass");
+    const reach = walkableFlood(state, { x: home.x, y: home.y });
+    expect(reach[home.y * state.map.width + home.x]).toBe(1);
+    expect(reach[10 * state.map.width + 10]).toBe(0);
   });
 });

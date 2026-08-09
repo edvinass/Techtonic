@@ -12,7 +12,10 @@ import {
 import {
   findPath,
   isWalkable,
+  nearestReachable,
   nearestWalkable,
+  tileInFlood,
+  walkableFlood,
   worldToGrid,
   type GridPos,
 } from "./pathfinding";
@@ -728,22 +731,41 @@ export function syncCitizens(
   const targetCount = Math.min(48, Math.max(0, state.population.count));
   const home =
     state.buildings.find((b) => b.type === "house") ?? state.buildings[0];
-  const homePos = home
-    ? worldPosAt(state, home.x, home.y, ox, oy)
-    : worldPosAt(state, Math.floor(state.map.width / 2), Math.floor(state.map.height / 2), ox, oy);
+  const homeTile: GridPos = home
+    ? { x: home.x, y: home.y }
+    : {
+        x: Math.floor(state.map.width / 2),
+        y: Math.floor(state.map.height / 2),
+      };
+  const homePos = worldPosAt(state, homeTile.x, homeTile.y, ox, oy);
+  // Mainland connected to home — never strand villagers on lake islets
+  const mainland = walkableFlood(state, homeTile);
+  const mapW = state.map.width;
 
-  // Nudge anyone stranded on water/rock back onto land (except quarry work on rock)
+  // Pull anyone off water/rock/islands back onto the home landmass
   for (const c of citizens) {
     const g = worldToGrid(c.x, c.y, ox, oy);
-    if (isWalkable(state, g.x, g.y)) continue;
+    const onMainland =
+      isWalkable(state, g.x, g.y) && tileInFlood(mainland, mapW, g.x, g.y);
+    if (onMainland) continue;
+
     const workingRock =
       (c.job.kind === "gather" && c.job.tile.gx === g.x && c.job.tile.gy === g.y) ||
       (c.job.kind === "walk" &&
         c.job.tile &&
         c.job.tile.gx === g.x &&
         c.job.tile.gy === g.y);
-    if (workingRock) continue;
-    const safe = nearestWalkable(state, g);
+    // Quarry/mine stands on rock beside mainland — keep them if the rock itself
+    // is the job tile and a mainland neighbour exists.
+    if (workingRock) {
+      const beside = nearestReachable(state, g, mainland, 2);
+      if (beside) continue;
+    }
+
+    const safe =
+      nearestReachable(state, g, mainland) ??
+      nearestReachable(state, homeTile, mainland) ??
+      nearestWalkable(state, homeTile);
     if (!safe) continue;
     const p = worldPosAt(state, safe.x, safe.y, ox, oy);
     c.x = p.x;
@@ -751,9 +773,12 @@ export function syncCitizens(
     // Repath so they don't immediately walk back into the hazard
     if (c.job.kind === "walk") {
       const dest = { x: c.job.tx, y: c.job.ty };
-      const goal = c.job.tile
-        ? nearestWalkable(state, { x: c.job.tile.gx, y: c.job.tile.gy })
+      const goalTile = c.job.tile
+        ? { x: c.job.tile.gx, y: c.job.tile.gy }
         : worldToGrid(dest.x, dest.y, ox, oy);
+      const goal =
+        nearestReachable(state, goalTile, mainland) ??
+        nearestWalkable(state, goalTile);
       const routed = routeWalk(c, state, ox, oy, dest, goal, {
         allowDetour: c.job.phase === "toDropoff" || c.job.work === "build",
       });
@@ -769,10 +794,20 @@ export function syncCitizens(
 
   while (citizens.length < targetCount) {
     const id = citizens.length ? Math.max(...citizens.map((c) => c.id)) + 1 : 0;
+    // Spawn on the house tile — random offsets near shore used to drop people
+    // in water, then nearestWalkable stranded them on islets.
+    const stand = walkableStandPoint(state, ox, oy, homeTile, {
+      x: homePos.x + (Math.random() - 0.5) * 24,
+      y: homePos.y + (Math.random() - 0.5) * 14,
+    });
+    const spawn =
+      tileInFlood(mainland, mapW, stand.tile.x, stand.tile.y)
+        ? stand
+        : { ...homePos, tile: homeTile };
     citizens.push({
       id,
-      x: homePos.x + (Math.random() - 0.5) * 40,
-      y: homePos.y + (Math.random() - 0.5) * 20,
+      x: spawn.x,
+      y: spawn.y,
       job: { kind: "idle" },
       bobPhase: Math.random() * Math.PI * 2,
       carrying: null,
@@ -910,7 +945,7 @@ export function syncCitizens(
       for (let attempt = 0; attempt < 8; attempt++) {
         const gx = anchor.x + Math.floor((Math.random() - 0.5) * 6);
         const gy = anchor.y + Math.floor((Math.random() - 0.5) * 6);
-        const spot = nearestWalkable(state, { x: gx, y: gy }, 3);
+        const spot = nearestReachable(state, { x: gx, y: gy }, mainland, 3);
         if (spot) {
           destTile = spot;
           break;

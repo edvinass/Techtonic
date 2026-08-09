@@ -163,3 +163,73 @@ export function nearestWalkable(state: GameState, pos: GridPos, maxR = 8): GridP
   }
   return null;
 }
+
+/**
+ * Flood-fill every walkable tile reachable from `origin` (8-connected, same
+ * rules as findPath). Used to keep villagers off lake islets.
+ */
+export function walkableFlood(state: GameState, origin: GridPos): Uint8Array {
+  const { width, height } = state.map;
+  const reach = new Uint8Array(width * height);
+  const start = isWalkable(state, origin.x, origin.y)
+    ? origin
+    : nearestWalkable(state, origin, 12);
+  if (!start) return reach;
+
+  const qx: number[] = [start.x];
+  const qy: number[] = [start.y];
+  reach[start.y * width + start.x] = 1;
+  let head = 0;
+  while (head < qx.length) {
+    const x = qx[head];
+    const y = qy[head];
+    head += 1;
+    for (const n of NEIGHBORS) {
+      const nx = x + n.x;
+      const ny = y + n.y;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const k = ny * width + nx;
+      if (reach[k]) continue;
+      const diagonal = n.x !== 0 && n.y !== 0;
+      if (diagonal) {
+        if (!isWalkable(state, x + n.x, y) || !isWalkable(state, x, y + n.y)) continue;
+      }
+      if (!isWalkable(state, nx, ny)) continue;
+      reach[k] = 1;
+      qx.push(nx);
+      qy.push(ny);
+    }
+  }
+  return reach;
+}
+
+export function tileInFlood(reach: Uint8Array, width: number, x: number, y: number): boolean {
+  if (x < 0 || y < 0 || x >= width || y >= reach.length / width) return false;
+  return reach[y * width + x] === 1;
+}
+
+/** Nearest walkable tile that belongs to a flood-fill (home mainland). */
+export function nearestReachable(
+  state: GameState,
+  pos: GridPos,
+  reach: Uint8Array,
+  maxR = 16,
+): GridPos | null {
+  const { width } = state.map;
+  if (isWalkable(state, pos.x, pos.y) && tileInFlood(reach, width, pos.x, pos.y)) {
+    return pos;
+  }
+  for (let r = 1; r <= maxR; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+        const x = pos.x + dx;
+        const y = pos.y + dy;
+        if (isWalkable(state, x, y) && tileInFlood(reach, width, x, y)) {
+          return { x, y };
+        }
+      }
+    }
+  }
+  return null;
+}
